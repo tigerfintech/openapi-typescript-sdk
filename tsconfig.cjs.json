@@ -6,7 +6,7 @@
     "lib": ["ES2020"],
     "outDir": "./dist/cjs",
     "declaration": false,
-    "sourceMap": true,
+    "sourceMap": false,
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

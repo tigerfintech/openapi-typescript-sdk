@@ -1,5 +1,5 @@
 {
-  "name": "tigeropen",
+  "name": "@tigeropenapi/tigeropen",
   "version": "0.1.0",
   "description": "老虎证券 OpenAPI TypeScript SDK",
   "main": "./dist/cjs/index.js",
