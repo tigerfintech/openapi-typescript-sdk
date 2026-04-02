@@ -1,0 +1,55 @@
+{
+  "name": "tigeropen",
+  "version": "0.1.0",
+  "description": "老虎证券 OpenAPI TypeScript SDK",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/types/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tigerfintech/openapi-sdks.git",
+    "directory": "typescript"
+  },
+  "homepage": "https://github.com/tigerfintech/openapi-sdks/tree/main/typescript#readme",
+  "bugs": {
+    "url": "https://github.com/tigerfintech/openapi-sdks/issues"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "tiger",
+    "openapi",
+    "sdk",
+    "trading",
+    "stock"
+  ],
+  "author": "Tiger Fintech",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.0",
+    "fast-check": "^3.15.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.2.0",
+    "ws": "^8.16.0"
+  }
+}
