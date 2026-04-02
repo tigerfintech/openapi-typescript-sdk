@@ -235,7 +235,7 @@ pc.disconnect();
 ## 项目结构
 
 ```
-typescript/
+openapi-typescript-sdk/
 ├── src/
 │   ├── config/    # 配置管理（ClientConfig、ConfigParser、动态域名）
 │   ├── signer/    # RSA 签名
