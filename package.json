@@ -1,7 +1,7 @@
 {
   "name": "@tigeropenapi/tigeropen",
   "version": "0.1.0",
-  "description": "老虎证券 OpenAPI TypeScript SDK",
+  "description": "Tiger Brokers OpenAPI TypeScript SDK for market data, trading, and real-time push",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/types/index.d.ts",
@@ -28,6 +28,7 @@
     "build:esm": "tsc -p tsconfig.json",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "prepublishOnly": "npm run build",
+    "publish:all": "npm run build && npm publish --registry https://registry.npmjs.org --access public && npm pkg set name=tigeropen && npm publish --registry https://registry.npmjs.org && npm pkg set name=@tigeropenapi/tigeropen",
     "test": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist"
