@@ -6,7 +6,7 @@
  */
 import type { ClientConfig } from '../config/client-config';
 import { getSignContent } from '../signer/sign-content';
-import { signWithRSA } from '../signer/signer';
+import { signWithRSA, verifyWithRSA } from '../signer/signer';
 import { TigerError } from './errors';
 import { RetryPolicy, defaultRetryPolicy } from './retry';
 import { parseApiResponse, type ApiResponse } from './api-response';
@@ -108,7 +108,9 @@ export class HttpClient {
 
       try {
         const body = await this.doHttpPost(params);
-        return parseApiResponse(body);
+        const response = parseApiResponse(body);
+        this.verifyResponseSign(params['timestamp'], response.sign);
+        return response;
       } catch (err) {
         lastErr = err as Error;
         if (!this.retryPolicy.shouldRetry(request.method)) {
@@ -154,7 +156,11 @@ export class HttpClient {
       }
 
       try {
-        return await this.doHttpPost(params);
+        const body = await this.doHttpPost(params);
+        // Verify response signature even for raw responses
+        const parsed = JSON.parse(body) as { sign?: string };
+        this.verifyResponseSign(params['timestamp'], parsed.sign);
+        return body;
       } catch (err) {
         lastErr = err as Error;
         if (!this.retryPolicy.shouldRetry(apiMethod)) {
@@ -166,8 +172,25 @@ export class HttpClient {
     throw lastErr;
   }
 
-  /** 延迟指定毫秒 */
+  /** Delay for the specified milliseconds */
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Verify the response signature using the tiger public key.
+   *
+   * @param timestamp - The timestamp sent in the request params
+   * @param signBase64 - The `sign` field from the response body
+   * @throws TigerError if the signature is missing or invalid
+   */
+  private verifyResponseSign(timestamp: string, signBase64: string | undefined): void {
+    if (!signBase64) {
+      throw new TigerError(-1, 'Response signature is missing');
+    }
+    const valid = verifyWithRSA(this.config.tigerPublicKey, timestamp, signBase64);
+    if (!valid) {
+      throw new TigerError(-1, 'Response signature verification failed');
+    }
   }
 }

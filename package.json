@@ -31,7 +31,8 @@
     "publish:all": "npm run build && npm publish --registry https://registry.npmjs.org --access public && npm pkg set name=tigeropen && npm publish --registry https://registry.npmjs.org && npm pkg set name=@tigeropenapi/tigeropen",
     "test": "vitest run",
     "test:watch": "vitest",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "proto:generate": "protoc --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=./src/push/pb --ts_proto_opt=esModuleInterop=true,outputEncodeMethods=true,outputJsonMethods=false,outputClientImpl=false -I=./proto ./proto/*.proto"
   },
   "keywords": [
     "tiger",
@@ -46,10 +47,13 @@
     "node": ">=16.0.0"
   },
   "devDependencies": {
-    "@types/ws": "^8.5.0",
+    "@types/node": "^25.6.0",
     "fast-check": "^3.15.0",
+    "ts-proto": "^2.11.6",
     "typescript": "^5.3.0",
-    "vitest": "^1.2.0",
-    "ws": "^8.16.0"
+    "vitest": "^1.2.0"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.12.0"
   }
 }

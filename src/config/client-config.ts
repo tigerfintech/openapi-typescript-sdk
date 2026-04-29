@@ -1,29 +1,37 @@
 /**
- * ClientConfig - 客户端配置管理
+ * ClientConfig - Client configuration management
  *
- * 聚合所有配置参数，支持：
- * - 代码直接设置
- * - 从 properties 配置文件加载
- * - 环境变量覆盖
+ * Aggregates all configuration parameters with support for:
+ * - Direct code configuration
+ * - Properties file loading (explicit path or auto-discovery)
+ * - Environment variable overrides
  *
- * 优先级：环境变量 > 代码设置（含配置文件） > 默认值
+ * Priority: environment variables > code options (incl. config file) > defaults
  */
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
 import { parsePropertiesString } from './config-parser';
 import { queryDomains, resolveDynamicServerUrl } from './domain';
 
-/** 默认值 */
+/** Default config file name */
+const CONFIG_FILE_NAME = 'tiger_openapi_config.properties';
+
+/** Defaults */
 const DEFAULT_LANGUAGE = 'zh_CN';
 const DEFAULT_TIMEOUT = 15;
 const DEFAULT_SERVER_URL = 'https://openapi.tigerfintech.com/gateway';
-const SANDBOX_SERVER_URL = 'https://openapi-sandbox.tigerfintech.com/gateway';
 
-/** 环境变量名 */
+/** Tiger public key for response signature verification (Base64-encoded) */
+const TIGER_PUBLIC_KEY =
+  'MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDNF3G8SoEcCZh2rshUbayDgLLrj6rKgzNMxDL2HSnKcB0+GPOsndqSv+a4IBu9+I3fyBp5hkyMMG2+AXugd9pMpy6VxJxlNjhX1MYbNTZJUT4nudki4uh+LMOkIBHOceGNXjgB+cXqmlUnjlqha/HgboeHSnSgpM3dKSJQlIOsDwIDAQAB';
+
+/** Environment variable names */
 const ENV_TIGER_ID = 'TIGEROPEN_TIGER_ID';
 const ENV_PRIVATE_KEY = 'TIGEROPEN_PRIVATE_KEY';
 const ENV_ACCOUNT = 'TIGEROPEN_ACCOUNT';
 
-/** 客户端配置接口 */
+/** Client configuration interface */
 export interface ClientConfig {
   tigerId: string;
   privateKey: string;
@@ -32,13 +40,13 @@ export interface ClientConfig {
   language: string;
   timezone?: string;
   timeout: number;
-  sandboxDebug: boolean;
   token?: string;
   tokenRefreshDuration?: number;
   serverUrl: string;
+  tigerPublicKey: string;
 }
 
-/** 创建配置时的选项参数 */
+/** Options for creating a client configuration */
 export interface ClientConfigOptions {
   tigerId?: string;
   privateKey?: string;
@@ -47,47 +55,89 @@ export interface ClientConfigOptions {
   language?: string;
   timezone?: string;
   timeout?: number;
-  sandboxDebug?: boolean;
   token?: string;
   tokenRefreshDuration?: number;
   serverUrl?: string;
-  /** 是否启用动态域名获取（默认 true） */
+  /** Enable dynamic domain resolution (default: true) */
   enableDynamicDomain?: boolean;
-  /** properties 配置文件路径（同步读取） */
+  /** Explicit properties file path (synchronous read) */
   propertiesFilePath?: string;
 }
 
 /**
- * 创建客户端配置。
+ * Load and parse a Java-style properties file.
  *
- * 优先级：环境变量 > 代码设置（含配置文件） > 默认值。
- * 必填字段 tigerId 和 privateKey 为空时抛出错误。
- *
- * @param options - 配置选项
- * @returns 完整的客户端配置对象
- * @throws tigerId 或 privateKey 为空时抛出错误
+ * @param filePath - Absolute or relative path to the properties file
+ * @returns Parsed key-value pairs, or empty object if the file cannot be read
  */
-export function createClientConfig(options: ClientConfigOptions): ClientConfig {
-  // 从配置文件加载（如果指定了路径）
+export function loadPropertiesFile(filePath: string): Record<string, string> {
+  try {
+    const content = readFileSync(filePath, 'utf-8');
+    return parsePropertiesString(content);
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Discover the config file by searching well-known locations.
+ *
+ * Search order:
+ * 1. `./tiger_openapi_config.properties` (current working directory)
+ * 2. `~/.tigeropen/tiger_openapi_config.properties` (home directory)
+ *
+ * @returns The resolved file path, or `undefined` if not found
+ */
+function discoverConfigFile(): string | undefined {
+  const candidates = [
+    join(process.cwd(), CONFIG_FILE_NAME),
+    join(homedir(), '.tigeropen', CONFIG_FILE_NAME),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Create a client configuration.
+ *
+ * When called with no arguments (or without `propertiesFilePath`), the function
+ * automatically searches for `tiger_openapi_config.properties` in the current
+ * directory and `~/.tigeropen/`. Discovered values serve as defaults; explicit
+ * options and environment variables take precedence.
+ *
+ * Priority: environment variables > code options > config file > defaults
+ *
+ * @param options - Configuration options (optional)
+ * @returns Complete client configuration object
+ * @throws When tigerId or privateKey is empty after all resolution
+ */
+export function createClientConfig(options?: ClientConfigOptions): ClientConfig {
+  const opts = options ?? {};
+
+  // Load properties: explicit path > auto-discovery
   let fileProps: Record<string, string> = {};
-  if (options.propertiesFilePath) {
-    try {
-      const content = readFileSync(options.propertiesFilePath, 'utf-8');
-      fileProps = parsePropertiesString(content);
-    } catch {
-      // 文件加载失败时静默跳过，后续校验会捕获必填字段缺失
+  if (opts.propertiesFilePath) {
+    fileProps = loadPropertiesFile(opts.propertiesFilePath);
+  } else {
+    const discovered = discoverConfigFile();
+    if (discovered) {
+      fileProps = loadPropertiesFile(discovered);
     }
   }
 
-  // 从配置文件提取值（代码设置优先于配置文件）
-  let tigerId = options.tigerId || fileProps['tiger_id'] || '';
-  let privateKey = options.privateKey || resolvePrivateKey(fileProps) || '';
-  let account = options.account || fileProps['account'] || '';
-  const license = options.license || fileProps['license'];
-  const language = options.language || fileProps['language'] || DEFAULT_LANGUAGE;
-  const timezone = options.timezone || fileProps['timezone'];
+  // Merge values (code options override config file)
+  let tigerId = opts.tigerId || fileProps['tiger_id'] || '';
+  let privateKey = opts.privateKey || resolvePrivateKey(fileProps) || '';
+  let account = opts.account || fileProps['account'] || '';
+  const license = opts.license || fileProps['license'];
+  const language = opts.language || fileProps['language'] || DEFAULT_LANGUAGE;
+  const timezone = opts.timezone || fileProps['timezone'];
 
-  // 环境变量覆盖（最高优先级）
+  // Environment variables override everything
   const envTigerId = process.env[ENV_TIGER_ID];
   const envPrivateKey = process.env[ENV_PRIVATE_KEY];
   const envAccount = process.env[ENV_ACCOUNT];
@@ -102,28 +152,24 @@ export function createClientConfig(options: ClientConfigOptions): ClientConfig {
     account = envAccount;
   }
 
-  // 校验必填字段
+  // Validate required fields
   if (!tigerId) {
     throw new Error(
-      `tigerId 不能为空，请通过 options.tigerId 或环境变量 ${ENV_TIGER_ID} 设置`
+      `tigerId is required. Set it via options.tigerId, a config file, or the ${ENV_TIGER_ID} environment variable.`
     );
   }
   if (!privateKey) {
     throw new Error(
-      `privateKey 不能为空，请通过 options.privateKey 或环境变量 ${ENV_PRIVATE_KEY} 设置`
+      `privateKey is required. Set it via options.privateKey, a config file, or the ${ENV_PRIVATE_KEY} environment variable.`
     );
   }
 
-  // 确定服务器 URL：sandbox > 动态域名 > 默认
-  const sandboxDebug = options.sandboxDebug ?? false;
-  const enableDynamicDomain = options.enableDynamicDomain ?? true;
+  // Resolve server URL: explicit > dynamic domain > default
+  const enableDynamicDomain = opts.enableDynamicDomain ?? true;
   let serverUrl: string;
-  if (sandboxDebug) {
-    serverUrl = SANDBOX_SERVER_URL;
-  } else if (options.serverUrl) {
-    serverUrl = options.serverUrl;
+  if (opts.serverUrl) {
+    serverUrl = opts.serverUrl;
   } else {
-    // 尝试动态域名获取
     let dynamicUrl = '';
     if (enableDynamicDomain) {
       const domainConf = queryDomains(license);
@@ -139,17 +185,17 @@ export function createClientConfig(options: ClientConfigOptions): ClientConfig {
     license,
     language,
     timezone,
-    timeout: options.timeout ?? DEFAULT_TIMEOUT,
-    sandboxDebug,
-    token: options.token,
-    tokenRefreshDuration: options.tokenRefreshDuration,
+    timeout: opts.timeout ?? DEFAULT_TIMEOUT,
+    token: opts.token,
+    tokenRefreshDuration: opts.tokenRefreshDuration,
     serverUrl,
+    tigerPublicKey: TIGER_PUBLIC_KEY,
   };
 }
 
 /**
- * 从 properties 键值对中解析私钥。
- * 优先级：private_key > private_key_pk8 > private_key_pk1
+ * Resolve private key from properties.
+ * Priority: private_key > private_key_pk8 > private_key_pk1
  */
 function resolvePrivateKey(props: Record<string, string>): string {
   return props['private_key'] || props['private_key_pk8'] || props['private_key_pk1'] || '';
