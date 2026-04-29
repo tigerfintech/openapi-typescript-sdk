@@ -10,9 +10,9 @@
  */
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
+import { homedir, networkInterfaces } from 'os';
 import { parsePropertiesString } from './config-parser';
-import { queryDomains, resolveDynamicServerUrl } from './domain';
+import { queryDomains, resolveDynamicServerUrl, resolveDynamicQuoteServerUrl } from './domain';
 
 /** Default config file name */
 const CONFIG_FILE_NAME = 'tiger_openapi_config.properties';
@@ -30,6 +30,7 @@ const TIGER_PUBLIC_KEY =
 const ENV_TIGER_ID = 'TIGEROPEN_TIGER_ID';
 const ENV_PRIVATE_KEY = 'TIGEROPEN_PRIVATE_KEY';
 const ENV_ACCOUNT = 'TIGEROPEN_ACCOUNT';
+const ENV_TOKEN = 'TIGEROPEN_TOKEN';
 
 /** Client configuration interface */
 export interface ClientConfig {
@@ -43,6 +44,10 @@ export interface ClientConfig {
   token?: string;
   tokenRefreshDuration?: number;
   serverUrl: string;
+  /** Quote server URL for quote-specific requests; falls back to serverUrl */
+  quoteServerUrl: string;
+  /** Device identifier (auto-detected MAC address) */
+  deviceId: string;
   tigerPublicKey: string;
 }
 
@@ -58,6 +63,8 @@ export interface ClientConfigOptions {
   token?: string;
   tokenRefreshDuration?: number;
   serverUrl?: string;
+  /** Explicit quote server URL; resolved dynamically if not set */
+  quoteServerUrl?: string;
   /** Enable dynamic domain resolution (default: true) */
   enableDynamicDomain?: boolean;
   /** Explicit properties file path (synchronous read) */
@@ -102,6 +109,24 @@ function discoverConfigFile(): string | undefined {
 }
 
 /**
+ * Auto-detect device identifier from the first non-internal MAC address.
+ *
+ * @returns MAC address string, or empty string if none found
+ */
+function detectDeviceId(): string {
+  const interfaces = networkInterfaces();
+  for (const [, addrs] of Object.entries(interfaces)) {
+    if (!addrs) continue;
+    for (const addr of addrs) {
+      if (!addr.internal && addr.mac && addr.mac !== '00:00:00:00:00:00') {
+        return addr.mac;
+      }
+    }
+  }
+  return '';
+}
+
+/**
  * Create a client configuration.
  *
  * When called with no arguments (or without `propertiesFilePath`), the function
@@ -133,6 +158,7 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
   let tigerId = opts.tigerId || fileProps['tiger_id'] || '';
   let privateKey = opts.privateKey || resolvePrivateKey(fileProps) || '';
   let account = opts.account || fileProps['account'] || '';
+  let token = opts.token || fileProps['token'];
   const license = opts.license || fileProps['license'];
   const language = opts.language || fileProps['language'] || DEFAULT_LANGUAGE;
   const timezone = opts.timezone || fileProps['timezone'];
@@ -141,6 +167,7 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
   const envTigerId = process.env[ENV_TIGER_ID];
   const envPrivateKey = process.env[ENV_PRIVATE_KEY];
   const envAccount = process.env[ENV_ACCOUNT];
+  const envToken = process.env[ENV_TOKEN];
 
   if (envTigerId) {
     tigerId = envTigerId;
@@ -150,6 +177,9 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
   }
   if (envAccount) {
     account = envAccount;
+  }
+  if (envToken) {
+    token = envToken;
   }
 
   // Validate required fields
@@ -167,6 +197,8 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
   // Resolve server URL: explicit > dynamic domain > default
   const enableDynamicDomain = opts.enableDynamicDomain ?? true;
   let serverUrl: string;
+  let quoteServerUrl: string;
+
   if (opts.serverUrl) {
     serverUrl = opts.serverUrl;
   } else {
@@ -178,6 +210,18 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
     serverUrl = dynamicUrl || DEFAULT_SERVER_URL;
   }
 
+  // Resolve quote server URL: explicit > dynamic domain > serverUrl fallback
+  if (opts.quoteServerUrl) {
+    quoteServerUrl = opts.quoteServerUrl;
+  } else {
+    let dynamicQuoteUrl = '';
+    if (enableDynamicDomain) {
+      const domainConf = queryDomains(license);
+      dynamicQuoteUrl = resolveDynamicQuoteServerUrl(domainConf, license);
+    }
+    quoteServerUrl = dynamicQuoteUrl || serverUrl;
+  }
+
   return {
     tigerId,
     privateKey,
@@ -186,9 +230,11 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
     language,
     timezone,
     timeout: opts.timeout ?? DEFAULT_TIMEOUT,
-    token: opts.token,
+    token,
     tokenRefreshDuration: opts.tokenRefreshDuration,
     serverUrl,
+    quoteServerUrl,
+    deviceId: detectDeviceId(),
     tigerPublicKey: TIGER_PUBLIC_KEY,
   };
 }
