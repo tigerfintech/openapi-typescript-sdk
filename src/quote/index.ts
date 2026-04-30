@@ -1,4 +1,4 @@
 /**
- * 行情模块导出
+ * Quote module exports
  */
-export { QuoteClient } from './quote-client';
+export { QuoteClient, parseOptionIdentifier } from './quote-client';

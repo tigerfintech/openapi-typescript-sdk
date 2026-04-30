@@ -1,12 +1,12 @@
 /**
- * HttpClient - HTTP 客户端
+ * HttpClient - HTTP client
  *
- * 封装 HTTP 请求、签名、重试、超时。
- * 使用 Node.js 内置 fetch（Node 18+）。
+ * Handles HTTP requests, signing, retry, and timeout.
+ * Uses Node.js built-in fetch (Node 18+).
  */
 import type { ClientConfig } from '../config/client-config';
 import { getSignContent } from '../signer/sign-content';
-import { signWithRSA } from '../signer/signer';
+import { signWithRSA, verifyWithRSA } from '../signer/signer';
 import { TigerError } from './errors';
 import { RetryPolicy, defaultRetryPolicy } from './retry';
 import { parseApiResponse, type ApiResponse } from './api-response';
@@ -24,32 +24,38 @@ const DEFAULT_SIGN_TYPE = 'RSA';
 const DEFAULT_VERSION = '2.0';
 
 /**
- * HttpClient 封装 HTTP 请求、签名、重试、超时
+ * HttpClient handles HTTP requests, signing, retry, and timeout
  */
 export class HttpClient {
   private config: ClientConfig;
   private retryPolicy: RetryPolicy;
+  /** Override the target URL (used by quote client to hit quote server) */
+  private targetUrl: string;
 
-  constructor(config: ClientConfig, retryPolicy?: RetryPolicy) {
+  constructor(config: ClientConfig, retryPolicy?: RetryPolicy, options?: { useQuoteServerUrl?: boolean }) {
     this.config = config;
     this.retryPolicy = retryPolicy ?? defaultRetryPolicy();
+    this.targetUrl = options?.useQuoteServerUrl ? config.quoteServerUrl : config.serverUrl;
   }
 
   /**
-   * 构造公共请求参数
+   * Build common request parameters
    */
-  private buildCommonParams(apiMethod: string, bizContent: string): Record<string, string> {
+  private buildCommonParams(apiMethod: string, bizContent: string, version?: string): Record<string, string> {
     const params: Record<string, string> = {
       tiger_id: this.config.tigerId,
       method: apiMethod,
       charset: DEFAULT_CHARSET,
       sign_type: DEFAULT_SIGN_TYPE,
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      version: DEFAULT_VERSION,
+      version: version || DEFAULT_VERSION,
       biz_content: bizContent,
     };
     if (this.config.language) {
       params['language'] = this.config.language;
+    }
+    if (this.config.deviceId) {
+      params['device_id'] = this.config.deviceId;
     }
     return params;
   }
@@ -63,7 +69,7 @@ export class HttpClient {
   }
 
   /**
-   * 发送 HTTP POST 请求
+   * Send HTTP POST request
    */
   private async doHttpPost(params: Record<string, string>): Promise<string> {
     const body = JSON.stringify(params);
@@ -76,7 +82,7 @@ export class HttpClient {
       headers['Authorization'] = this.config.token;
     }
 
-    const response = await fetch(this.config.serverUrl, {
+    const response = await fetch(this.targetUrl, {
       method: 'POST',
       headers,
       body,
@@ -87,11 +93,11 @@ export class HttpClient {
   }
 
   /**
-   * 执行结构化 API 请求，返回解析后的 ApiResponse。
-   * 供 QuoteClient/TradeClient 内部使用。
+   * Execute a structured API request, returning a parsed ApiResponse.
+   * Used internally by QuoteClient/TradeClient.
    */
   async executeRequest(request: ApiRequest): Promise<ApiResponse> {
-    const params = this.buildCommonParams(request.method, request.bizContent);
+    const params = this.buildCommonParams(request.method, request.bizContent, request.version);
     const sign = this.signParams(params);
     params['sign'] = sign;
 
@@ -108,7 +114,9 @@ export class HttpClient {
 
       try {
         const body = await this.doHttpPost(params);
-        return parseApiResponse(body);
+        const response = parseApiResponse(body);
+        this.verifyResponseSign(params['timestamp'], response.sign);
+        return response;
       } catch (err) {
         lastErr = err as Error;
         if (!this.retryPolicy.shouldRetry(request.method)) {
@@ -121,21 +129,21 @@ export class HttpClient {
   }
 
   /**
-   * 通用 API 调用方法。
+   * General-purpose API call method.
    *
-   * @param apiMethod - API 方法名（如 "market_state"、"place_order"）
-   * @param requestJson - 原始 biz_content JSON 字符串
-   * @returns 原始 response JSON 字符串，不做任何解析
+   * @param apiMethod - API method name (e.g. "market_state", "place_order")
+   * @param requestJson - Raw biz_content JSON string
+   * @returns Raw response JSON string, unparsed
    */
   async execute(apiMethod: string, requestJson: string): Promise<string> {
-    // 参数校验
+    // Parameter validation
     if (!apiMethod) {
-      throw new TigerError(-1, 'api_method 不能为空');
+      throw new TigerError(-1, 'api_method must not be empty');
     }
     try {
       JSON.parse(requestJson);
     } catch {
-      throw new TigerError(-1, 'request_json 不是有效的 JSON');
+      throw new TigerError(-1, 'request_json is not valid JSON');
     }
 
     const params = this.buildCommonParams(apiMethod, requestJson);
@@ -154,7 +162,11 @@ export class HttpClient {
       }
 
       try {
-        return await this.doHttpPost(params);
+        const body = await this.doHttpPost(params);
+        // Verify response signature even for raw responses
+        const parsed = JSON.parse(body) as { sign?: string };
+        this.verifyResponseSign(params['timestamp'], parsed.sign);
+        return body;
       } catch (err) {
         lastErr = err as Error;
         if (!this.retryPolicy.shouldRetry(apiMethod)) {
@@ -166,8 +178,25 @@ export class HttpClient {
     throw lastErr;
   }
 
-  /** 延迟指定毫秒 */
+  /** Delay for the specified milliseconds */
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Verify the response signature using the tiger public key.
+   *
+   * @param timestamp - The timestamp sent in the request params
+   * @param signBase64 - The `sign` field from the response body
+   * @throws TigerError if the signature is missing or invalid
+   */
+  private verifyResponseSign(timestamp: string, signBase64: string | undefined): void {
+    if (!signBase64) {
+      throw new TigerError(-1, 'Response signature is missing');
+    }
+    const valid = verifyWithRSA(this.config.tigerPublicKey, timestamp, signBase64);
+    if (!valid) {
+      throw new TigerError(-1, 'Response signature verification failed');
+    }
   }
 }

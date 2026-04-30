@@ -2,24 +2,28 @@
  * API 请求构造模块
  */
 
-/** API 请求接口 */
+/** API request interface */
 export interface ApiRequest {
-  /** API 方法名（如 "market_state"、"place_order"） */
+  /** API method name (e.g. "market_state", "place_order") */
   method: string;
-  /** 业务参数 JSON 字符串 */
+  /** Business parameters as JSON string */
   bizContent: string;
+  /** Optional API version override (default: "2.0") */
+  version?: string;
 }
 
 /**
- * 创建 API 请求，将业务参数序列化为 JSON 字符串作为 bizContent。
+ * Create an API request, serializing business parameters to JSON as bizContent.
  *
- * @param method - API 方法名
- * @param bizParams - 业务参数（对象、字符串或 null）
- * @returns ApiRequest 对象
+ * @param method - API method name
+ * @param bizParams - Business parameters (object, string, or null)
+ * @param version - Optional API version override
+ * @returns ApiRequest object
  */
 export function createApiRequest(
   method: string,
   bizParams: unknown,
+  version?: string,
 ): ApiRequest {
   let bizContent: string;
   if (typeof bizParams === 'string') {
@@ -29,5 +33,5 @@ export function createApiRequest(
   } else {
     bizContent = JSON.stringify(bizParams);
   }
-  return { method, bizContent };
+  return { method, bizContent, version };
 }

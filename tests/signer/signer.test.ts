@@ -5,14 +5,24 @@
  * 使用 crypto.generateKeyPairSync 生成测试密钥对。
  */
 import { describe, test, expect } from 'vitest';
-import { generateKeyPairSync, createPublicKey, KeyObject } from 'crypto';
+import { generateKeyPairSync } from 'crypto';
 import * as fc from 'fast-check';
 import { loadPrivateKey, signWithRSA, verifyWithRSA } from '../../src/signer/signer';
 
 /**
- * 生成 PKCS#1 格式的测试密钥对
+ * Extract the raw Base64 content from a PEM string (strip header/footer/newlines).
  */
-function generatePKCS1KeyPair(): { privateKeyPem: string; publicKey: KeyObject } {
+function pemToBase64(pem: string): string {
+  return pem
+    .replace(/-----BEGIN [A-Z ]+-----/g, '')
+    .replace(/-----END [A-Z ]+-----/g, '')
+    .replace(/\s+/g, '');
+}
+
+/**
+ * Generate a PKCS#1 test key pair, returning the private PEM and public key as Base64.
+ */
+function generatePKCS1KeyPair(): { privateKeyPem: string; publicKeyBase64: string } {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', {
     modulusLength: 2048,
     publicKeyEncoding: { type: 'spki', format: 'pem' },
@@ -20,14 +30,14 @@ function generatePKCS1KeyPair(): { privateKeyPem: string; publicKey: KeyObject }
   });
   return {
     privateKeyPem: privateKey as string,
-    publicKey: createPublicKey(publicKey as string),
+    publicKeyBase64: pemToBase64(publicKey as string),
   };
 }
 
 /**
- * 生成 PKCS#8 格式的测试密钥对
+ * Generate a PKCS#8 test key pair, returning the private PEM and public key as Base64.
  */
-function generatePKCS8KeyPair(): { privateKeyPem: string; publicKey: KeyObject } {
+function generatePKCS8KeyPair(): { privateKeyPem: string; publicKeyBase64: string } {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', {
     modulusLength: 2048,
     publicKeyEncoding: { type: 'spki', format: 'pem' },
@@ -35,14 +45,14 @@ function generatePKCS8KeyPair(): { privateKeyPem: string; publicKey: KeyObject }
   });
   return {
     privateKeyPem: privateKey as string,
-    publicKey: createPublicKey(publicKey as string),
+    publicKeyBase64: pemToBase64(publicKey as string),
   };
 }
 
 /**
- * 生成裸 Base64 编码的测试密钥对（无 PEM 头尾）
+ * Generate a raw Base64-encoded test key pair (no PEM header/footer).
  */
-function generateRawBase64KeyPair(): { rawBase64: string; publicKey: KeyObject } {
+function generateRawBase64KeyPair(): { rawBase64: string; publicKeyBase64: string } {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', {
     modulusLength: 2048,
     publicKeyEncoding: { type: 'spki', format: 'pem' },
@@ -51,7 +61,7 @@ function generateRawBase64KeyPair(): { rawBase64: string; publicKey: KeyObject }
   const rawBase64 = (privateKey as Buffer).toString('base64');
   return {
     rawBase64,
-    publicKey: createPublicKey(publicKey as string),
+    publicKeyBase64: pemToBase64(publicKey as string),
   };
 }
 
@@ -88,7 +98,7 @@ describe('loadPrivateKey', () => {
 
 describe('signWithRSA', () => {
   test('使用 PKCS#1 私钥签名并验签', () => {
-    const { privateKeyPem, publicKey } = generatePKCS1KeyPair();
+    const { privateKeyPem, publicKeyBase64 } = generatePKCS1KeyPair();
     const content = 'tiger_id=test123&timestamp=1234567890';
 
     const signature = signWithRSA(privateKeyPem, content);
@@ -98,16 +108,16 @@ describe('signWithRSA', () => {
     expect(() => Buffer.from(signature, 'base64')).not.toThrow();
 
     // 使用公钥验签
-    expect(verifyWithRSA(publicKey, content, signature)).toBe(true);
+    expect(verifyWithRSA(publicKeyBase64, content, signature)).toBe(true);
   });
 
   test('使用 PKCS#8 私钥签名并验签', () => {
-    const { privateKeyPem, publicKey } = generatePKCS8KeyPair();
+    const { privateKeyPem, publicKeyBase64 } = generatePKCS8KeyPair();
     const content = 'biz_content={}&method=market_state';
 
     const signature = signWithRSA(privateKeyPem, content);
     expect(signature).toBeTruthy();
-    expect(verifyWithRSA(publicKey, content, signature)).toBe(true);
+    expect(verifyWithRSA(publicKeyBase64, content, signature)).toBe(true);
   });
 
   test('不同内容产生不同签名', () => {
@@ -131,8 +141,8 @@ describe('signWithRSA', () => {
  * **Validates: Requirements 3.2**
  */
 describe('Property 4: RSA 签名-验签 round-trip', () => {
-  // 预先生成密钥对，避免每次迭代都生成（太慢）
-  const { privateKeyPem, publicKey } = generatePKCS1KeyPair();
+  // Pre-generate key pair to avoid generating on every iteration (too slow)
+  const { privateKeyPem, publicKeyBase64 } = generatePKCS1KeyPair();
 
   test('任意非空字符串签名后验签应成功', () => {
     fc.assert(
@@ -143,7 +153,7 @@ describe('Property 4: RSA 签名-验签 round-trip', () => {
           // 签名结果非空
           expect(signature.length).toBeGreaterThan(0);
           // 验签应成功
-          expect(verifyWithRSA(publicKey, content, signature)).toBe(true);
+          expect(verifyWithRSA(publicKeyBase64, content, signature)).toBe(true);
         },
       ),
       { numRuns: 100 },

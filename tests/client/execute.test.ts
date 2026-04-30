@@ -10,7 +10,7 @@ import { HttpClient } from '../../src/client/http-client';
 import { TigerError } from '../../src/client/errors';
 import type { ClientConfig } from '../../src/config/client-config';
 
-/** 创建测试用 ClientConfig */
+/** Create test ClientConfig */
 function makeTestConfig(overrides?: Partial<ClientConfig>): ClientConfig {
   return {
     tigerId: 'test_tiger_id',
@@ -18,8 +18,8 @@ function makeTestConfig(overrides?: Partial<ClientConfig>): ClientConfig {
     account: 'test_account',
     language: 'zh_CN',
     timeout: 15,
-    sandboxDebug: false,
     serverUrl: 'https://openapi.tigerfintech.com/gateway',
+    tigerPublicKey: 'test_public_key',
     ...overrides,
   };
 }
@@ -68,8 +68,9 @@ describe('HttpClient.execute', () => {
 
             const config = makeTestConfig();
             const client = new HttpClient(config);
-            // mock 签名函数避免需要真实私钥
+            // Mock sign and verification to avoid needing real keys
             (client as any).signParams = () => 'mock_sign';
+            (client as any).verifyResponseSign = () => {};
 
             await client.execute(apiMethod, requestJson);
 
@@ -99,6 +100,7 @@ describe('HttpClient.execute', () => {
 
       const client = new HttpClient(makeTestConfig());
       (client as any).signParams = () => 'mock_sign';
+      (client as any).verifyResponseSign = () => {};
 
       await client.execute('market_state', '{}');
 
@@ -137,6 +139,7 @@ describe('HttpClient.execute', () => {
 
             const client = new HttpClient(makeTestConfig());
             (client as any).signParams = () => 'mock_sign';
+            (client as any).verifyResponseSign = () => {};
 
             const result = await client.execute('market_state', '{}');
             expect(result).toBe(responseBody);

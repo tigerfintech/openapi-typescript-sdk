@@ -13,6 +13,8 @@ export interface ApiResponse {
   data: unknown;
   /** 服务器时间戳 */
   timestamp: number;
+  /** Response signature for verification */
+  sign?: string;
 }
 
 /**
