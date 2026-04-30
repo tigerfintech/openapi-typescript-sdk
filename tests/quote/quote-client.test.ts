@@ -52,7 +52,7 @@ describe('QuoteClient', () => {
       const result = await quoteClient.getBrief(['AAPL', 'GOOG']);
 
       expect(mockHttpClient.executeRequest).toHaveBeenCalledWith({
-        method: 'brief',
+        method: 'quote_real_time',
         bizContent: JSON.stringify({ symbols: ['AAPL', 'GOOG'] }),
       });
       expect(result).toEqual(mockData);
@@ -133,10 +133,12 @@ describe('QuoteClient', () => {
 
       const result = await quoteClient.getOptionChain('AAPL', '2024-01-19');
 
-      expect(mockHttpClient.executeRequest).toHaveBeenCalledWith({
-        method: 'option_chain',
-        bizContent: JSON.stringify({ symbol: 'AAPL', expiry: '2024-01-19' }),
-      });
+      // v3 API uses option_basic array with expiry as millisecond timestamp
+      const call = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
+      expect(call.method).toBe('option_chain');
+      expect(call.version).toBe('3.0');
+      const parsed = JSON.parse(call.bizContent);
+      expect(parsed.option_basic[0].symbol).toBe('AAPL');
       expect(result).toEqual(mockData);
     });
 
@@ -146,10 +148,13 @@ describe('QuoteClient', () => {
 
       const result = await quoteClient.getOptionBrief(['AAPL 240119C00150000']);
 
-      expect(mockHttpClient.executeRequest).toHaveBeenCalledWith({
-        method: 'option_brief',
-        bizContent: JSON.stringify({ identifiers: ['AAPL 240119C00150000'] }),
-      });
+      // v2 API uses option_basic array with parsed identifier fields
+      const call = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
+      expect(call.method).toBe('option_brief');
+      expect(call.version).toBe('2.0');
+      const parsed = JSON.parse(call.bizContent);
+      expect(parsed.option_basic).toBeDefined();
+      expect(parsed.option_basic[0].symbol).toBe('AAPL');
       expect(result).toEqual(mockData);
     });
 
@@ -159,10 +164,14 @@ describe('QuoteClient', () => {
 
       const result = await quoteClient.getOptionKline('AAPL 240119C00150000', 'day');
 
-      expect(mockHttpClient.executeRequest).toHaveBeenCalledWith({
-        method: 'option_kline',
-        bizContent: JSON.stringify({ identifier: 'AAPL 240119C00150000', period: 'day' }),
-      });
+      // v2 API uses option_query array with parsed identifier fields
+      const call = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
+      expect(call.method).toBe('option_kline');
+      expect(call.version).toBe('2.0');
+      const parsed = JSON.parse(call.bizContent);
+      expect(parsed.option_query).toBeDefined();
+      expect(parsed.option_query[0].symbol).toBe('AAPL');
+      expect(parsed.option_query[0].period).toBe('day');
       expect(result).toEqual(mockData);
     });
   });
