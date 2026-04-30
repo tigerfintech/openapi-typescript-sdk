@@ -122,4 +122,18 @@ export class TradeClient {
       account: this.account, id,
     });
   }
+
+  // === Aliases (get* prefix) ===
+
+  async getContract(symbol: string, secType: string): Promise<unknown> { return this.contract(symbol, secType); }
+  async getContracts(symbols: string[], secType: string): Promise<unknown> { return this.contracts(symbols, secType); }
+  async getQuoteContract(symbol: string, secType: string): Promise<unknown> { return this.quoteContract(symbol, secType); }
+  async getOrders(): Promise<unknown> { return this.orders(); }
+  async getActiveOrders(): Promise<unknown> { return this.activeOrders(); }
+  async getInactiveOrders(): Promise<unknown> { return this.inactiveOrders(); }
+  async getFilledOrders(): Promise<unknown> { return this.filledOrders(); }
+  async getPositions(): Promise<unknown> { return this.positions(); }
+  async getAssets(): Promise<unknown> { return this.assets(); }
+  async getPrimeAssets(): Promise<unknown> { return this.primeAssets(); }
+  async getOrderTransactions(id: number): Promise<unknown> { return this.orderTransactions(id); }
 }

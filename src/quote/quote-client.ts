@@ -133,7 +133,7 @@ export class QuoteClient {
         strike: parsed.strike,
       };
     });
-    return this.execute('option_brief', { option_basic: optionBasic });
+    return this.execute('option_brief', { option_basic: optionBasic }, '2.0');
   }
 
   /**
@@ -213,4 +213,45 @@ export class QuoteClient {
   async grabQuotePermission(): Promise<unknown> {
     return this.execute('grab_quote_permission');
   }
+
+  // === Aliases (get* prefix) ===
+
+  /** Alias for marketState */
+  async getMarketState(market: string): Promise<unknown> { return this.marketState(market); }
+  /** Alias for quoteRealTime */
+  async getBrief(symbols: string[]): Promise<unknown> { return this.quoteRealTime(symbols); }
+  /** Alias for kline */
+  async getKline(symbol: string, period: string): Promise<unknown> { return this.kline(symbol, period); }
+  /** Alias for timeline */
+  async getTimeline(symbols: string[]): Promise<unknown> { return this.timeline(symbols); }
+  /** Alias for tradeTick */
+  async getTradeTick(symbols: string[]): Promise<unknown> { return this.tradeTick(symbols); }
+  /** Alias for quoteDepth */
+  async getQuoteDepth(symbol: string): Promise<unknown> { return this.quoteDepth(symbol); }
+  /** Alias for optionExpiration */
+  async getOptionExpiration(symbol: string): Promise<unknown> { return this.optionExpiration(symbol); }
+  /** Alias for optionChain */
+  async getOptionChain(symbol: string, expiry: string): Promise<unknown> { return this.optionChain(symbol, expiry); }
+  /** Alias for optionBrief */
+  async getOptionBrief(identifiers: string[]): Promise<unknown> { return this.optionBrief(identifiers); }
+  /** Alias for optionKline */
+  async getOptionKline(identifier: string, period: string): Promise<unknown> { return this.optionKline(identifier, period); }
+  /** Alias for futureExchange */
+  async getFutureExchange(): Promise<unknown> { return this.futureExchange(); }
+  /** Alias for futureContracts */
+  async getFutureContracts(exchange: string): Promise<unknown> { return this.futureContracts(exchange); }
+  /** Alias for futureRealTimeQuote */
+  async getFutureRealTimeQuote(symbols: string[]): Promise<unknown> { return this.futureRealTimeQuote(symbols); }
+  /** Alias for futureKline */
+  async getFutureKline(symbol: string, period: string): Promise<unknown> { return this.futureKline(symbol, period); }
+  /** Alias for financialDaily */
+  async getFinancialDaily(symbol: string): Promise<unknown> { return this.financialDaily(symbol); }
+  /** Alias for financialReport */
+  async getFinancialReport(symbol: string): Promise<unknown> { return this.financialReport(symbol); }
+  /** Alias for corporateAction */
+  async getCorporateAction(symbol: string): Promise<unknown> { return this.corporateAction(symbol); }
+  /** Alias for capitalFlow */
+  async getCapitalFlow(symbol: string): Promise<unknown> { return this.capitalFlow(symbol); }
+  /** Alias for capitalDistribution */
+  async getCapitalDistribution(symbol: string): Promise<unknown> { return this.capitalDistribution(symbol); }
 }
