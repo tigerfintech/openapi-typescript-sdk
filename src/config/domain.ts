@@ -74,8 +74,33 @@ export function resolveDynamicServerUrl(
 }
 
 /**
- * 同步 HTTP GET 请求（Node.js 环境）。
- * 使用 child_process.execSync 实现同步请求，超时快速失败。
+ * Resolve the quote server URL from dynamic domain configuration.
+ * Uses the `{LICENSE}-QUOTE` key, falling back to empty string.
+ *
+ * @param domainConf - Domain configuration map from queryDomains
+ * @param license - License type (e.g. "TBNZ")
+ * @returns Quote server URL with gateway suffix, or empty string
+ */
+export function resolveDynamicQuoteServerUrl(
+  domainConf: Record<string, unknown>,
+  license?: string
+): string {
+  if (!domainConf || Object.keys(domainConf).length === 0) {
+    return '';
+  }
+
+  const key = license ? `${license}-QUOTE` : `${DOMAIN_KEY_COMMON}-QUOTE`;
+
+  if (typeof domainConf[key] === 'string') {
+    return (domainConf[key] as string) + GATEWAY_SUFFIX;
+  }
+
+  return '';
+}
+
+/**
+ * Synchronous HTTP GET request (Node.js environment).
+ * Uses child_process.execSync for synchronous requests with fast timeout.
  */
 function syncHttpGet(url: string, timeoutMs: number): string | null {
   try {

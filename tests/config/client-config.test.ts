@@ -56,7 +56,7 @@ describe('createClientConfig', () => {
     restoreEnv(savedEnv);
   });
 
-  it('通过选项设置所有字段', () => {
+  it('set all fields via options', () => {
     const config = createClientConfig({
       tigerId: 'test_tiger_id',
       privateKey: 'test_private_key',
@@ -64,7 +64,6 @@ describe('createClientConfig', () => {
       language: 'en_US',
       timezone: 'America/New_York',
       timeout: 30,
-      sandboxDebug: true,
     });
 
     expect(config.tigerId).toBe('test_tiger_id');
@@ -73,40 +72,32 @@ describe('createClientConfig', () => {
     expect(config.language).toBe('en_US');
     expect(config.timezone).toBe('America/New_York');
     expect(config.timeout).toBe(30);
-    expect(config.sandboxDebug).toBe(true);
   });
 
-  it('设置默认值', () => {
+  it('set default values', () => {
     const config = createClientConfig({
       tigerId: 'tid',
       privateKey: 'pk',
+      propertiesFilePath: '/nonexistent/path.properties',
     });
 
     expect(config.language).toBe('zh_CN');
     expect(config.timeout).toBe(15);
-    expect(config.sandboxDebug).toBe(false);
     expect(config.serverUrl).toBe('https://openapi.tigerfintech.com/gateway');
-  });
-
-  it('沙箱模式使用沙箱 URL', () => {
-    const config = createClientConfig({
-      tigerId: 'tid',
-      privateKey: 'pk',
-      sandboxDebug: true,
-    });
-
-    expect(config.serverUrl).toBe('https://openapi-sandbox.tigerfintech.com/gateway');
+    expect(config.tigerPublicKey).toBeTruthy();
   });
 
   it('缺少 tigerId 时抛出错误', () => {
     expect(() => createClientConfig({
       privateKey: 'pk',
+      propertiesFilePath: '/nonexistent/path.properties',
     } as ClientConfigOptions)).toThrow(/tiger_id|tigerId/i);
   });
 
   it('缺少 privateKey 时抛出错误', () => {
     expect(() => createClientConfig({
       tigerId: 'tid',
+      propertiesFilePath: '/nonexistent/path.properties',
     } as ClientConfigOptions)).toThrow(/private_key|privateKey/i);
   });
 
@@ -232,7 +223,7 @@ describe('Property 2: ClientConfig 字段设置 round-trip', () => {
     restoreEnv(savedEnv);
   });
 
-  it('任意有效配置参数设置后读取应一致', () => {
+  it('any valid config params should round-trip correctly', () => {
     fc.assert(
       fc.property(
         fc.record({
@@ -242,7 +233,6 @@ describe('Property 2: ClientConfig 字段设置 round-trip', () => {
           language: fc.constantFrom('zh_CN', 'zh_TW', 'en_US'),
           timezone: fc.stringMatching(/^[A-Za-z/_]{3,30}$/),
           timeout: fc.integer({ min: 1, max: 120 }),
-          sandboxDebug: fc.boolean(),
         }),
         (params) => {
           const config = createClientConfig({
@@ -252,17 +242,15 @@ describe('Property 2: ClientConfig 字段设置 round-trip', () => {
             language: params.language,
             timezone: params.timezone,
             timeout: params.timeout,
-            sandboxDebug: params.sandboxDebug,
           });
 
-          // 验证 round-trip
+          // Verify round-trip
           expect(config.tigerId).toBe(params.tigerId);
           expect(config.privateKey).toBe(params.privateKey);
           expect(config.account).toBe(params.account);
           expect(config.language).toBe(params.language);
           expect(config.timezone).toBe(params.timezone);
           expect(config.timeout).toBe(params.timeout);
-          expect(config.sandboxDebug).toBe(params.sandboxDebug);
         }
       ),
       { numRuns: 100 }

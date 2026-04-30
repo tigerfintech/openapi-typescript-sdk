@@ -1,228 +1,342 @@
 /**
- * PushClient - WebSocket 推送客户端
+ * PushClient - TCP + TLS push client (Protobuf protocol)
  *
- * 通过 WebSocket 长连接接收实时行情和账户推送。
- * 支持连接认证、订阅/退订、回调机制、心跳保活和自动重连。
+ * Connects to the push server via raw TCP + TLS to receive real-time
+ * market data and account push notifications.
+ * Uses varint32 length-prefixed + Protobuf binary frame format,
+ * aligned with the Java SDK's Netty + Protobuf implementation.
+ * Supports connection authentication, subscribe/unsubscribe, callbacks,
+ * heartbeat keep-alive, and automatic reconnection.
  */
+import * as tls from 'tls';
 import type { ClientConfig } from '../config/client-config';
 import { signWithRSA } from '../signer/signer';
 import type { Callbacks } from './callbacks';
+import { SubjectType } from './push-message';
+import { Request } from './pb/Request';
+import { Response } from './pb/Response';
+import { SocketCommon_Command, SocketCommon_DataType } from './pb/SocketCommon';
+import type { PushData } from './pb/PushData';
+import { encodeVarint32, decodeVarint32 } from './varint';
 import {
-  MessageType, SubjectType,
-  type PushMessage, type ConnectRequest, type SubscribeRequest,
-  type QuoteData, type TickData, type DepthData, type KlineData,
-  type AssetData, type PositionData, type OrderData, type TransactionData,
-  createPushMessage, serializeMessage, deserializeMessage,
-} from './push-message';
+  buildConnectMessage,
+  buildHeartBeatMessage,
+  buildSubscribeMessage,
+  buildUnSubscribeMessage,
+  buildDisconnectMessage,
+  subjectToDataType,
+} from './proto-message';
 
-/** 默认推送服务器地址 */
-const DEFAULT_PUSH_URL = 'wss://openapi-push.tigerfintech.com';
-/** 默认心跳间隔（毫秒） */
+/** Default push server host */
+const DEFAULT_PUSH_HOST = 'openapi.tigerfintech.com';
+/** Default push server port */
+const DEFAULT_PUSH_PORT = 9883;
+/** Default heartbeat interval (ms) */
 const DEFAULT_HEARTBEAT_INTERVAL = 10_000;
-/** 默认重连间隔（毫秒） */
+/** Default reconnect interval (ms) */
 const DEFAULT_RECONNECT_INTERVAL = 5_000;
-/** 最大重连间隔（毫秒） */
+/** Max reconnect interval (ms) */
 const MAX_RECONNECT_INTERVAL = 60_000;
-/** 默认连接超时（毫秒） */
+/** Default connect timeout (ms) */
 const DEFAULT_CONNECT_TIMEOUT = 30_000;
+/** SDK version identifier */
+const SDK_VERSION = 'typescript/0.1.0';
+/** Protocol version */
+const ACCEPT_VERSION = '1.0';
+/** Default send heartbeat interval (ms) */
+const DEFAULT_SEND_INTERVAL = 10_000;
+/** Default receive heartbeat interval (ms) */
+const DEFAULT_RECEIVE_INTERVAL = 10_000;
 
-/** 连接状态 */
+/** Connection state */
 export enum ConnectionState {
   Disconnected = 0,
   Connecting = 1,
   Connected = 2,
 }
 
-/** PushClient 配置选项 */
+/** PushClient configuration options */
 export interface PushClientOptions {
-  pushUrl?: string;
+  pushHost?: string;
+  pushPort?: number;
   heartbeatInterval?: number;
   reconnectInterval?: number;
   autoReconnect?: boolean;
   connectTimeout?: number;
+  useFullTick?: boolean;
 }
 
 /**
- * WebSocket 接口，方便测试注入
+ * TLS socket interface for test injection
  */
-export interface WebSocketLike {
-  readonly readyState: number;
-  send(data: string): void;
-  close(): void;
-  onopen: ((ev: unknown) => void) | null;
-  onmessage: ((ev: { data: unknown }) => void) | null;
-  onclose: ((ev: unknown) => void) | null;
-  onerror: ((ev: unknown) => void) | null;
+export interface TLSSocketLike {
+  write(data: Uint8Array): boolean;
+  destroy(): void;
+  on(event: 'data', listener: (chunk: Buffer) => void): this;
+  on(event: 'error', listener: (err: Error) => void): this;
+  on(event: 'close', listener: () => void): this;
+  on(event: 'connect', listener: () => void): this;
 }
 
-/** WebSocket 工厂函数类型 */
-export type WebSocketFactory = (url: string) => WebSocketLike;
+/** TLS socket factory function type */
+export type TLSSocketFactory = (host: string, port: number) => TLSSocketLike;
 
 /**
- * PushClient WebSocket 推送客户端
+ * PushClient - TCP + TLS push client (Protobuf protocol)
  */
 export class PushClient {
   private config: ClientConfig;
-  private pushUrl: string;
+  private pushHost: string;
+  private pushPort: number;
   private heartbeatInterval: number;
   private reconnectInterval: number;
   private autoReconnect: boolean;
   private connectTimeout: number;
+  private useFullTick: boolean;
 
-  private ws: WebSocketLike | null = null;
+  private socket: TLSSocketLike | null = null;
   private _state: ConnectionState = ConnectionState.Disconnected;
   private callbacks: Callbacks = {};
 
-  /** 订阅状态管理：subject -> Set<symbol> */
+  /** Subscription state: subject -> Set<symbol> */
   private subscriptions = new Map<SubjectType, Set<string>>();
-  /** 账户级别订阅 */
+  /** Account-level subscriptions */
   private accountSubs = new Set<SubjectType>();
 
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
 
-  /** 可注入的 WebSocket 工厂（用于测试） */
-  wsFactory: WebSocketFactory | null = null;
+  /** TCP stream receive buffer */
+  private recvBuffer: Buffer = Buffer.alloc(0);
+
+  /** Injectable TLS socket factory (for testing) */
+  socketFactory: TLSSocketFactory | null = null;
 
   constructor(config: ClientConfig, options?: PushClientOptions) {
     this.config = config;
-    this.pushUrl = options?.pushUrl ?? DEFAULT_PUSH_URL;
+    this.pushHost = options?.pushHost ?? DEFAULT_PUSH_HOST;
+    this.pushPort = options?.pushPort ?? DEFAULT_PUSH_PORT;
     this.heartbeatInterval = options?.heartbeatInterval ?? DEFAULT_HEARTBEAT_INTERVAL;
     this.reconnectInterval = options?.reconnectInterval ?? DEFAULT_RECONNECT_INTERVAL;
     this.autoReconnect = options?.autoReconnect ?? true;
     this.connectTimeout = options?.connectTimeout ?? DEFAULT_CONNECT_TIMEOUT;
+    this.useFullTick = options?.useFullTick ?? false;
   }
 
-  /** 获取当前连接状态 */
+  /** Get current connection state */
   get state(): ConnectionState {
     return this._state;
   }
 
-  /** 设置回调函数集合 */
+  /** Set callback functions */
   setCallbacks(cb: Callbacks): void {
     this.callbacks = cb;
   }
 
-  /** 连接到推送服务器并进行认证 */
+  /** Connect to the push server and authenticate */
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this._state !== ConnectionState.Disconnected) {
-        reject(new Error('客户端已连接或正在连接中'));
+        reject(new Error('Client is already connected or connecting'));
         return;
       }
       this._state = ConnectionState.Connecting;
       this.stopped = false;
+      this.recvBuffer = Buffer.alloc(0);
 
-      const ws = this.createWebSocket(this.pushUrl);
-      this.ws = ws;
+      const socket = this.createSocket(this.pushHost, this.pushPort);
+      this.socket = socket;
+
+      let settled = false;
 
       const timeout = setTimeout(() => {
-        ws.close();
-        this._state = ConnectionState.Disconnected;
-        this.ws = null;
-        reject(new Error('连接超时'));
+        if (!settled) {
+          settled = true;
+          socket.destroy();
+          this._state = ConnectionState.Disconnected;
+          this.socket = null;
+          reject(new Error('Connect timeout'));
+        }
       }, this.connectTimeout);
 
-      ws.onopen = () => {
-        clearTimeout(timeout);
-        // 发送认证消息
-        try {
-          this.authenticate();
+      // Resolve once we receive CONNECTED response from server
+      const onConnected = () => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timeout);
           this._state = ConnectionState.Connected;
           this.startHeartbeat();
           this.callbacks.onConnect?.();
           resolve();
-        } catch (err) {
-          ws.close();
-          this._state = ConnectionState.Disconnected;
-          this.ws = null;
-          reject(err);
         }
       };
 
-      ws.onmessage = (ev: { data: unknown }) => {
-        this.handleMessage(String(ev.data));
-      };
+      socket.on('connect', () => {
+        // TLS handshake complete, send authentication message
+        try {
+          this.authenticate();
+        } catch (err) {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timeout);
+            socket.destroy();
+            this._state = ConnectionState.Disconnected;
+            this.socket = null;
+            reject(err);
+          }
+        }
+      });
 
-      ws.onclose = () => {
+      socket.on('data', (chunk: Buffer) => {
+        this.handleData(chunk, onConnected);
+      });
+
+      socket.on('close', () => {
         if (this.stopped) return;
         this.stopHeartbeat();
         const wasConnected = this._state === ConnectionState.Connected;
         this._state = ConnectionState.Disconnected;
-        this.ws = null;
+        this.socket = null;
         if (wasConnected && this.autoReconnect && !this.stopped) {
           this.scheduleReconnect();
         }
-      };
+      });
 
-      ws.onerror = (ev: unknown) => {
-        if (this._state === ConnectionState.Connecting) {
+      socket.on('error', (err: Error) => {
+        if (!settled) {
+          settled = true;
           clearTimeout(timeout);
           this._state = ConnectionState.Disconnected;
-          this.ws = null;
-          reject(new Error('WebSocket 连接失败'));
+          this.socket = null;
+          reject(new Error(`TLS connection failed: ${err.message}`));
         } else {
-          this.callbacks.onError?.(new Error('WebSocket 错误'));
+          this.callbacks.onError?.(new Error(`TLS error: ${err.message}`));
         }
-      };
+      });
     });
   }
 
-  /** 断开连接 */
+  /** Disconnect from the push server */
   disconnect(): void {
     this.stopped = true;
     this.stopHeartbeat();
     this.clearReconnectTimer();
-    if (this.ws) {
-      this.ws.onclose = null;
-      this.ws.onerror = null;
-      this.ws.onmessage = null;
-      this.ws.close();
-      this.ws = null;
+    if (this.socket) {
+      // Send DISCONNECT message before closing
+      try {
+        const req = buildDisconnectMessage();
+        this.sendMessage(req);
+      } catch {
+        // Ignore send failure, continue closing
+      }
+      this.socket.destroy();
+      this.socket = null;
     }
     this._state = ConnectionState.Disconnected;
+    this.recvBuffer = Buffer.alloc(0);
     this.callbacks.onDisconnect?.();
   }
 
-  /** 发送认证消息 */
+  /** Send authentication message */
   private authenticate(): void {
-    const ts = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    // Sign content is the tigerId string itself (aligned with Java SDK)
     const sign = signWithRSA(this.config.privateKey, this.config.tigerId);
-    const req: ConnectRequest = {
-      tigerId: this.config.tigerId,
+    const req = buildConnectMessage(
+      this.config.tigerId,
       sign,
-      timestamp: ts,
-      version: '2.0',
-    };
-    const msg = createPushMessage(MessageType.Connect, undefined, req);
-    this.sendMessage(msg);
+      SDK_VERSION,
+      ACCEPT_VERSION,
+      DEFAULT_SEND_INTERVAL,
+      DEFAULT_RECEIVE_INTERVAL,
+      this.useFullTick,
+    );
+    this.sendMessage(req);
   }
 
-  /** 发送消息 */
-  private sendMessage(msg: PushMessage): void {
-    if (!this.ws) throw new Error('WebSocket 连接未建立');
-    this.ws.send(serializeMessage(msg));
+  /** Send a Protobuf Request message (varint32 length prefix + binary) */
+  private sendMessage(msg: Request): void {
+    if (!this.socket) throw new Error('TLS connection not established');
+    const encoded = Request.encode(msg).finish();
+    const framed = encodeVarint32(encoded);
+    this.socket.write(framed);
   }
 
-  /** 创建 WebSocket 实例 */
-  private createWebSocket(url: string): WebSocketLike {
-    if (this.wsFactory) return this.wsFactory(url);
-    // 动态导入 ws 库（Node.js 环境）
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const WS = require('ws');
-    return new WS(url) as WebSocketLike;
+  /** Create a TLS socket instance */
+  private createSocket(host: string, port: number): TLSSocketLike {
+    if (this.socketFactory) return this.socketFactory(host, port);
+    return tls.connect({ host, port, rejectUnauthorized: false }) as unknown as TLSSocketLike;
   }
 
-  /** 心跳保活 */
+  /** Handle incoming TCP data: buffer + decode varint32 frames */
+  private handleData(chunk: Buffer, onConnected?: () => void): void {
+    this.recvBuffer = Buffer.concat([this.recvBuffer, chunk]);
+
+    while (this.recvBuffer.length > 0) {
+      const frame = decodeVarint32(new Uint8Array(this.recvBuffer));
+      if (!frame) break; // Incomplete frame, wait for more data
+
+      this.recvBuffer = Buffer.from(frame.remaining);
+
+      // Deserialize Protobuf Response
+      let response: Response;
+      try {
+        response = Response.decode(frame.message);
+      } catch {
+        this.callbacks.onError?.(new Error('Protobuf deserialization failed'));
+        continue;
+      }
+
+      this.handleResponse(response, onConnected);
+    }
+  }
+
+  /** Handle a decoded Response message */
+  private handleResponse(response: Response, onConnected?: () => void): void {
+    const cb = this.callbacks;
+
+    switch (response.command) {
+      case SocketCommon_Command.CONNECTED:
+        // Server confirmed authentication
+        onConnected?.();
+        break;
+
+      case SocketCommon_Command.HEARTBEAT:
+        // Heartbeat response, ignore
+        break;
+
+      case SocketCommon_Command.MESSAGE:
+        if (response.body) {
+          this.dispatchPushData(response.body);
+        }
+        break;
+
+      case SocketCommon_Command.ERROR:
+        cb.onError?.(new Error(`Server error: ${response.msg ?? 'unknown error'}`));
+        // Check for kickout
+        if (response.msg && response.msg.toLowerCase().includes('kickout')) {
+          cb.onKickout?.(response.msg);
+        }
+        break;
+
+      case SocketCommon_Command.DISCONNECT:
+        cb.onDisconnect?.();
+        break;
+
+      default:
+        break;
+    }
+  }
+
+  /** Heartbeat keep-alive */
   private startHeartbeat(): void {
     this.stopHeartbeat();
     this.heartbeatTimer = setInterval(() => {
       try {
-        const msg = createPushMessage(MessageType.Heartbeat);
-        this.sendMessage(msg);
+        const req = buildHeartBeatMessage();
+        this.sendMessage(req);
       } catch {
-        // 心跳发送失败，连接可能已断开
+        // Heartbeat send failed, connection may be broken
       }
     }, this.heartbeatInterval);
   }
@@ -234,7 +348,7 @@ export class PushClient {
     }
   }
 
-  /** 自动重连 */
+  /** Auto reconnect with exponential backoff */
   private scheduleReconnect(): void {
     let interval = this.reconnectInterval;
     const attempt = () => {
@@ -258,7 +372,7 @@ export class PushClient {
     }
   }
 
-  /** 重连后恢复订阅 */
+  /** Resubscribe after reconnection */
   private resubscribe(): void {
     for (const [subject, symbols] of this.subscriptions) {
       this.doSubscribe(subject, Array.from(symbols));
@@ -268,83 +382,72 @@ export class PushClient {
     }
   }
 
-  /** 处理收到的消息 */
-  private handleMessage(raw: string): void {
-    let msg: PushMessage;
-    try {
-      msg = deserializeMessage(raw);
-    } catch {
-      this.callbacks.onError?.(new Error('反序列化消息失败'));
-      return;
-    }
+  /** Dispatch push data to the appropriate callback based on dataType */
+  private dispatchPushData(pushData: PushData): void {
     const cb = this.callbacks;
-    switch (msg.type) {
-      case MessageType.Kickout:
-        cb.onKickout?.(msg.data as string);
+
+    switch (pushData.dataType) {
+      case SocketCommon_DataType.Quote:
+        if (pushData.quoteData) cb.onQuote?.(pushData.quoteData);
         break;
-      case MessageType.Error:
-        cb.onError?.(new Error(`服务端错误: ${msg.data}`));
+      case SocketCommon_DataType.Option:
+        if (pushData.quoteData) cb.onOption?.(pushData.quoteData);
         break;
-      case MessageType.Quote:
-        cb.onQuote?.(msg.data as QuoteData);
+      case SocketCommon_DataType.Future:
+        if (pushData.quoteData) cb.onFuture?.(pushData.quoteData);
         break;
-      case MessageType.Tick:
-        cb.onTick?.(msg.data as TickData);
+      case SocketCommon_DataType.QuoteDepth:
+        if (pushData.quoteDepthData) cb.onDepth?.(pushData.quoteDepthData);
         break;
-      case MessageType.Depth:
-        cb.onDepth?.(msg.data as DepthData);
+      case SocketCommon_DataType.TradeTick:
+        if (pushData.tradeTickData) cb.onTick?.(pushData.tradeTickData);
         break;
-      case MessageType.Option:
-        cb.onOption?.(msg.data as QuoteData);
+      case SocketCommon_DataType.Asset:
+        if (pushData.assetData) cb.onAsset?.(pushData.assetData);
         break;
-      case MessageType.Future:
-        cb.onFuture?.(msg.data as QuoteData);
+      case SocketCommon_DataType.Position:
+        if (pushData.positionData) cb.onPosition?.(pushData.positionData);
         break;
-      case MessageType.Kline:
-        cb.onKline?.(msg.data as KlineData);
+      case SocketCommon_DataType.OrderStatus:
+        if (pushData.orderStatusData) cb.onOrder?.(pushData.orderStatusData);
         break;
-      case MessageType.Asset:
-        cb.onAsset?.(msg.data as AssetData);
+      case SocketCommon_DataType.OrderTransaction:
+        if (pushData.orderTransactionData) cb.onTransaction?.(pushData.orderTransactionData);
         break;
-      case MessageType.Position:
-        cb.onPosition?.(msg.data as PositionData);
+      case SocketCommon_DataType.StockTop:
+        if (pushData.stockTopData) cb.onStockTop?.(pushData.stockTopData);
         break;
-      case MessageType.Order:
-        cb.onOrder?.(msg.data as OrderData);
+      case SocketCommon_DataType.OptionTop:
+        if (pushData.optionTopData) cb.onOptionTop?.(pushData.optionTopData);
         break;
-      case MessageType.Transaction:
-        cb.onTransaction?.(msg.data as TransactionData);
+      case SocketCommon_DataType.Kline:
+        if (pushData.klineData) cb.onKline?.(pushData.klineData);
         break;
-      case MessageType.StockTop:
-        cb.onStockTop?.(msg.data as QuoteData);
-        break;
-      case MessageType.OptionTop:
-        cb.onOptionTop?.(msg.data as QuoteData);
-        break;
-      case MessageType.FullTick:
-        cb.onFullTick?.(msg.data as TickData);
-        break;
-      case MessageType.QuoteBBO:
-        cb.onQuoteBBO?.(msg.data as QuoteData);
+      default:
+        // FullTick and QuoteBBO use TradeTick/Quote dataType
+        // TickData (fullTick) via tickData field
+        if (pushData.tickData) cb.onFullTick?.(pushData.tickData);
         break;
     }
   }
 
-  /** 内部订阅方法 */
+  /** Internal subscribe method */
   private doSubscribe(subject: SubjectType, symbols?: string[], account?: string, market?: string): void {
-    const req: SubscribeRequest = { subject, symbols, account, market };
-    const msg = createPushMessage(MessageType.Subscribe, subject, req);
-    this.sendMessage(msg);
+    const dataType = subjectToDataType(subject);
+    const symbolsStr = symbols ? symbols.join(',') : undefined;
+    const req = buildSubscribeMessage(dataType, symbolsStr, account, market);
+    this.sendMessage(req);
   }
 
-  /** 内部退订方法 */
+  /** Internal unsubscribe method */
   private doUnsubscribe(subject: SubjectType, symbols?: string[]): void {
-    const req: SubscribeRequest = { subject, symbols };
-    const msg = createPushMessage(MessageType.Unsubscribe, subject, req);
-    this.sendMessage(msg);
+    const dataType = subjectToDataType(subject);
+    const symbolsStr = symbols ? symbols.join(',') : undefined;
+    const req = buildUnSubscribeMessage(dataType, symbolsStr);
+    this.sendMessage(req);
   }
 
-  /** 添加订阅记录 */
+  /** Add subscription record */
   private addSubscription(subject: SubjectType, symbols: string[]): void {
     if (!this.subscriptions.has(subject)) {
       this.subscriptions.set(subject, new Set());
@@ -353,7 +456,7 @@ export class PushClient {
     for (const s of symbols) set.add(s);
   }
 
-  /** 移除订阅记录 */
+  /** Remove subscription record */
   private removeSubscription(subject: SubjectType, symbols?: string[]): void {
     if (!symbols) {
       this.subscriptions.delete(subject);
@@ -366,123 +469,123 @@ export class PushClient {
     }
   }
 
-  // ===== 行情订阅/退订 =====
+  // ===== Market data subscribe/unsubscribe =====
 
-  /** 订阅行情 */
+  /** Subscribe to quotes */
   subscribeQuote(symbols: string[]): void {
     this.doSubscribe(SubjectType.Quote, symbols);
     this.addSubscription(SubjectType.Quote, symbols);
   }
-  /** 退订行情 */
+  /** Unsubscribe from quotes */
   unsubscribeQuote(symbols?: string[]): void {
     this.doUnsubscribe(SubjectType.Quote, symbols);
     this.removeSubscription(SubjectType.Quote, symbols);
   }
 
-  /** 订阅逐笔成交 */
+  /** Subscribe to trade ticks */
   subscribeTick(symbols: string[]): void {
     this.doSubscribe(SubjectType.Tick, symbols);
     this.addSubscription(SubjectType.Tick, symbols);
   }
-  /** 退订逐笔成交 */
+  /** Unsubscribe from trade ticks */
   unsubscribeTick(symbols?: string[]): void {
     this.doUnsubscribe(SubjectType.Tick, symbols);
     this.removeSubscription(SubjectType.Tick, symbols);
   }
 
-  /** 订阅深度行情 */
+  /** Subscribe to depth data */
   subscribeDepth(symbols: string[]): void {
     this.doSubscribe(SubjectType.Depth, symbols);
     this.addSubscription(SubjectType.Depth, symbols);
   }
-  /** 退订深度行情 */
+  /** Unsubscribe from depth data */
   unsubscribeDepth(symbols?: string[]): void {
     this.doUnsubscribe(SubjectType.Depth, symbols);
     this.removeSubscription(SubjectType.Depth, symbols);
   }
 
-  /** 订阅期权行情 */
+  /** Subscribe to option quotes */
   subscribeOption(symbols: string[]): void {
     this.doSubscribe(SubjectType.Option, symbols);
     this.addSubscription(SubjectType.Option, symbols);
   }
-  /** 退订期权行情 */
+  /** Unsubscribe from option quotes */
   unsubscribeOption(symbols?: string[]): void {
     this.doUnsubscribe(SubjectType.Option, symbols);
     this.removeSubscription(SubjectType.Option, symbols);
   }
 
-  /** 订阅期货行情 */
+  /** Subscribe to futures quotes */
   subscribeFuture(symbols: string[]): void {
     this.doSubscribe(SubjectType.Future, symbols);
     this.addSubscription(SubjectType.Future, symbols);
   }
-  /** 退订期货行情 */
+  /** Unsubscribe from futures quotes */
   unsubscribeFuture(symbols?: string[]): void {
     this.doUnsubscribe(SubjectType.Future, symbols);
     this.removeSubscription(SubjectType.Future, symbols);
   }
 
-  /** 订阅 K 线 */
+  /** Subscribe to kline data */
   subscribeKline(symbols: string[]): void {
     this.doSubscribe(SubjectType.Kline, symbols);
     this.addSubscription(SubjectType.Kline, symbols);
   }
-  /** 退订 K 线 */
+  /** Unsubscribe from kline data */
   unsubscribeKline(symbols?: string[]): void {
     this.doUnsubscribe(SubjectType.Kline, symbols);
     this.removeSubscription(SubjectType.Kline, symbols);
   }
 
-  // ===== 账户推送订阅/退订 =====
+  // ===== Account push subscribe/unsubscribe =====
 
-  /** 订阅资产变动 */
+  /** Subscribe to asset changes */
   subscribeAsset(account?: string): void {
     this.doSubscribe(SubjectType.Asset, undefined, account || this.config.account);
     this.accountSubs.add(SubjectType.Asset);
   }
-  /** 退订资产变动 */
+  /** Unsubscribe from asset changes */
   unsubscribeAsset(): void {
     this.doUnsubscribe(SubjectType.Asset);
     this.accountSubs.delete(SubjectType.Asset);
   }
 
-  /** 订阅持仓变动 */
+  /** Subscribe to position changes */
   subscribePosition(account?: string): void {
     this.doSubscribe(SubjectType.Position, undefined, account || this.config.account);
     this.accountSubs.add(SubjectType.Position);
   }
-  /** 退订持仓变动 */
+  /** Unsubscribe from position changes */
   unsubscribePosition(): void {
     this.doUnsubscribe(SubjectType.Position);
     this.accountSubs.delete(SubjectType.Position);
   }
 
-  /** 订阅订单状态 */
+  /** Subscribe to order status */
   subscribeOrder(account?: string): void {
     this.doSubscribe(SubjectType.Order, undefined, account || this.config.account);
     this.accountSubs.add(SubjectType.Order);
   }
-  /** 退订订单状态 */
+  /** Unsubscribe from order status */
   unsubscribeOrder(): void {
     this.doUnsubscribe(SubjectType.Order);
     this.accountSubs.delete(SubjectType.Order);
   }
 
-  /** 订阅成交明细 */
+  /** Subscribe to transaction details */
   subscribeTransaction(account?: string): void {
     this.doSubscribe(SubjectType.Transaction, undefined, account || this.config.account);
     this.accountSubs.add(SubjectType.Transaction);
   }
-  /** 退订成交明细 */
+  /** Unsubscribe from transaction details */
   unsubscribeTransaction(): void {
     this.doUnsubscribe(SubjectType.Transaction);
     this.accountSubs.delete(SubjectType.Transaction);
   }
 
-  // ===== 查询订阅状态 =====
+  // ===== Query subscription state =====
 
-  /** 获取当前行情订阅状态 */
+  /** Get current market data subscriptions */
   getSubscriptions(): Map<SubjectType, string[]> {
     const result = new Map<SubjectType, string[]>();
     for (const [subject, symbols] of this.subscriptions) {
@@ -491,7 +594,7 @@ export class PushClient {
     return result;
   }
 
-  /** 获取账户级别订阅状态 */
+  /** Get account-level subscriptions */
   getAccountSubscriptions(): SubjectType[] {
     return Array.from(this.accountSubs);
   }

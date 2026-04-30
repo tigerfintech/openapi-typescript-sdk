@@ -77,20 +77,20 @@ export function signWithRSA(privateKeyStr: string, content: string): string {
 }
 
 /**
- * 使用 RSA 公钥验证 SHA1WithRSA 签名。
+ * Verify a SHA1WithRSA signature using an RSA public key.
  *
- * @param publicKey - 公钥对象
- * @param content - 原始内容
- * @param signature - Base64 编码的签名字符串
- * @returns 验签是否成功
+ * @param publicKeyBase64 - Base64-encoded public key (DER / PKCS#1 or SPKI)
+ * @param content - Original content that was signed
+ * @param signatureBase64 - Base64-encoded signature
+ * @returns Whether the signature is valid
  */
 export function verifyWithRSA(
-  publicKey: KeyObject,
+  publicKeyBase64: string,
   content: string,
-  signature: string,
+  signatureBase64: string,
 ): boolean {
-  const verify = createVerify('SHA1');
-  verify.update(content);
-  verify.end();
-  return verify.verify(publicKey, signature, 'base64');
+  const pem = `-----BEGIN PUBLIC KEY-----\n${publicKeyBase64}\n-----END PUBLIC KEY-----`;
+  const verifier = createVerify('SHA1');
+  verifier.update(content);
+  return verifier.verify(pem, signatureBase64, 'base64');
 }
