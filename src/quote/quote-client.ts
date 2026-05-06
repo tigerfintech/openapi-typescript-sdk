@@ -1,59 +1,80 @@
 /**
- * QuoteClient - Quote query client
- * Wraps all quote-related APIs, sending requests via HttpClient
+ * QuoteClient — market-data client.
+ *
+ * All methods return strongly-typed responses from the `model` package.
+ * Request parameters are written in camelCase in TypeScript and are
+ * converted to snake_case on the wire automatically.
  */
 import type { HttpClient } from '../client/http-client';
 import { createApiRequest } from '../client/api-request';
+import { unmarshalData } from '../client/api-response';
+import type {
+  MarketState,
+  Brief,
+  Kline,
+  Timeline,
+  TradeTick,
+  Depth,
+  OptionExpiration,
+  OptionChain,
+  FutureExchange,
+  FutureContractInfo,
+  FutureQuote,
+  FutureKline,
+  FinancialDailyItem,
+  FinancialReportItem,
+  CorporateAction,
+  CapitalFlow,
+  CapitalDistribution,
+  ScannerResult,
+  QuotePermission,
+  FinancialDailyRequest,
+  FinancialReportRequest,
+  CorporateActionRequest,
+  FutureKlineRequest,
+  MarketScannerRequest,
+} from '../model/quote';
 
 /**
- * Parse an option identifier string into its components.
- *
- * Supported format: "SYMBOL YYMMDDX00000000" where X is C (call) or P (put),
- * and the 8-digit strike is in thousandths (e.g. 00150000 = 150.0).
- *
- * @param identifier - Option identifier (e.g. "AAPL 240119C00150000")
- * @returns Parsed components { symbol, expiry, right, strike }
+ * Parse an OCC-style option identifier like "AAPL  260619C00150000"
+ * into its component parts.
  */
 export function parseOptionIdentifier(identifier: string): {
   symbol: string;
-  expiry: string;
+  expiryMs: number;
   right: string;
-  strike: string;
+  strike: number;
 } {
   const trimmed = identifier.trim();
   const spaceIdx = trimmed.indexOf(' ');
   if (spaceIdx === -1) {
-    return { symbol: trimmed, expiry: '', right: '', strike: '' };
+    throw new Error(`invalid option identifier: ${identifier}`);
   }
-
   const symbol = trimmed.substring(0, spaceIdx);
   const rest = trimmed.substring(spaceIdx + 1).trim();
-
-  // rest format: YYMMDDX00000000 (6 date + 1 right + 8 strike = 15 chars)
   if (rest.length < 15) {
-    return { symbol, expiry: rest, right: '', strike: '' };
+    throw new Error(`option code too short: ${rest}`);
   }
+  const datePart = rest.substring(0, 6);
+  const rightChar = rest.substring(6, 7);
+  const strikePart = rest.substring(7);
 
-  const datePart = rest.substring(0, 6); // YYMMDD
-  const right = rest.substring(6, 7);     // C or P
-  const strikePart = rest.substring(7);   // 00150000
+  const yy = parseInt(datePart.substring(0, 2), 10);
+  const mm = parseInt(datePart.substring(2, 4), 10);
+  const dd = parseInt(datePart.substring(4, 6), 10);
+  const expiryMs = Date.UTC(2000 + yy, mm - 1, dd);
 
-  // Convert YYMMDD to YYYY-MM-DD
-  const yy = datePart.substring(0, 2);
-  const mm = datePart.substring(2, 4);
-  const dd = datePart.substring(4, 6);
-  const expiry = `20${yy}-${mm}-${dd}`;
+  const right = rightChar === 'C' ? 'CALL' : rightChar === 'P' ? 'PUT' : '';
+  if (!right) throw new Error(`invalid right character: ${rightChar}`);
 
-  // Convert strike: remove leading zeros, divide by 1000
-  const strikeNum = parseInt(strikePart, 10) / 1000;
-  const strike = String(strikeNum);
+  const strikeInt = parseInt(strikePart, 10);
+  if (Number.isNaN(strikeInt)) throw new Error(`invalid strike digits: ${strikePart}`);
+  const strike = strikeInt / 1000;
 
-  return { symbol, expiry, right: right === 'C' ? 'CALL' : 'PUT', strike };
+  return { symbol, expiryMs, right, strike };
 }
 
-/**
- * Quote query client wrapping all quote-related APIs.
- */
+/** Market data client wrapping all quote-related APIs. */
 export class QuoteClient {
   private httpClient: HttpClient;
 
@@ -61,197 +82,141 @@ export class QuoteClient {
     this.httpClient = httpClient;
   }
 
-  /**
-   * Internal helper: build request, send, return the data field
-   */
-  private async execute(method: string, bizParams?: unknown, version?: string): Promise<unknown> {
+  private async callInto<T>(method: string, bizParams?: unknown, version?: string): Promise<T> {
     const request = createApiRequest(method, bizParams, version);
     const response = await this.httpClient.executeRequest(request);
-    return response.data;
+    return unmarshalData<T>(response.data) as T;
   }
 
-  // === Basic quote methods ===
+  // === Basic market data ===
 
-  /** Get market status */
-  async marketState(market: string): Promise<unknown> {
-    return this.execute('market_state', { market });
+  async getMarketState(market: string): Promise<MarketState[]> {
+    return this.callInto<MarketState[]>('market_state', { market });
   }
 
-  /** Get real-time quotes */
-  async quoteRealTime(symbols: string[]): Promise<unknown> {
-    return this.execute('quote_real_time', { symbols });
+  async getBrief(symbols: string[]): Promise<Brief[]> {
+    return this.callInto<Brief[]>('quote_real_time', { symbols });
   }
 
-  /** Get K-line data */
-  async kline(symbol: string, period: string): Promise<unknown> {
-    return this.execute('kline', { symbols: [symbol], period });
+  async getKline(symbol: string, period: string): Promise<Kline[]> {
+    return this.callInto<Kline[]>('kline', { symbols: [symbol], period });
   }
 
-  /** Get timeline data */
-  async timeline(symbols: string[]): Promise<unknown> {
-    return this.execute('timeline', { symbols });
+  async getTimeline(symbols: string[]): Promise<Timeline[]> {
+    return this.callInto<Timeline[]>('timeline', { symbols });
   }
 
-  /** Get trade tick data */
-  async tradeTick(symbols: string[]): Promise<unknown> {
-    return this.execute('trade_tick', { symbols });
+  async getTradeTick(symbols: string[]): Promise<TradeTick[]> {
+    return this.callInto<TradeTick[]>('trade_tick', { symbols });
   }
 
-  /** Get quote depth */
-  async quoteDepth(symbol: string): Promise<unknown> {
-    return this.execute('quote_depth', { symbol });
+  /** Depth snapshot. market is required (US / HK supported). */
+  async getQuoteDepth(symbol: string, market: string): Promise<Depth[]> {
+    return this.callInto<Depth[]>('quote_depth', { symbols: [symbol], market });
   }
 
-  // === Option quote methods ===
+  // === Options ===
 
-  /** Get option expiration dates */
-  async optionExpiration(symbol: string): Promise<unknown> {
-    return this.execute('option_expiration', { symbols: [symbol] });
+  async getOptionExpiration(symbol: string): Promise<OptionExpiration[]> {
+    return this.callInto<OptionExpiration[]>('option_expiration', { symbols: [symbol] });
   }
 
-  /**
-   * Get option chain.
-   * Uses v3 API with option_basic array format.
-   */
-  async optionChain(symbol: string, expiry: string): Promise<unknown> {
-    return this.execute('option_chain', {
-      option_basic: [{ symbol, expiry }],
-    }, '3.0');
+  /** Option chain; `expiry` is "YYYY-MM-DD". */
+  async getOptionChain(symbol: string, expiry: string): Promise<OptionChain[]> {
+    const d = new Date(expiry + 'T00:00:00Z');
+    const expiryMs = d.getTime();
+    if (Number.isNaN(expiryMs)) {
+      throw new Error(`invalid expiry date, expected YYYY-MM-DD: ${expiry}`);
+    }
+    return this.callInto<OptionChain[]>(
+      'option_chain',
+      { option_basic: [{ symbol, expiry: expiryMs }] },
+      '3.0',
+    );
   }
 
-  /**
-   * Get option brief quotes.
-   * Parses each identifier into structured params.
-   */
-  async optionBrief(identifiers: string[]): Promise<unknown> {
+  async getOptionBrief(identifiers: string[]): Promise<Brief[]> {
     const optionBasic = identifiers.map((id) => {
-      const parsed = parseOptionIdentifier(id);
-      return {
-        symbol: parsed.symbol,
-        expiry: parsed.expiry,
-        right: parsed.right,
-        strike: parsed.strike,
-      };
+      const p = parseOptionIdentifier(id);
+      return { symbol: p.symbol, expiry: p.expiryMs, right: p.right, strike: p.strike };
     });
-    return this.execute('option_brief', { option_basic: optionBasic }, '2.0');
+    return this.callInto<Brief[]>('option_brief', { option_basic: optionBasic }, '2.0');
+  }
+
+  async getOptionKline(identifier: string, period: string): Promise<Kline[]> {
+    const p = parseOptionIdentifier(identifier);
+    return this.callInto<Kline[]>(
+      'option_kline',
+      {
+        option_query: [{ symbol: p.symbol, expiry: p.expiryMs, right: p.right, strike: p.strike, period }],
+      },
+      '2.0',
+    );
+  }
+
+  // === Futures ===
+
+  async getFutureExchange(): Promise<FutureExchange[]> {
+    return this.callInto<FutureExchange[]>('future_exchange', { secType: 'FUT' });
+  }
+
+  async getFutureContracts(exchange: string): Promise<FutureContractInfo[]> {
+    return this.callInto<FutureContractInfo[]>(
+      'future_contract_by_exchange_code',
+      { exchangeCode: exchange },
+    );
+  }
+
+  async getFutureRealTimeQuote(contractCodes: string[]): Promise<FutureQuote[]> {
+    return this.callInto<FutureQuote[]>('future_real_time_quote', { contractCodes });
+  }
+
+  /** Futures K-line; use -1 for unbounded beginTime / endTime. */
+  async getFutureKline(req: FutureKlineRequest): Promise<FutureKline[]> {
+    const body: FutureKlineRequest = {
+      ...req,
+      beginTime: req.beginTime ?? -1,
+      endTime: req.endTime ?? -1,
+    };
+    return this.callInto<FutureKline[]>('future_kline', body);
+  }
+
+  // === Fundamentals ===
+
+  async getFinancialDaily(req: FinancialDailyRequest): Promise<FinancialDailyItem[]> {
+    return this.callInto<FinancialDailyItem[]>('financial_daily', req);
+  }
+
+  async getFinancialReport(req: FinancialReportRequest): Promise<FinancialReportItem[]> {
+    return this.callInto<FinancialReportItem[]>('financial_report', req);
   }
 
   /**
-   * Get option K-line data.
-   * Uses v2 API with option_query array format.
+   * Corporate actions. Server returns {symbol: [...]}, this method flattens into a single list.
    */
-  async optionKline(identifier: string, period: string): Promise<unknown> {
-    const parsed = parseOptionIdentifier(identifier);
-    return this.execute('option_kline', {
-      option_query: [{
-        symbol: parsed.symbol,
-        expiry: parsed.expiry,
-        right: parsed.right,
-        strike: parsed.strike,
-        period,
-      }],
-    }, '2.0');
+  async getCorporateAction(req: CorporateActionRequest): Promise<CorporateAction[]> {
+    const grouped = await this.callInto<Record<string, CorporateAction[]>>('corporate_action', req);
+    if (!grouped || typeof grouped !== 'object') return [];
+    return Object.values(grouped).flat();
   }
 
-  // === Futures quote methods ===
+  // === Capital flow ===
 
-  /** Get futures exchange list */
-  async futureExchange(): Promise<unknown> {
-    return this.execute('future_exchange', { sec_type: 'FUT' });
+  async getCapitalFlow(symbol: string, market: string, period: string): Promise<CapitalFlow | undefined> {
+    return this.callInto<CapitalFlow>('capital_flow', { symbol, market, period });
   }
 
-  /** Get futures contract list */
-  async futureContracts(exchange: string): Promise<unknown> {
-    return this.execute('future_contracts', { exchange });
+  async getCapitalDistribution(symbol: string, market: string): Promise<CapitalDistribution | undefined> {
+    return this.callInto<CapitalDistribution>('capital_distribution', { symbol, market });
   }
 
-  /** Get futures real-time quotes */
-  async futureRealTimeQuote(symbols: string[]): Promise<unknown> {
-    return this.execute('future_real_time_quote', { symbols });
+  // === Scanner & permission ===
+
+  async marketScanner(req: MarketScannerRequest): Promise<ScannerResult | undefined> {
+    return this.callInto<ScannerResult>('market_scanner', req);
   }
 
-  /** Get futures K-line data */
-  async futureKline(symbol: string, period: string): Promise<unknown> {
-    return this.execute('future_kline', { symbol, period });
+  async grabQuotePermission(): Promise<QuotePermission[]> {
+    return this.callInto<QuotePermission[]>('grab_quote_permission');
   }
-
-  // === Fundamentals and capital flow methods ===
-
-  /** Get financial daily data */
-  async financialDaily(symbol: string): Promise<unknown> {
-    return this.execute('financial_daily', { symbol });
-  }
-
-  /** Get financial report */
-  async financialReport(symbol: string): Promise<unknown> {
-    return this.execute('financial_report', { symbol });
-  }
-
-  /** Get corporate actions */
-  async corporateAction(symbol: string): Promise<unknown> {
-    return this.execute('corporate_action', { symbol });
-  }
-
-  /** Get capital flow */
-  async capitalFlow(symbol: string): Promise<unknown> {
-    return this.execute('capital_flow', { symbol });
-  }
-
-  /** Get capital distribution */
-  async capitalDistribution(symbol: string): Promise<unknown> {
-    return this.execute('capital_distribution', { symbol });
-  }
-
-  // === Scanner and quote permission methods ===
-
-  /** Market scanner */
-  async marketScanner(params: Record<string, unknown>): Promise<unknown> {
-    return this.execute('market_scanner', params);
-  }
-
-  /** Get quote permission */
-  async grabQuotePermission(): Promise<unknown> {
-    return this.execute('grab_quote_permission');
-  }
-
-  // === Aliases (get* prefix) ===
-
-  /** Alias for marketState */
-  async getMarketState(market: string): Promise<unknown> { return this.marketState(market); }
-  /** Alias for quoteRealTime */
-  async getBrief(symbols: string[]): Promise<unknown> { return this.quoteRealTime(symbols); }
-  /** Alias for kline */
-  async getKline(symbol: string, period: string): Promise<unknown> { return this.kline(symbol, period); }
-  /** Alias for timeline */
-  async getTimeline(symbols: string[]): Promise<unknown> { return this.timeline(symbols); }
-  /** Alias for tradeTick */
-  async getTradeTick(symbols: string[]): Promise<unknown> { return this.tradeTick(symbols); }
-  /** Alias for quoteDepth */
-  async getQuoteDepth(symbol: string): Promise<unknown> { return this.quoteDepth(symbol); }
-  /** Alias for optionExpiration */
-  async getOptionExpiration(symbol: string): Promise<unknown> { return this.optionExpiration(symbol); }
-  /** Alias for optionChain */
-  async getOptionChain(symbol: string, expiry: string): Promise<unknown> { return this.optionChain(symbol, expiry); }
-  /** Alias for optionBrief */
-  async getOptionBrief(identifiers: string[]): Promise<unknown> { return this.optionBrief(identifiers); }
-  /** Alias for optionKline */
-  async getOptionKline(identifier: string, period: string): Promise<unknown> { return this.optionKline(identifier, period); }
-  /** Alias for futureExchange */
-  async getFutureExchange(): Promise<unknown> { return this.futureExchange(); }
-  /** Alias for futureContracts */
-  async getFutureContracts(exchange: string): Promise<unknown> { return this.futureContracts(exchange); }
-  /** Alias for futureRealTimeQuote */
-  async getFutureRealTimeQuote(symbols: string[]): Promise<unknown> { return this.futureRealTimeQuote(symbols); }
-  /** Alias for futureKline */
-  async getFutureKline(symbol: string, period: string): Promise<unknown> { return this.futureKline(symbol, period); }
-  /** Alias for financialDaily */
-  async getFinancialDaily(symbol: string): Promise<unknown> { return this.financialDaily(symbol); }
-  /** Alias for financialReport */
-  async getFinancialReport(symbol: string): Promise<unknown> { return this.financialReport(symbol); }
-  /** Alias for corporateAction */
-  async getCorporateAction(symbol: string): Promise<unknown> { return this.corporateAction(symbol); }
-  /** Alias for capitalFlow */
-  async getCapitalFlow(symbol: string): Promise<unknown> { return this.capitalFlow(symbol); }
-  /** Alias for capitalDistribution */
-  async getCapitalDistribution(symbol: string): Promise<unknown> { return this.capitalDistribution(symbol); }
 }
