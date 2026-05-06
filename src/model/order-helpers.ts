@@ -1,17 +1,18 @@
 /**
- * 订单构造工具函数
+ * Order construction helpers.
+ * All helpers return an `OrderRequest` with sensible defaults.
  */
-import type { Order, OrderLeg, AlgoParams } from './order';
+import type { OrderRequest, OrderLegRequest, AlgoParamsRequest } from './order';
 import { OrderType, TimeInForce } from './enums';
 
-/** 构造市价单 */
+/** Market order */
 export function marketOrder(
   account: string,
   symbol: string,
   secType: string,
   action: string,
   quantity: number,
-): Order {
+): OrderRequest {
   return {
     account, symbol, secType, action,
     orderType: OrderType.MKT,
@@ -21,7 +22,7 @@ export function marketOrder(
   };
 }
 
-/** 构造限价单 */
+/** Limit order */
 export function limitOrder(
   account: string,
   symbol: string,
@@ -29,7 +30,7 @@ export function limitOrder(
   action: string,
   quantity: number,
   limitPrice: number,
-): Order {
+): OrderRequest {
   return {
     account, symbol, secType, action,
     orderType: OrderType.LMT,
@@ -40,7 +41,7 @@ export function limitOrder(
   };
 }
 
-/** 构造止损单 */
+/** Stop order */
 export function stopOrder(
   account: string,
   symbol: string,
@@ -48,7 +49,7 @@ export function stopOrder(
   action: string,
   quantity: number,
   auxPrice: number,
-): Order {
+): OrderRequest {
   return {
     account, symbol, secType, action,
     orderType: OrderType.STP,
@@ -59,7 +60,7 @@ export function stopOrder(
   };
 }
 
-/** 构造止损限价单 */
+/** Stop limit order */
 export function stopLimitOrder(
   account: string,
   symbol: string,
@@ -68,7 +69,7 @@ export function stopLimitOrder(
   quantity: number,
   limitPrice: number,
   auxPrice: number,
-): Order {
+): OrderRequest {
   return {
     account, symbol, secType, action,
     orderType: OrderType.STP_LMT,
@@ -80,7 +81,7 @@ export function stopLimitOrder(
   };
 }
 
-/** 构造跟踪止损单 */
+/** Trailing stop order */
 export function trailOrder(
   account: string,
   symbol: string,
@@ -88,7 +89,7 @@ export function trailOrder(
   action: string,
   quantity: number,
   trailingPercent: number,
-): Order {
+): OrderRequest {
   return {
     account, symbol, secType, action,
     orderType: OrderType.TRAIL,
@@ -99,7 +100,7 @@ export function trailOrder(
   };
 }
 
-/** 构造竞价限价单 */
+/** Auction limit order */
 export function auctionLimitOrder(
   account: string,
   symbol: string,
@@ -107,7 +108,7 @@ export function auctionLimitOrder(
   action: string,
   quantity: number,
   limitPrice: number,
-): Order {
+): OrderRequest {
   return {
     account, symbol, secType, action,
     orderType: OrderType.AL,
@@ -118,14 +119,14 @@ export function auctionLimitOrder(
   };
 }
 
-/** 构造竞价市价单 */
+/** Auction market order */
 export function auctionMarketOrder(
   account: string,
   symbol: string,
   secType: string,
   action: string,
   quantity: number,
-): Order {
+): OrderRequest {
   return {
     account, symbol, secType, action,
     orderType: OrderType.AM,
@@ -135,7 +136,7 @@ export function auctionMarketOrder(
   };
 }
 
-/** 构造算法订单（TWAP/VWAP） */
+/** Algo order (TWAP / VWAP) */
 export function algoOrder(
   account: string,
   symbol: string,
@@ -144,8 +145,8 @@ export function algoOrder(
   quantity: number,
   limitPrice: number,
   algoType: string,
-  params: AlgoParams,
-): Order {
+  params: AlgoParamsRequest,
+): OrderRequest {
   return {
     account, symbol, secType, action,
     orderType: algoType,
@@ -157,11 +158,11 @@ export function algoOrder(
   };
 }
 
-/** 构造附加订单（止盈/止损） */
+/** Attached profit / loss leg */
 export function orderLeg(
   legType: string,
   price: number,
   timeInForce: string,
-): OrderLeg {
+): OrderLegRequest {
   return { legType, price, timeInForce };
 }

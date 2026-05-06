@@ -28,7 +28,9 @@ describe('Property 6: API 响应解析与错误处理', () => {
           const body = JSON.stringify({ code: 0, message, data, timestamp });
           const resp = parseApiResponse(body);
           expect(resp.code).toBe(0);
-          expect(resp.data).toEqual(data);
+          // Compare via JSON round-trip so -0 vs +0 (not preserved by
+          // JSON.stringify) doesn't cause a false negative.
+          expect(JSON.stringify(resp.data)).toBe(JSON.stringify(data));
           expect(resp.message).toBe(message);
         },
       ),

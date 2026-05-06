@@ -1,6 +1,6 @@
 {
   "name": "@tigeropenapi/tigeropen",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Tiger Brokers OpenAPI TypeScript SDK for market data, trading, and real-time push",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",

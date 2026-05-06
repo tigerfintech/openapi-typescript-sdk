@@ -1,98 +1,147 @@
 /**
- * Order 订单接口
- * 字段名 camelCase 与 API JSON 天然一致，不改名、不加封装层
+ * Order response / request models.
+ *
+ * TypeScript uses camelCase field names idiomatically. The client layer
+ * transparently converts request camelCase to snake_case before sending;
+ * server responses are already camelCase so they decode directly.
  */
 
-/** 附加订单（止盈/止损） */
+/** Attached leg order (profit / loss) — response side */
 export interface OrderLeg {
-  /** 附加订单类型（PROFIT/LOSS） */
   legType?: string;
-  /** 价格 */
   price?: number;
-  /** 有效期 */
   timeInForce?: string;
-  /** 数量 */
   quantity?: number;
 }
 
-/** 算法订单参数 */
+/** Algo order parameters — response side */
 export interface AlgoParams {
-  /** 算法策略（TWAP/VWAP） */
   algoStrategy?: string;
-  /** 开始时间 */
   startTime?: string;
-  /** 结束时间 */
   endTime?: string;
-  /** 参与率 */
   participationRate?: number;
 }
 
-/** 订单模型，字段名词根保持与 API JSON 一致 */
+/** Order response model (returned by order query methods). */
 export interface Order {
-  /** 交易账户 */
-  account: string;
-  /** 全局订单 ID */
+  account?: string;
   id?: number;
-  /** 账户自增订单号 */
   orderId?: number;
-  /** 买卖方向（BUY/SELL） */
-  action: string;
-  /** 订单类型（MKT/LMT/STP/STP_LMT/TRAIL 等） */
-  orderType: string;
-  /** 总数量（API 返回字段名为 totalQuantity） */
-  totalQuantity: number;
-  /** 限价 */
-  limitPrice?: number;
-  /** 辅助价格（止损价） */
-  auxPrice?: number;
-  /** 跟踪止损百分比 */
-  trailingPercent?: number;
-  /** 订单状态 */
-  status?: string;
-  /** 已成交数量（API 返回字段名为 filledQuantity） */
+  externalId?: string;
+  action?: string;
+  orderType?: string;
+  totalQuantity?: number;
+  totalQuantityScale?: number;
   filledQuantity?: number;
-  /** 平均成交价 */
+  filledQuantityScale?: number;
+  filledCashAmount?: number;
+  limitPrice?: number;
+  auxPrice?: number;
+  trailingPercent?: number;
+  status?: string;
   avgFillPrice?: number;
-  /** 有效期（DAY/GTC/OPG） */
-  timeInForce: string;
-  /** 是否允许盘前盘后 */
-  outsideRth: boolean;
-  /** 附加订单（止盈/止损） */
+  timeInForce?: string;
+  outsideRth?: boolean;
   orderLegs?: OrderLeg[];
-  /** 算法参数 */
   algoParams?: AlgoParams;
-  /** 股票代码 */
-  symbol: string;
-  /** 合约类型 */
-  secType: string;
-  /** 市场 */
+  algoStrategy?: string;
+  symbol?: string;
+  secType?: string;
   market?: string;
-  /** 货币 */
   currency?: string;
-  /** 到期日（期权/期货） */
   expiry?: string;
-  /** 行权价（期权），API 返回为字符串 */
   strike?: string;
-  /** 看涨/看跌（PUT/CALL），保持 API 原始名 right */
   right?: string;
-  /** 合约标识符 */
   identifier?: string;
-  /** 合约名称 */
   name?: string;
-  /** 佣金 */
   commission?: number;
-  /** 已实现盈亏 */
+  gst?: number;
   realizedPnl?: number;
-  /** 开仓时间（毫秒时间戳） */
   openTime?: number;
-  /** 更新时间（毫秒时间戳） */
   updateTime?: number;
-  /** 最新时间（毫秒时间戳） */
   latestTime?: number;
-  /** 备注 */
+  latestPrice?: number;
   remark?: string;
-  /** 订单来源 */
   source?: string;
-  /** 用户标记 */
   userMark?: string;
+  liquidation?: boolean;
+  discount?: number;
+  replaceStatus?: string;
+  cancelStatus?: string;
+  canModify?: boolean;
+  canCancel?: boolean;
+  isOpen?: boolean;
+  orderDiscount?: number;
+  tradingSessionType?: string;
+  attrDesc?: string;
+  attrList?: string[];
+}
+
+/**
+ * OrderRequest — order request model used by placeOrder / previewOrder / modifyOrder.
+ * Fields are camelCase in TypeScript; the client converts them to snake_case on the wire.
+ */
+export interface OrderRequest {
+  /** Account ID (client fills it in automatically) */
+  account?: string;
+  /** Global order ID (required for modify) */
+  id?: number;
+  /** Account-level order ID */
+  orderId?: number;
+  /** BUY / SELL */
+  action: string;
+  /** Order type: MKT / LMT / STP / STP_LMT / TRAIL / AM / AL / TWAP / VWAP / OCA */
+  orderType: string;
+  /** Total quantity */
+  totalQuantity: number;
+  /** Limit price (required for LMT / STP_LMT) */
+  limitPrice?: number;
+  /** Stop / trigger price (required for STP / STP_LMT / TRAIL) */
+  auxPrice?: number;
+  /** Trailing stop percent */
+  trailingPercent?: number;
+  /** DAY / GTC / GTD / OPG */
+  timeInForce: string;
+  /** Allow extended-hours trading */
+  outsideRth?: boolean;
+  /** Attached legs (profit / loss) */
+  orderLegs?: OrderLegRequest[];
+  /** Algo parameters */
+  algoParams?: AlgoParamsRequest;
+  /** Contract symbol */
+  symbol: string;
+  /** STK / OPT / FUT / WAR / IOPT */
+  secType: string;
+  /** Market */
+  market?: string;
+  /** Currency */
+  currency?: string;
+  /** Option expiry */
+  expiry?: string;
+  /** Option strike */
+  strike?: string;
+  /** CALL / PUT */
+  right?: string;
+  /** Contract identifier */
+  identifier?: string;
+  /** Remark */
+  remark?: string;
+  /** User mark */
+  userMark?: string;
+}
+
+/** Attached leg for request side */
+export interface OrderLegRequest {
+  legType: string;
+  price?: number;
+  timeInForce?: string;
+  quantity?: number;
+}
+
+/** Algo parameters for request side */
+export interface AlgoParamsRequest {
+  algoStrategy?: string;
+  startTime?: string;
+  endTime?: string;
+  participationRate?: number;
 }

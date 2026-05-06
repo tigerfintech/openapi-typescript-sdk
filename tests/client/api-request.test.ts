@@ -20,15 +20,18 @@ describe('Property 11: API 请求构造正确性', () => {
     fc.assert(
       fc.property(
         fc.string({ minLength: 1, maxLength: 30 }),
+        // Keys must be snake_case-friendly (lowercase + underscore) so the
+        // client's camelCase -> snake_case conversion is a no-op.
         fc.dictionary(
-          fc.string({ minLength: 1, maxLength: 10 }).filter((s) => /^[a-zA-Z_]\w*$/.test(s)),
+          fc.string({ minLength: 1, maxLength: 10 })
+            .filter((s) => /^[a-z_][a-z0-9_]*$/.test(s))
+            .filter((s) => s !== '__proto__' && s !== 'constructor' && s !== 'prototype'),
           fc.oneof(fc.string({ maxLength: 20 }), fc.integer(), fc.boolean()),
           { minKeys: 0, maxKeys: 5 },
         ),
         (method, bizParams) => {
           const request = createApiRequest(method, bizParams);
           expect(request.method).toBe(method);
-          // biz_content 应为有效 JSON
           const parsed = JSON.parse(request.bizContent);
           expect(parsed).toEqual(bizParams);
         },

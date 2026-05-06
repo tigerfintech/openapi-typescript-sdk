@@ -1,14 +1,12 @@
 /**
- * TradeClient 交易客户端测试
- * 使用 vi.fn() mock HttpClient 的 executeRequest 方法
+ * TradeClient unit tests — verify snake_case payloads and typed responses.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TradeClient } from '../../src/trade/trade-client';
 import type { HttpClient } from '../../src/client/http-client';
 import type { ApiResponse } from '../../src/client/api-response';
-import type { Order } from '../../src/model/order';
+import type { OrderRequest } from '../../src/model/order';
 
-/** 创建 mock HttpClient */
 function createMockHttpClient() {
   return {
     executeRequest: vi.fn(),
@@ -16,272 +14,180 @@ function createMockHttpClient() {
   } as unknown as HttpClient;
 }
 
-/** 创建成功的 ApiResponse */
 function successResponse(data: unknown): ApiResponse {
   return { code: 0, message: 'success', data, timestamp: 1700000000 };
 }
 
+function capturedBiz(mock: HttpClient): Record<string, unknown> {
+  const call = vi.mocked(mock.executeRequest).mock.calls[0][0];
+  return JSON.parse(call.bizContent);
+}
+
 describe('TradeClient', () => {
   let mockHttpClient: HttpClient;
-  let tradeClient: TradeClient;
+  let tc: TradeClient;
   const testAccount = 'test_account';
 
   beforeEach(() => {
     mockHttpClient = createMockHttpClient();
-    tradeClient = new TradeClient(mockHttpClient, testAccount);
+    tc = new TradeClient(mockHttpClient, testAccount);
   });
-
-  // === 17.1 合约查询测试 ===
 
   describe('合约查询方法', () => {
-    it('getContract 应发送 account、symbol、secType 参数', async () => {
-      const mockData = { symbol: 'AAPL', secType: 'STK' };
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(mockData));
-
-      const result = await tradeClient.getContract('AAPL', 'STK');
-
-      expect(mockHttpClient.executeRequest).toHaveBeenCalledWith({
-        method: 'contract',
-        bizContent: JSON.stringify({ account: testAccount, symbol: 'AAPL', secType: 'STK' }),
+    it('getContract 发送 account/symbol/sec_type,解包 items', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({
+        items: [{ symbol: 'AAPL', secType: 'STK' }],
+      }));
+      const result = await tc.getContract('AAPL', 'STK');
+      expect(result).toEqual([{ symbol: 'AAPL', secType: 'STK' }]);
+      expect(capturedBiz(mockHttpClient)).toEqual({
+        account: testAccount, symbol: 'AAPL', sec_type: 'STK',
       });
-      expect(result).toEqual(mockData);
     });
 
-    it('getContracts 应发送 account、symbols、secType 参数', async () => {
-      const mockData = [{ symbol: 'AAPL' }, { symbol: 'GOOG' }];
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(mockData));
-
-      const result = await tradeClient.getContracts(['AAPL', 'GOOG'], 'STK');
-
-      expect(mockHttpClient.executeRequest).toHaveBeenCalledWith({
-        method: 'contracts',
-        bizContent: JSON.stringify({ account: testAccount, symbols: ['AAPL', 'GOOG'], secType: 'STK' }),
+    it('getContracts 发送 symbols 数组', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({
+        items: [{ symbol: 'AAPL' }, { symbol: 'GOOG' }],
+      }));
+      await tc.getContracts(['AAPL', 'GOOG'], 'STK');
+      expect(capturedBiz(mockHttpClient)).toEqual({
+        account: testAccount, symbols: ['AAPL', 'GOOG'], sec_type: 'STK',
       });
-      expect(result).toEqual(mockData);
     });
 
-    it('getQuoteContract 应发送 account、symbol、secType 参数', async () => {
-      const mockData = { symbol: 'AAPL', secType: 'OPT' };
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(mockData));
-
-      const result = await tradeClient.getQuoteContract('AAPL', 'OPT');
-
-      expect(mockHttpClient.executeRequest).toHaveBeenCalledWith({
-        method: 'quote_contract',
-        bizContent: JSON.stringify({ account: testAccount, symbol: 'AAPL', secType: 'OPT' }),
+    it('getQuoteContract 发送 symbols + sec_type + expiry', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({
+        items: [{ symbol: 'AAPL', secType: 'OPT' }],
+      }));
+      await tc.getQuoteContract('AAPL', 'OPT', '20260619');
+      expect(capturedBiz(mockHttpClient)).toEqual({
+        account: testAccount, symbols: ['AAPL'], sec_type: 'OPT', expiry: '20260619',
       });
-      expect(result).toEqual(mockData);
     });
   });
-
-  // === 17.3 订单操作测试 ===
 
   describe('订单操作方法', () => {
-    it('placeOrder 应设置 account 并发送订单', async () => {
-      const mockData = { id: 12345, orderId: 1 };
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(mockData));
+    const order: OrderRequest = {
+      account: '',
+      symbol: 'AAPL',
+      secType: 'STK',
+      action: 'BUY',
+      orderType: 'LMT',
+      totalQuantity: 100,
+      limitPrice: 150.0,
+      timeInForce: 'DAY',
+      outsideRth: false,
+    };
 
-      const order: Order = {
-        account: '',
-        symbol: 'AAPL',
-        secType: 'STK',
-        action: 'BUY',
-        orderType: 'LMT',
-        quantity: 100,
-        limitPrice: 150.0,
-        timeInForce: 'DAY',
-        outsideRth: false,
-      };
-      const result = await tradeClient.placeOrder(order);
-
-      const calledArg = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
-      const parsed = JSON.parse(calledArg.bizContent);
-      expect(calledArg.method).toBe('place_order');
-      expect(parsed.account).toBe(testAccount);
-      expect(parsed.symbol).toBe('AAPL');
-      expect(result).toEqual(mockData);
+    it('placeOrder 发送 snake_case 订单,设置 account', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ id: 12345, order_id: 1 }));
+      const result = await tc.placeOrder(order);
+      const biz = capturedBiz(mockHttpClient);
+      const call = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
+      expect(call.method).toBe('place_order');
+      expect(biz.account).toBe(testAccount);
+      expect(biz.sec_type).toBe('STK');
+      expect(biz.order_type).toBe('LMT');
+      expect(biz.total_quantity).toBe(100);
+      expect(biz.limit_price).toBe(150.0);
+      expect(biz.time_in_force).toBe('DAY');
+      expect(result?.id).toBe(12345);
     });
 
-    it('previewOrder 应设置 account 并发送预览请求', async () => {
-      const mockData = { estimatedCommission: 1.5 };
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(mockData));
-
-      const order: Order = {
-        account: '',
-        symbol: 'AAPL',
-        secType: 'STK',
-        action: 'BUY',
-        orderType: 'MKT',
-        quantity: 100,
-        timeInForce: 'DAY',
-        outsideRth: false,
-      };
-      const result = await tradeClient.previewOrder(order);
-
-      const calledArg = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
-      expect(calledArg.method).toBe('preview_order');
-      expect(JSON.parse(calledArg.bizContent).account).toBe(testAccount);
-      expect(result).toEqual(mockData);
+    it('previewOrder 发送 preview_order', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ isPass: true }));
+      await tc.previewOrder(order);
+      const call = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
+      expect(call.method).toBe('preview_order');
+      expect(capturedBiz(mockHttpClient).account).toBe(testAccount);
     });
 
-    it('modifyOrder 应设置 account 和 id 并发送修改请求', async () => {
-      const mockData = { id: 12345 };
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(mockData));
-
-      const order: Order = {
-        account: '',
-        symbol: 'AAPL',
-        secType: 'STK',
-        action: 'BUY',
-        orderType: 'LMT',
-        quantity: 200,
-        limitPrice: 155.0,
-        timeInForce: 'DAY',
-        outsideRth: false,
-      };
-      const result = await tradeClient.modifyOrder(12345, order);
-
-      const calledArg = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
-      const parsed = JSON.parse(calledArg.bizContent);
-      expect(calledArg.method).toBe('modify_order');
-      expect(parsed.account).toBe(testAccount);
-      expect(parsed.id).toBe(12345);
-      expect(result).toEqual(mockData);
+    it('modifyOrder 设置 id 和 account', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ id: 12345 }));
+      await tc.modifyOrder(12345, order);
+      const biz = capturedBiz(mockHttpClient);
+      expect(biz.id).toBe(12345);
+      expect(biz.account).toBe(testAccount);
     });
 
-    it('cancelOrder 应发送 account 和 id 参数', async () => {
-      const mockData = { id: 12345 };
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(mockData));
-
-      const result = await tradeClient.cancelOrder(12345);
-
-      expect(mockHttpClient.executeRequest).toHaveBeenCalledWith({
-        method: 'cancel_order',
-        bizContent: JSON.stringify({ account: testAccount, id: 12345 }),
-      });
-      expect(result).toEqual(mockData);
+    it('cancelOrder 发送 account 和 id', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ id: 12345 }));
+      await tc.cancelOrder(12345);
+      expect(capturedBiz(mockHttpClient)).toEqual({ account: testAccount, id: 12345 });
     });
   });
-
-  // === 17.5 订单查询测试 ===
 
   describe('订单查询方法', () => {
-    it('getOrders 应发送 account 参数', async () => {
-      const mockData = [{ id: 1, symbol: 'AAPL' }];
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(mockData));
-
-      const result = await tradeClient.getOrders();
-
-      expect(mockHttpClient.executeRequest).toHaveBeenCalledWith({
-        method: 'orders',
-        bizContent: JSON.stringify({ account: testAccount }),
-      });
-      expect(result).toEqual(mockData);
+    it('getOrders 解包 items', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({
+        items: [{ id: 1, symbol: 'AAPL' }],
+      }));
+      const result = await tc.getOrders();
+      expect(result).toEqual([{ id: 1, symbol: 'AAPL' }]);
+      expect(capturedBiz(mockHttpClient)).toEqual({ account: testAccount });
     });
 
-    it('getActiveOrders 应发送 account 参数', async () => {
-      const mockData = [{ id: 1, status: 'Submitted' }];
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(mockData));
-
-      const result = await tradeClient.getActiveOrders();
-
-      expect(mockHttpClient.executeRequest).toHaveBeenCalledWith({
-        method: 'active_orders',
-        bizContent: JSON.stringify({ account: testAccount }),
-      });
-      expect(result).toEqual(mockData);
+    it('getActiveOrders 解包 items', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ items: [] }));
+      await tc.getActiveOrders();
+      expect(capturedBiz(mockHttpClient)).toEqual({ account: testAccount });
     });
 
-    it('getInactiveOrders 应发送 account 参数', async () => {
-      const mockData = [{ id: 1, status: 'Cancelled' }];
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(mockData));
-
-      const result = await tradeClient.getInactiveOrders();
-
-      expect(mockHttpClient.executeRequest).toHaveBeenCalledWith({
-        method: 'inactive_orders',
-        bizContent: JSON.stringify({ account: testAccount }),
-      });
-      expect(result).toEqual(mockData);
+    it('getInactiveOrders 解包 items', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ items: [] }));
+      await tc.getInactiveOrders();
+      expect(capturedBiz(mockHttpClient)).toEqual({ account: testAccount });
     });
 
-    it('getFilledOrders 应发送 account 参数', async () => {
-      const mockData = [{ id: 1, status: 'Filled' }];
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(mockData));
-
-      const result = await tradeClient.getFilledOrders();
-
-      expect(mockHttpClient.executeRequest).toHaveBeenCalledWith({
-        method: 'filled_orders',
-        bizContent: JSON.stringify({ account: testAccount }),
+    it('getFilledOrders 发送 start_date/end_date', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ items: [] }));
+      await tc.getFilledOrders(1000000000000, 2000000000000);
+      expect(capturedBiz(mockHttpClient)).toEqual({
+        account: testAccount, start_date: 1000000000000, end_date: 2000000000000,
       });
-      expect(result).toEqual(mockData);
     });
   });
-
-  // === 17.7 持仓和资产查询测试 ===
 
   describe('持仓和资产查询方法', () => {
-    it('getPositions 应发送 account 参数', async () => {
-      const mockData = [{ symbol: 'AAPL', quantity: 100 }];
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(mockData));
-
-      const result = await tradeClient.getPositions();
-
-      expect(mockHttpClient.executeRequest).toHaveBeenCalledWith({
-        method: 'positions',
-        bizContent: JSON.stringify({ account: testAccount }),
-      });
-      expect(result).toEqual(mockData);
+    it('getPositions 解包 items', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({
+        items: [{ symbol: 'AAPL', position: 100 }],
+      }));
+      const r = await tc.getPositions();
+      expect(r).toEqual([{ symbol: 'AAPL', position: 100 }]);
     });
 
-    it('getAssets 应发送 account 参数', async () => {
-      const mockData = { netLiquidation: 100000.0 };
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(mockData));
-
-      const result = await tradeClient.getAssets();
-
-      expect(mockHttpClient.executeRequest).toHaveBeenCalledWith({
-        method: 'assets',
-        bizContent: JSON.stringify({ account: testAccount }),
-      });
-      expect(result).toEqual(mockData);
+    it('getAssets 解包 items', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({
+        items: [{ netLiquidation: 100000 }],
+      }));
+      const r = await tc.getAssets();
+      expect(r).toEqual([{ netLiquidation: 100000 }]);
     });
 
-    it('getPrimeAssets 应发送 account 参数', async () => {
-      const mockData = { netLiquidation: 200000.0 };
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(mockData));
-
-      const result = await tradeClient.getPrimeAssets();
-
-      expect(mockHttpClient.executeRequest).toHaveBeenCalledWith({
-        method: 'prime_assets',
-        bizContent: JSON.stringify({ account: testAccount }),
-      });
-      expect(result).toEqual(mockData);
+    it('getPrimeAssets 返回单个对象', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({
+        accountId: 'U1', segments: [],
+      }));
+      const r = await tc.getPrimeAssets();
+      expect(r?.accountId).toBe('U1');
     });
 
-    it('getOrderTransactions 应发送 account 和 id 参数', async () => {
-      const mockData = [{ id: 12345, filledQuantity: 50 }];
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(mockData));
-
-      const result = await tradeClient.getOrderTransactions(12345);
-
-      expect(mockHttpClient.executeRequest).toHaveBeenCalledWith({
-        method: 'order_transactions',
-        bizContent: JSON.stringify({ account: testAccount, id: 12345 }),
+    it('getOrderTransactions 发送 order_id + symbol + sec_type', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({
+        items: [{ id: 12345, filledQuantity: 50 }],
+      }));
+      await tc.getOrderTransactions(12345, 'AAPL', 'STK');
+      expect(capturedBiz(mockHttpClient)).toEqual({
+        account: testAccount, order_id: 12345, symbol: 'AAPL', sec_type: 'STK',
       });
-      expect(result).toEqual(mockData);
     });
   });
 
-  // === 错误处理测试 ===
-
   describe('错误处理', () => {
-    it('当 executeRequest 抛出错误时应向上传播', async () => {
-      vi.mocked(mockHttpClient.executeRequest).mockRejectedValue(new Error('网络错误'));
-
-      await expect(tradeClient.getOrders()).rejects.toThrow('网络错误');
+    it('executeRequest 抛错应向上传播', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockRejectedValue(new Error('network error'));
+      await expect(tc.getOrders()).rejects.toThrow('network error');
     });
   });
 });

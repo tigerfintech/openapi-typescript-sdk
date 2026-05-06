@@ -1,25 +1,25 @@
 /**
- * API 响应解析模块
+ * API response parsing.
  */
 import { TigerError } from './errors';
 
-/** API 响应接口 */
+/** API response envelope */
 export interface ApiResponse {
-  /** 状态码（0=成功） */
+  /** Result code (0 = success) */
   code: number;
-  /** 状态描述 */
+  /** Human-readable message */
   message: string;
-  /** 业务数据 */
+  /** Business payload */
   data: unknown;
-  /** 服务器时间戳 */
+  /** Server timestamp */
   timestamp: number;
   /** Response signature for verification */
   sign?: string;
 }
 
 /**
- * 解析 API 响应 JSON 字符串。
- * code 为 0 时返回 ApiResponse；code 不为 0 时抛出 TigerError。
+ * Parse the raw HTTP response body.
+ * Throws TigerError when code != 0.
  */
 export function parseApiResponse(body: string): ApiResponse {
   const resp: ApiResponse = JSON.parse(body);
@@ -28,3 +28,22 @@ export function parseApiResponse(body: string): ApiResponse {
   }
   return resp;
 }
+
+/**
+ * Decode an ApiResponse.data payload into a typed value.
+ * Handles the server's occasional double-encoded JSON (where `data` is a
+ * JSON string that itself wraps JSON), seen on some trade endpoints.
+ */
+export function unmarshalData<T>(data: unknown): T | undefined {
+  if (data == null) return undefined;
+  if (typeof data === 'string') {
+    // Attempt to parse JSON string (double-encoded case)
+    try {
+      return JSON.parse(data) as T;
+    } catch {
+      return data as unknown as T;
+    }
+  }
+  return data as T;
+}
+

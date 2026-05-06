@@ -1,14 +1,25 @@
 /**
- * TradeClient 交易客户端
- * 封装所有交易相关 API，通过 HttpClient 发送请求
+ * TradeClient — trading client.
+ *
+ * All methods return strongly-typed responses; request parameters are
+ * written in camelCase in TypeScript and converted to snake_case on the wire.
  */
 import type { HttpClient } from '../client/http-client';
 import { createApiRequest } from '../client/api-request';
-import type { Order } from '../model/order';
+import { unmarshalData } from '../client/api-response';
+import type { OrderRequest, Order } from '../model/order';
+import type { Contract } from '../model/contract';
+import type { Position } from '../model/position';
+import type {
+  Asset,
+  PrimeAsset,
+  PreviewResult,
+  PlaceOrderResult,
+  OrderIdResult,
+  Transaction,
+} from '../model/trade';
 
-/**
- * 交易客户端，封装所有交易相关 API。
- */
+/** Trading client wrapping all trade-related APIs. */
 export class TradeClient {
   private httpClient: HttpClient;
   private account: string;
@@ -18,122 +29,107 @@ export class TradeClient {
     this.account = account;
   }
 
-  /**
-   * 内部通用方法：构造请求、发送、返回 data 字段
-   */
-  private async execute(method: string, bizParams: unknown): Promise<unknown> {
+  private async callInto<T>(method: string, bizParams: unknown): Promise<T> {
     const request = createApiRequest(method, bizParams);
     const response = await this.httpClient.executeRequest(request);
-    return response.data;
+    return unmarshalData<T>(response.data) as T;
   }
 
-  // === 合约查询方法 ===
+  /** Strip `{items: [...]}` envelope used by most trade read endpoints. */
+  private async callIntoItems<T>(method: string, bizParams: unknown): Promise<T[]> {
+    const wrap = await this.callInto<{ items?: T[] } | T[]>(method, bizParams);
+    if (Array.isArray(wrap)) return wrap;
+    return wrap?.items ?? [];
+  }
 
-  /** 查询单个合约 */
-  async contract(symbol: string, secType: string): Promise<unknown> {
-    return this.execute('contract', {
+  // === Contracts ===
+
+  async getContract(symbol: string, secType: string): Promise<Contract[]> {
+    return this.callIntoItems<Contract>('contract', {
       account: this.account, symbol, secType,
     });
   }
 
-  /** 批量查询合约 */
-  async contracts(symbols: string[], secType: string): Promise<unknown> {
-    return this.execute('contracts', {
+  async getContracts(symbols: string[], secType: string): Promise<Contract[]> {
+    return this.callIntoItems<Contract>('contracts', {
       account: this.account, symbols, secType,
     });
   }
 
-  /** 查询衍生品合约 */
-  async quoteContract(symbol: string, secType: string): Promise<unknown> {
-    return this.execute('quote_contract', {
-      account: this.account, symbol, secType,
+  /**
+   * Derivative contracts (OPT / WAR / IOPT only).
+   * `symbol` is the underlying (e.g. "AAPL"); `expiry` is "YYYYMMDD".
+   */
+  async getQuoteContract(symbol: string, secType: string, expiry: string): Promise<Contract[]> {
+    return this.callIntoItems<Contract>('quote_contract', {
+      account: this.account, symbols: [symbol], secType, expiry,
     });
   }
 
-  // === 订单操作方法 ===
+  // === Order operations ===
 
-  /** 下单 */
-  async placeOrder(order: Order): Promise<unknown> {
-    const params = { ...order, account: this.account };
-    return this.execute('place_order', params);
+  async placeOrder(order: OrderRequest): Promise<PlaceOrderResult | undefined> {
+    return this.callInto<PlaceOrderResult>('place_order', { ...order, account: this.account });
   }
 
-  /** 预览订单 */
-  async previewOrder(order: Order): Promise<unknown> {
-    const params = { ...order, account: this.account };
-    return this.execute('preview_order', params);
+  async previewOrder(order: OrderRequest): Promise<PreviewResult | undefined> {
+    return this.callInto<PreviewResult>('preview_order', { ...order, account: this.account });
   }
 
-  /** 修改订单 */
-  async modifyOrder(id: number, order: Order): Promise<unknown> {
-    const params = { ...order, account: this.account, id };
-    return this.execute('modify_order', params);
+  async modifyOrder(id: number, order: OrderRequest): Promise<OrderIdResult | undefined> {
+    return this.callInto<OrderIdResult>('modify_order', { ...order, account: this.account, id });
   }
 
-  /** 取消订单 */
-  async cancelOrder(id: number): Promise<unknown> {
-    return this.execute('cancel_order', {
-      account: this.account, id,
+  async cancelOrder(id: number): Promise<OrderIdResult | undefined> {
+    return this.callInto<OrderIdResult>('cancel_order', { account: this.account, id });
+  }
+
+  // === Order queries ===
+
+  async getOrders(): Promise<Order[]> {
+    return this.callIntoItems<Order>('orders', { account: this.account });
+  }
+
+  async getActiveOrders(): Promise<Order[]> {
+    return this.callIntoItems<Order>('active_orders', { account: this.account });
+  }
+
+  async getInactiveOrders(): Promise<Order[]> {
+    return this.callIntoItems<Order>('inactive_orders', { account: this.account });
+  }
+
+  /**
+   * Filled orders in a time range (ms timestamps required by the server).
+   * Use `Date.now() - 30*24*3600*1000` for "last 30 days".
+   */
+  async getFilledOrders(startDateMs: number, endDateMs: number): Promise<Order[]> {
+    return this.callIntoItems<Order>('filled_orders', {
+      account: this.account, startDate: startDateMs, endDate: endDateMs,
     });
   }
 
-  // === 订单查询方法 ===
-
-  /** 查询全部订单 */
-  async orders(): Promise<unknown> {
-    return this.execute('orders', { account: this.account });
-  }
-
-  /** 查询待成交订单 */
-  async activeOrders(): Promise<unknown> {
-    return this.execute('active_orders', { account: this.account });
-  }
-
-  /** 查询已撤销订单 */
-  async inactiveOrders(): Promise<unknown> {
-    return this.execute('inactive_orders', { account: this.account });
-  }
-
-  /** 查询已成交订单 */
-  async filledOrders(): Promise<unknown> {
-    return this.execute('filled_orders', { account: this.account });
-  }
-
-  // === 持仓和资产查询方法 ===
-
-  /** 查询持仓 */
-  async positions(): Promise<unknown> {
-    return this.execute('positions', { account: this.account });
-  }
-
-  /** 查询资产 */
-  async assets(): Promise<unknown> {
-    return this.execute('assets', { account: this.account });
-  }
-
-  /** 查询综合账户资产 */
-  async primeAssets(): Promise<unknown> {
-    return this.execute('prime_assets', { account: this.account });
-  }
-
-  /** 查询订单成交明细 */
-  async orderTransactions(id: number): Promise<unknown> {
-    return this.execute('order_transactions', {
-      account: this.account, id,
+  /** Transactions for a specific order; `symbol` and `secType` are required. */
+  async getOrderTransactions(
+    id: number,
+    symbol: string,
+    secType: string,
+  ): Promise<Transaction[]> {
+    return this.callIntoItems<Transaction>('order_transactions', {
+      account: this.account, orderId: id, symbol, secType,
     });
   }
 
-  // === Aliases (get* prefix) ===
+  // === Positions & assets ===
 
-  async getContract(symbol: string, secType: string): Promise<unknown> { return this.contract(symbol, secType); }
-  async getContracts(symbols: string[], secType: string): Promise<unknown> { return this.contracts(symbols, secType); }
-  async getQuoteContract(symbol: string, secType: string): Promise<unknown> { return this.quoteContract(symbol, secType); }
-  async getOrders(): Promise<unknown> { return this.orders(); }
-  async getActiveOrders(): Promise<unknown> { return this.activeOrders(); }
-  async getInactiveOrders(): Promise<unknown> { return this.inactiveOrders(); }
-  async getFilledOrders(): Promise<unknown> { return this.filledOrders(); }
-  async getPositions(): Promise<unknown> { return this.positions(); }
-  async getAssets(): Promise<unknown> { return this.assets(); }
-  async getPrimeAssets(): Promise<unknown> { return this.primeAssets(); }
-  async getOrderTransactions(id: number): Promise<unknown> { return this.orderTransactions(id); }
+  async getPositions(): Promise<Position[]> {
+    return this.callIntoItems<Position>('positions', { account: this.account });
+  }
+
+  async getAssets(): Promise<Asset[]> {
+    return this.callIntoItems<Asset>('assets', { account: this.account });
+  }
+
+  async getPrimeAssets(): Promise<PrimeAsset | undefined> {
+    return this.callInto<PrimeAsset>('prime_assets', { account: this.account });
+  }
 }
