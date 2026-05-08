@@ -40,7 +40,7 @@ const MAX_RECONNECT_INTERVAL = 60_000;
 /** Default connect timeout (ms) */
 const DEFAULT_CONNECT_TIMEOUT = 30_000;
 /** SDK version identifier */
-const SDK_VERSION = 'typescript/0.1.0';
+const SDK_VERSION = 'typescript/0.4.0';
 /** Protocol version */
 const ACCEPT_VERSION = '1.0';
 /** Default send heartbeat interval (ms) */
@@ -423,6 +423,10 @@ export class PushClient {
       case SocketCommon_DataType.Kline:
         if (pushData.klineData) cb.onKline?.(pushData.klineData);
         break;
+      case SocketCommon_DataType.Cc:
+        // 加密货币(Cc)推送复用 QuoteData body,路由到 onQuote 回调
+        if (pushData.quoteData) cb.onQuote?.(pushData.quoteData);
+        break;
       default:
         // FullTick and QuoteBBO use TradeTick/Quote dataType
         // TickData (fullTick) via tickData field
@@ -535,6 +539,76 @@ export class PushClient {
   unsubscribeKline(symbols?: string[]): void {
     this.doUnsubscribe(SubjectType.Kline, symbols);
     this.removeSubscription(SubjectType.Kline, symbols);
+  }
+
+  // ===== v0.4.0: stock_top / option_top / cc / market =====
+
+  /**
+   * Subscribe to stock top rankings (v0.4.0).
+   * @param market US / HK / CN
+   * @param indicators LATEST_PRICE / HIGHER / LOWER / VOLUME / AMOUNT / AMPLITUDE / TURNOVER_RATE
+   */
+  subscribeStockTop(market: string, indicators: string[]): void {
+    this.doSubscribe(SubjectType.StockTop, indicators, undefined, market);
+    this.addSubscription(SubjectType.StockTop, indicators);
+  }
+  /** Unsubscribe from stock top rankings (v0.4.0). */
+  unsubscribeStockTop(market: string, indicators: string[]): void {
+    const dataType = subjectToDataType(SubjectType.StockTop);
+    const symbolsStr = indicators.join(',');
+    const req = buildUnSubscribeMessage(dataType, symbolsStr, undefined, market);
+    this.sendMessage(req);
+    this.removeSubscription(SubjectType.StockTop, indicators);
+  }
+
+  /**
+   * Subscribe to option top rankings (v0.4.0).
+   * @param market US / HK / CN
+   */
+  subscribeOptionTop(market: string, indicators: string[]): void {
+    this.doSubscribe(SubjectType.OptionTop, indicators, undefined, market);
+    this.addSubscription(SubjectType.OptionTop, indicators);
+  }
+  /** Unsubscribe from option top rankings (v0.4.0). */
+  unsubscribeOptionTop(market: string, indicators: string[]): void {
+    const dataType = subjectToDataType(SubjectType.OptionTop);
+    const symbolsStr = indicators.join(',');
+    const req = buildUnSubscribeMessage(dataType, symbolsStr, undefined, market);
+    this.sendMessage(req);
+    this.removeSubscription(SubjectType.OptionTop, indicators);
+  }
+
+  /**
+   * Subscribe to crypto realtime quotes (v0.4.0).
+   * Data is delivered via the `onQuote` callback (same QuoteData body).
+   * @param symbols e.g. ["BTCUSD", "ETHUSD"]
+   */
+  subscribeCc(symbols: string[]): void {
+    this.doSubscribe(SubjectType.Cc, symbols);
+    this.addSubscription(SubjectType.Cc, symbols);
+  }
+  /** Unsubscribe from crypto realtime quotes (v0.4.0). */
+  unsubscribeCc(symbols?: string[]): void {
+    this.doUnsubscribe(SubjectType.Cc, symbols);
+    this.removeSubscription(SubjectType.Cc, symbols);
+  }
+
+  /**
+   * Subscribe to market status updates (v0.4.0).
+   * Protocol uses dataType=Quote with only the `market` field set.
+   * Data is delivered via the `onQuote` callback.
+   */
+  subscribeMarket(market: string): void {
+    // symbols 为空,只带 market 字段
+    this.doSubscribe(SubjectType.Market, undefined, undefined, market);
+    this.addSubscription(SubjectType.Market, [market]);
+  }
+  /** Unsubscribe from market status (v0.4.0). */
+  unsubscribeMarket(market: string): void {
+    const dataType = subjectToDataType(SubjectType.Market);
+    const req = buildUnSubscribeMessage(dataType, undefined, undefined, market);
+    this.sendMessage(req);
+    this.removeSubscription(SubjectType.Market, [market]);
   }
 
   // ===== Account push subscribe/unsubscribe =====

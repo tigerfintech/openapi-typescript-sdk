@@ -45,7 +45,7 @@ describe('QuoteClient', () => {
 
     it('getBrief 发送 symbols 数组', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([{ symbol: 'AAPL', latestPrice: 150.0 }]));
-      await qc.getBrief(['AAPL', 'GOOG']);
+      await qc.getBrief({ symbols: ['AAPL', 'GOOG'] });
       expect(capturedBiz(mockHttpClient)).toEqual({ symbols: ['AAPL', 'GOOG'] });
     });
 
@@ -63,13 +63,13 @@ describe('QuoteClient', () => {
 
     it('getTradeTick 发送 symbols 数组', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
-      await qc.getTradeTick(['AAPL']);
+      await qc.getTradeTick({ symbols: ['AAPL'] });
       expect(capturedBiz(mockHttpClient)).toEqual({ symbols: ['AAPL'] });
     });
 
     it('getQuoteDepth 发送 symbols 数组 + market(snake_case)', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
-      await qc.getQuoteDepth('AAPL', 'US');
+      await qc.getQuoteDepth({ symbols: ['AAPL'], market: 'US' });
       expect(capturedBiz(mockHttpClient)).toEqual({ symbols: ['AAPL'], market: 'US' });
     });
   });
@@ -132,8 +132,10 @@ describe('QuoteClient', () => {
 
     it('getFutureRealTimeQuote 发送 contract_codes', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
-      await qc.getFutureRealTimeQuote(['ES2403']);
-      expect(capturedBiz(mockHttpClient)).toEqual({ contract_codes: ['ES2403'] });
+      await qc.getFutureRealTimeQuote({ contractCodes: ['ES2403'] });
+      const call = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
+      expect(call.method).toBe('future_real_time_quote');
+      expect(JSON.parse(call.bizContent)).toEqual({ contract_codes: ['ES2403'] });
     });
 
     it('getFutureKline 发送 contract_codes + begin_time + end_time', async () => {

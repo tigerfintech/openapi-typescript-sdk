@@ -141,7 +141,7 @@ describe('TradeClient', () => {
 
     it('getFilledOrders 发送 start_date/end_date', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ items: [] }));
-      await tc.getFilledOrders(1000000000000, 2000000000000);
+      await tc.getFilledOrders({ startDate: 1000000000000, endDate: 2000000000000 });
       expect(capturedBiz(mockHttpClient)).toEqual({
         account: testAccount, start_date: 1000000000000, end_date: 2000000000000,
       });
@@ -177,7 +177,7 @@ describe('TradeClient', () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({
         items: [{ id: 12345, filledQuantity: 50 }],
       }));
-      await tc.getOrderTransactions(12345, 'AAPL', 'STK');
+      await tc.getOrderTransactions({ orderId: 12345, symbol: 'AAPL', secType: 'STK' });
       expect(capturedBiz(mockHttpClient)).toEqual({
         account: testAccount, order_id: 12345, symbol: 'AAPL', sec_type: 'STK',
       });

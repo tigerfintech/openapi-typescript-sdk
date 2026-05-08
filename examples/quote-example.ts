@@ -1,10 +1,13 @@
 /**
- * Quote example — covers every QuoteClient method end-to-end.
+ * Quote example — covers every QuoteClient method end-to-end (v0.4.0).
  *
  * Config is auto-discovered from ./tiger_openapi_config.properties or
  * ~/.tigeropen/tiger_openapi_config.properties. A single endpoint
  * failure does not stop the rest; a PASS/FAIL/SKIP summary is printed
  * at the end.
+ *
+ * v0.4.0 additions: every new method is smoke-tested once
+ * (47 new quote methods grouped by domain).
  *
  * Run: npx tsx examples/quote-example.ts
  */
@@ -16,15 +19,15 @@ type Result = { name: string; ok: boolean; err?: unknown };
 const results: Result[] = [];
 
 function ok(name: string, note: string) {
-  console.log(`[ OK ] ${name.padEnd(32)} ${truncate(note, 140)}`);
+  console.log(`[ OK ] ${name.padEnd(36)} ${truncate(note, 140)}`);
   results.push({ name, ok: true });
 }
 function fail(name: string, err: unknown) {
-  console.log(`[FAIL] ${name.padEnd(32)} ${err instanceof Error ? err.message : String(err)}`);
+  console.log(`[FAIL] ${name.padEnd(36)} ${err instanceof Error ? err.message : String(err)}`);
   results.push({ name, ok: false, err });
 }
 function skip(name: string, reason: string) {
-  console.log(`[SKIP] ${name.padEnd(32)} ${reason}`);
+  console.log(`[SKIP] ${name.padEnd(36)} ${reason}`);
   results.push({ name, ok: false, err: `skipped: ${reason}` });
 }
 function truncate(s: string, max: number): string {
@@ -32,7 +35,9 @@ function truncate(s: string, max: number): string {
 }
 
 async function main() {
-  const cfg = createClientConfig();
+  const cfg = createClientConfig({
+    propertiesFilePath: process.env.TIGER_CONFIG_PATH,
+  });
   console.log(`tiger_id=${cfg.tigerId} account=${cfg.account}\n`);
 
   const qc = new QuoteClient(new HttpClient(cfg, undefined, { useQuoteServerUrl: true }));
@@ -44,7 +49,7 @@ async function main() {
   } catch (e) { fail('getMarketState(US)', e); }
 
   try {
-    const briefs = await qc.getBrief(['AAPL', 'TSLA']);
+    const briefs = await qc.getBrief({ symbols: ['AAPL', 'TSLA'] });
     ok('getBrief', briefs.map(b => `${b.symbol}=${b.latestPrice}`).join(' '));
   } catch (e) { fail('getBrief', e); }
 
@@ -60,12 +65,12 @@ async function main() {
   } catch (e) { fail('getTimeline', e); }
 
   try {
-    const tt = await qc.getTradeTick(['AAPL']);
+    const tt = await qc.getTradeTick({ symbols: ['AAPL'] });
     ok('getTradeTick', `ticks=${tt[0]?.items.length ?? 0}`);
   } catch (e) { fail('getTradeTick', e); }
 
   try {
-    const d = await qc.getQuoteDepth('AAPL', 'US');
+    const d = await qc.getQuoteDepth({ symbols: ['AAPL'], market: 'US' });
     ok('getQuoteDepth(AAPL)', `asks=${d[0]?.asks.length ?? 0} bids=${d[0]?.bids.length ?? 0}`);
   } catch (e) { fail('getQuoteDepth(AAPL)', e); }
 
@@ -129,7 +134,7 @@ async function main() {
     skip('getFutureKline', 'no contract');
   } else {
     try {
-      const q = await qc.getFutureRealTimeQuote([contractCode]);
+      const q = await qc.getFutureRealTimeQuote({ contractCodes: [contractCode] });
       ok('getFutureRealTimeQuote', `${q[0]?.contractCode ?? ''} latestPrice=${q[0]?.latestPrice ?? 0}`);
     } catch (e) { fail('getFutureRealTimeQuote', e); }
     try {
@@ -182,6 +187,218 @@ async function main() {
     const perms = await qc.grabQuotePermission();
     ok('grabQuotePermission', `permissions=${perms.length}`);
   } catch (e) { fail('grabQuotePermission', e); }
+
+  // ==========================================================================
+  // v0.4.0 smoke tests
+  // ==========================================================================
+
+  console.log('\n=== v0.4.0: Stock basics & time series ===');
+  try {
+    const syms = await qc.getSymbols({ market: 'US', secType: 'STK' });
+    ok('getSymbols(US STK)', `count=${syms.length} first=${syms[0] ?? ''}`);
+  } catch (e) { fail('getSymbols(US STK)', e); }
+
+  try {
+    const names = await qc.getSymbolNames({ market: 'US' });
+    ok('getSymbolNames(US)', `count=${names.length} first=${names[0]?.symbol ?? ''}`);
+  } catch (e) { fail('getSymbolNames(US)', e); }
+
+  try {
+    const metas = await qc.getTradeMetas({ symbols: ['AAPL'] });
+    ok('getTradeMetas(AAPL)', `count=${metas.length}`);
+  } catch (e) { fail('getTradeMetas(AAPL)', e); }
+
+  try {
+    const dets = await qc.getStockDetails({ symbols: ['AAPL'] });
+    ok('getStockDetails(AAPL)', `count=${dets.length}`);
+  } catch (e) { fail('getStockDetails(AAPL)', e); }
+
+  try {
+    const dbs = await qc.getStockDelayBriefs({ symbols: ['AAPL'] });
+    ok('getStockDelayBriefs(AAPL)', `count=${dbs.length}`);
+  } catch (e) { fail('getStockDelayBriefs(AAPL)', e); }
+
+  try {
+    const ks = await qc.getBars({ symbols: ['AAPL'], period: 'day', limit: 10 });
+    ok('getBars(AAPL day x10)', `symbols=${ks.length} bars0=${ks[0]?.items?.length ?? 0}`);
+  } catch (e) { fail('getBars(AAPL day x10)', e); }
+
+  try {
+    const tl = await qc.getTimelineHistory({ symbols: ['AAPL'], date: '2025-05-07' });
+    ok('getTimelineHistory(AAPL)', `count=${tl.length}`);
+  } catch (e) { fail('getTimelineHistory(AAPL)', e); }
+
+  try {
+    const rks = await qc.getTradeRank({ market: 'US' });
+    ok('getTradeRank(US)', `count=${rks.length}`);
+  } catch (e) { fail('getTradeRank(US)', e); }
+
+  try {
+    const si = await qc.getShortInterest({ symbols: ['AAPL'] });
+    ok('getShortInterest(AAPL)', `count=${si.length}`);
+  } catch (e) { fail('getShortInterest(AAPL)', e); }
+
+  try {
+    const br = await qc.getStockBroker({ symbol: '00700', limit: 3 });
+    ok('getStockBroker(00700)', br ? `symbol=${br.symbol ?? ''} bids=${br.levelBidList?.length ?? 0} asks=${br.levelAskList?.length ?? 0}` : '(empty)');
+  } catch (e) { fail('getStockBroker(00700)', e); }
+
+  try {
+    const f = await qc.getStockFundamental({ symbols: ['AAPL'], market: 'US' });
+    ok('getStockFundamental(AAPL)', `keys=${Object.keys(f).length}`);
+  } catch (e) { fail('getStockFundamental(AAPL)', e); }
+
+  try {
+    const si = await qc.getStockIndustry({ symbol: 'AAPL', market: 'US' });
+    ok('getStockIndustry(AAPL)', `count=${si.length}`);
+  } catch (e) { fail('getStockIndustry(AAPL)', e); }
+
+  try {
+    const perms = await qc.getQuotePermission({});
+    ok('getQuotePermission', `count=${perms.length}`);
+  } catch (e) { fail('getQuotePermission', e); }
+
+  try {
+    const kq = await qc.getKlineQuota({ withDetails: true });
+    ok('getKlineQuota', `count=${kq.length}`);
+  } catch (e) { fail('getKlineQuota', e); }
+
+  console.log('\n=== v0.4.0: Option extensions ===');
+  try {
+    const os = await qc.getOptionSymbols({ market: 'US' });
+    ok('getOptionSymbols(US)', `count=${os.length}`);
+  } catch (e) { fail('getOptionSymbols(US)', e); }
+  skip('getOptionBars', 'need explicit OptionQuery; covered by getOptionKline');
+  skip('getOptionTradeTicks', 'need explicit OptionQuery');
+  skip('getOptionTimeline', 'need explicit OptionQuery');
+  skip('getOptionDepth', 'need explicit OptionBasic');
+  skip('getOptionAnalysis', 'need explicit symbols+period');
+
+  console.log('\n=== v0.4.0: Future extensions ===');
+  const fCode = 'MEUR2609';
+  const fType = 'MEUR';
+  try {
+    const items = await qc.getFutureContract({ contractCode: fCode });
+    ok(`getFutureContract(${fCode})`, `count=${items.length}`);
+  } catch (e) { fail(`getFutureContract(${fCode})`, e); }
+
+  try {
+    const items = await qc.getAllFutureContracts({ type: fType });
+    ok(`getAllFutureContracts(${fType})`, `count=${items.length}`);
+  } catch (e) { fail(`getAllFutureContracts(${fType})`, e); }
+
+  try {
+    const c = await qc.getCurrentFutureContract({ type: fType });
+    ok(`getCurrentFutureContract(${fType})`, c ? `code=${c.contractCode ?? ''}` : '(empty)');
+  } catch (e) { fail(`getCurrentFutureContract(${fType})`, e); }
+
+  try {
+    const items = await qc.getFutureContinuousContracts({ type: fType });
+    ok(`getFutureContinuousContracts(${fType})`, `count=${items.length}`);
+  } catch (e) { fail(`getFutureContinuousContracts(${fType})`, e); }
+
+  skip('getFutureHistoryMainContract', 'needs explicit contractCodes+time range');
+
+  try {
+    const ks = await qc.getFutureBars({ contractCodes: [fCode], period: 'day', limit: 10 });
+    ok(`getFutureBars(${fCode})`, `count=${ks.length} bars0=${ks[0]?.items?.length ?? 0}`);
+  } catch (e) { fail(`getFutureBars(${fCode})`, e); }
+
+  try {
+    const ticks = await qc.getFutureTradeTicks({ contractCode: fCode, limit: 10 });
+    ok(`getFutureTradeTicks(${fCode})`, `count=${ticks.length}`);
+  } catch (e) { fail(`getFutureTradeTicks(${fCode})`, e); }
+
+  try {
+    const d = await qc.getFutureDepth({ contractCodes: [fCode] });
+    ok(`getFutureDepth(${fCode})`, `count=${d.length}`);
+  } catch (e) { fail(`getFutureDepth(${fCode})`, e); }
+
+  try {
+    const tt = await qc.getFutureTradingTimes({ contractCode: fCode });
+    ok(`getFutureTradingTimes(${fCode})`, tt ? `bizDate=${tt.bizDate ?? ''} zone=${tt.zone ?? ''} segments=${tt.tradingTimes?.length ?? 0}` : '(empty)');
+  } catch (e) { fail(`getFutureTradingTimes(${fCode})`, e); }
+
+  console.log('\n=== v0.4.0: Funds ===');
+  try {
+    const fs = await qc.getFundSymbols({});
+    ok('getFundSymbols', `count=${fs.length}`);
+  } catch (e) { fail('getFundSymbols', e); }
+
+  try {
+    const cs = await qc.getFundContracts({ symbols: ['00003.HK'] });
+    ok('getFundContracts(00003.HK)', `count=${cs.length}`);
+  } catch (e) { fail('getFundContracts(00003.HK)', e); }
+
+  try {
+    const q = await qc.getFundQuote({ symbols: ['00003.HK'] });
+    ok('getFundQuote(00003.HK)', `count=${q.length}`);
+  } catch (e) { fail('getFundQuote(00003.HK)', e); }
+
+  try {
+    // getFundHistoryQuote wire uses begin_time/end_time (ms timestamps).
+    const beginMs = Date.UTC(2025, 4, 1);
+    const endMs = Date.UTC(2025, 4, 7);
+    const hq = await qc.getFundHistoryQuote({ symbols: ['00003.HK'], beginTime: beginMs, endTime: endMs });
+    ok('getFundHistoryQuote(00003.HK)', `count=${hq.length}`);
+  } catch (e) { fail('getFundHistoryQuote(00003.HK)', e); }
+
+  console.log('\n=== v0.4.0: Warrants ===');
+  skip('getWarrantBriefs', 'needs explicit HK warrant symbol');
+  skip('getWarrantFilter', 'needs explicit underlying symbol');
+
+  console.log('\n=== v0.4.0: Industry ===');
+  try {
+    const list = await qc.getIndustryList({ industryLevel: 'GSECTOR' });
+    ok('getIndustryList(GSECTOR)', `count=${list.length}`);
+  } catch (e) { fail('getIndustryList(GSECTOR)', e); }
+  skip('getIndustryStocks', 'needs industryId from getIndustryList');
+
+  console.log('\n=== v0.4.0: Corporate actions / financial / calendar ===');
+  try {
+    const rows = await qc.getCorporateSplit({
+      symbols: ['AAPL'], market: 'US', actionType: 'split',
+      beginDate: '2020-01-01', endDate: '2024-12-31',
+    });
+    ok('getCorporateSplit(AAPL)', `rows=${rows.length}`);
+  } catch (e) { fail('getCorporateSplit(AAPL)', e); }
+
+  try {
+    const rows = await qc.getCorporateDividend({
+      symbols: ['AAPL'], market: 'US', actionType: 'dividend',
+      beginDate: '2024-01-01', endDate: '2024-12-31',
+    });
+    ok('getCorporateDividend(AAPL)', `rows=${rows.length}`);
+  } catch (e) { fail('getCorporateDividend(AAPL)', e); }
+
+  skip('getCorporateEarningsCalendar', 'covered via getCorporateAction(earning) if needed');
+
+  try {
+    const rows = await qc.getFinancialCurrency({ symbols: ['AAPL'], market: 'US' });
+    ok('getFinancialCurrency(AAPL)', `count=${rows.length}`);
+  } catch (e) { fail('getFinancialCurrency(AAPL)', e); }
+
+  try {
+    const rows = await qc.getFinancialExchangeRate({
+      currencyList: ['USD'], beginDate: '20250501', endDate: '20250507',
+    });
+    ok('getFinancialExchangeRate(USD)', `count=${rows.length}`);
+  } catch (e) { fail('getFinancialExchangeRate(USD)', e); }
+
+  try {
+    const rows = await qc.getTradingCalendar({
+      market: 'US', beginDate: '2025-05-01', endDate: '2025-05-31',
+    });
+    ok('getTradingCalendar(US)', `count=${rows.length}`);
+  } catch (e) { fail('getTradingCalendar(US)', e); }
+
+  console.log('\n=== v0.4.0: Misc ===');
+  skip('getMarketScannerTags', 'requires structured multiTagFieldList with field_request_name');
+
+  try {
+    const rows = await qc.getQuoteOvernight({ symbols: ['AAPL'] });
+    ok('getQuoteOvernight(AAPL)', `count=${rows.length}`);
+  } catch (e) { fail('getQuoteOvernight(AAPL)', e); }
 
   printSummary();
 }

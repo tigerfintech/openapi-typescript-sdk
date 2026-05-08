@@ -84,6 +84,10 @@ export interface OrderStatusData {
   gst: number;
   attrList: string[];
   timeInForce: string;
+  /** timestamp (ms) of order info update */
+  updateTime: number;
+  /** timestamp (ms) of order status update */
+  latestTime: number;
 }
 
 function createBaseOrderStatusData(): OrderStatusData {
@@ -131,6 +135,8 @@ function createBaseOrderStatusData(): OrderStatusData {
     gst: 0,
     attrList: [],
     timeInForce: "",
+    updateTime: 0,
+    latestTime: 0,
   };
 }
 
@@ -264,6 +270,12 @@ export const OrderStatusData: MessageFns<OrderStatusData> = {
     }
     if (message.timeInForce !== "") {
       writer.uint32(346).string(message.timeInForce);
+    }
+    if (message.updateTime !== 0) {
+      writer.uint32(352).uint64(message.updateTime);
+    }
+    if (message.latestTime !== 0) {
+      writer.uint32(360).uint64(message.latestTime);
     }
     return writer;
   },
@@ -619,6 +631,22 @@ export const OrderStatusData: MessageFns<OrderStatusData> = {
           message.timeInForce = reader.string();
           continue;
         }
+        case 44: {
+          if (tag !== 352) {
+            break;
+          }
+
+          message.updateTime = longToNumber(reader.uint64());
+          continue;
+        }
+        case 45: {
+          if (tag !== 360) {
+            break;
+          }
+
+          message.latestTime = longToNumber(reader.uint64());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -676,6 +704,8 @@ export const OrderStatusData: MessageFns<OrderStatusData> = {
     message.gst = object.gst ?? 0;
     message.attrList = object.attrList?.map((e) => e) || [];
     message.timeInForce = object.timeInForce ?? "";
+    message.updateTime = object.updateTime ?? 0;
+    message.latestTime = object.latestTime ?? 0;
     return message;
   },
 };

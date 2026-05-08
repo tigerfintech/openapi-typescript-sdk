@@ -120,3 +120,140 @@ export interface Transaction {
   transactedAt?: number;
   time?: number;
 }
+
+// ===== v0.4.0 新增响应类型 =====
+
+export interface ManagedAccount {
+  account?: string;
+  accountType?: string;
+  capability?: string;
+  status?: string;
+}
+
+export interface AnalyticsAsset {
+  date?: string;
+  holdingValue?: number;
+  cashBalance?: number;
+  pnl?: number;
+  pnlRate?: number;
+  netValueIndex?: number;
+  currency?: string;
+  segType?: string;
+}
+
+export interface AggregateAssets {
+  accountId?: string;
+  netLiquidation?: number;
+  grossPositionValue?: number;
+  cashBalance?: number;
+  baseCurrency?: string;
+  currencyAssets?: CurrencyAsset[];
+}
+
+export interface EstimateTradableQuantity {
+  tradableQuantity?: number;
+  maxCashBuyQuantity?: number;
+  maxMarginBuyQuantity?: number;
+  maxShortSellQuantity?: number;
+  maxPositionSellQuantity?: number;
+  cashBuyingPower?: number;
+  currency?: string;
+}
+
+export interface ForexOrderResult {
+  id?: string;
+  status?: string;
+  sourceCurrency?: string;
+  targetCurrency?: string;
+  sourceAmount?: number;
+  targetAmount?: number;
+  rate?: number;
+  submitTime?: number;
+}
+
+export interface SegmentFund {
+  id?: string;
+  status?: string;
+  fromSegment?: string;
+  toSegment?: string;
+  currency?: string;
+  amount?: number;
+  availableAmount?: number;
+  submitTime?: number;
+}
+
+export interface SegmentFundHistoryItem {
+  id?: number;
+  fromSegment?: string;
+  toSegment?: string;
+  currency?: string;
+  amount?: number;
+  status?: string;
+  submitTime?: number;
+  updateTime?: number;
+}
+
+export interface FundDetails {
+  id?: number;
+  account?: string;
+  segType?: string;
+  fundType?: string;
+  currency?: string;
+  amount?: number;
+  balance?: number;
+  occurTime?: number;
+  remark?: string;
+  externalId?: string;
+}
+
+export interface FundingHistoryItem {
+  id?: string;
+  segType?: string;
+  currency?: string;
+  amount?: number;
+  status?: string;
+  submitTime?: number;
+  updateTime?: number;
+}
+
+export interface TransferItem {
+  symbol?: string;
+  quantity?: number;
+  expiry?: string;
+  strike?: string;
+  right?: string;
+  secType?: string;
+}
+
+export interface PositionTransferRecord {
+  id?: string;
+  fromAccount?: string;
+  toAccount?: string;
+  market?: string;
+  status?: string;
+  submitTime?: number;
+  transfers?: TransferItem[];
+}
+
+export interface PositionTransferDetail {
+  id?: string;
+  fromAccount?: string;
+  toAccount?: string;
+  market?: string;
+  status?: string;
+  submitTime?: number;
+  updateTime?: number;
+  transfers?: TransferItem[];
+  remark?: string;
+}
+
+export interface PositionTransferExternalRecord {
+  id?: string;
+  market?: string;
+  symbol?: string;
+  quantity?: number;
+  direction?: string;
+  status?: string;
+  submitTime?: number;
+  updateTime?: number;
+}

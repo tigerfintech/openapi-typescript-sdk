@@ -149,6 +149,12 @@ export function subjectToDataType(subject: SubjectType): SocketCommon_DataType {
       return SocketCommon_DataType.TradeTick;
     case SubjectType.QuoteBBO:
       return SocketCommon_DataType.Quote;
+    case SubjectType.Cc:
+      // 加密货币推送
+      return SocketCommon_DataType.Cc;
+    case SubjectType.Market:
+      // 市场状态推送协议上 dataType=Quote,只设置 market 字段
+      return SocketCommon_DataType.Quote;
     default:
       return SocketCommon_DataType.Unknown;
   }

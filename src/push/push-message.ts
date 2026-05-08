@@ -17,6 +17,10 @@ export enum SubjectType {
   OptionTop = 'option_top',
   FullTick = 'full_tick',
   QuoteBBO = 'quote_bbo',
+  /** 加密货币实时行情 (v0.4.0) */
+  Cc = 'cc',
+  /** 市场状态 (v0.4.0) */
+  Market = 'market',
   Asset = 'asset',
   Position = 'position',
   Order = 'order',

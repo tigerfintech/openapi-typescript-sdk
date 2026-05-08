@@ -107,7 +107,7 @@ describe('HttpClient.execute', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
       const callArgs = mockFetch.mock.calls[0];
       const headers = callArgs[1].headers;
-      expect(headers['User-Agent']).toBe('openapi-typescript-sdk-0.1.0');
+      expect(headers['User-Agent']).toBe('openapi-typescript-sdk-0.4.0');
       expect(headers['Content-Type']).toBe('application/json;charset=UTF-8');
     });
   });
