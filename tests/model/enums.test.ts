@@ -67,16 +67,15 @@ describe('OrderType 枚举', () => {
 });
 
 describe('OrderStatus 枚举', () => {
-  it('应包含所有订单状态值', () => {
-    expect(OrderStatus.PendingNew).toBe('PendingNew');
-    expect(OrderStatus.Initial).toBe('Initial');
-    expect(OrderStatus.Submitted).toBe('Submitted');
-    expect(OrderStatus.PartiallyFilled).toBe('PartiallyFilled');
-    expect(OrderStatus.Filled).toBe('Filled');
-    expect(OrderStatus.Cancelled).toBe('Cancelled');
-    expect(OrderStatus.PendingCancel).toBe('PendingCancel');
-    expect(OrderStatus.Inactive).toBe('Inactive');
+  it('应包含对齐 Java SDK 的所有订单状态值', () => {
     expect(OrderStatus.Invalid).toBe('Invalid');
+    expect(OrderStatus.Initial).toBe('Initial');
+    expect(OrderStatus.PendingCancel).toBe('PendingCancel');
+    expect(OrderStatus.Cancelled).toBe('Cancelled');
+    expect(OrderStatus.Submitted).toBe('Submitted');
+    expect(OrderStatus.Filled).toBe('Filled');
+    expect(OrderStatus.Inactive).toBe('Inactive');
+    expect(OrderStatus.PendingSubmit).toBe('PendingSubmit');
   });
 });
 

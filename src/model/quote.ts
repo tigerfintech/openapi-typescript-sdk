@@ -348,3 +348,300 @@ export interface MarketScannerRequest {
   sortFieldData?: Record<string, unknown>;
   multiTagsFields?: string[];
 }
+
+// ============================================================================
+// Batch 3-5: extended response models (v0.4.0).
+// ============================================================================
+
+/** Symbol + name item (all_symbol_names). */
+export interface SymbolName {
+  symbol?: string;
+  name?: string;
+  market?: string;
+}
+
+/** Trade meta (quote_stock_trade). */
+export interface TradeMeta {
+  symbol?: string;
+  lotSize?: number;
+  minTick?: number;
+  spreadScale?: number;
+  shortableFlag?: string;
+  marginableFlag?: string;
+}
+
+/** Stock detail (stock_detail). */
+export interface StockDetail {
+  symbol?: string;
+  nameCN?: string;
+  nameEN?: string;
+  exchange?: string;
+  market?: string;
+  currency?: string;
+  secType?: string;
+  sector?: string;
+  industry?: string;
+  /** ms timestamp */
+  listingDate?: number;
+  marketCap?: number;
+  circulationCap?: number;
+  totalShares?: number;
+  epsTtm?: number;
+  peRatioTtm?: number;
+}
+
+/** Short interest data. */
+export interface ShortInterest {
+  symbol?: string;
+  settlementDate?: string;
+  shortInterest?: number;
+  avgDailyVolume?: number;
+  daysToCover?: number;
+  percentOfFloat?: number;
+  shortInterestPrevious?: number;
+  percentChange?: number;
+}
+
+/** Broker detail inside a price level. */
+export interface BrokerDetail {
+  id?: string;
+  name?: string;
+}
+
+/** A single broker-queue level. */
+export interface StockBrokerItem {
+  level?: number;
+  price?: number;
+  brokers?: BrokerDetail[];
+}
+
+/** Broker queue (stock_broker). */
+export interface StockBroker {
+  symbol?: string;
+  levelAskList?: StockBrokerItem[];
+  levelBidList?: StockBrokerItem[];
+}
+
+/** Stock industry classification (stock_industry). */
+export interface StockIndustry {
+  symbol?: string;
+  gsector?: string;
+  ggroup?: string;
+  gind?: string;
+  gsubind?: string;
+  level?: string;
+}
+
+/** Trade rank row (trade_rank). */
+export interface TradeRankItem {
+  symbol?: string;
+  name?: string;
+  latestPrice?: number;
+  change?: number;
+  changeRate?: number;
+  volume?: number;
+  amount?: number;
+}
+
+/** K-line quota detail. */
+export interface KlineQuotaDetail {
+  symbol?: string;
+  market?: string;
+  usedBars?: number;
+  quotaBars?: number;
+  lastAccess?: number;
+}
+
+/** K-line quota (kline_quota). */
+export interface KlineQuota {
+  method?: string;
+  used?: number;
+  quota?: number;
+  detail?: KlineQuotaDetail[];
+}
+
+/** Option historical-volatility time series point. */
+export interface OptionVolatilityPoint {
+  date?: string;
+  volatility?: number;
+}
+
+/** Option analysis (option_analysis). */
+export interface OptionAnalysis {
+  symbol?: string;
+  historicalVolatility30Day?: number;
+  historicalVolatility60Day?: number;
+  historicalVolatility90Day?: number;
+  impliedVolatility?: number;
+  volatilityList?: OptionVolatilityPoint[];
+}
+
+/** Option symbol listing (option_symbol). */
+export interface OptionSymbol {
+  symbol?: string;
+  market?: string;
+  nameCN?: string;
+  nameEN?: string;
+}
+
+/** Historical futures main contract entry. */
+export interface FutureMainContractHistory {
+  contractCode?: string;
+  symbol?: string;
+  beginDate?: string;
+  endDate?: string;
+}
+
+/** A single futures trading time segment. */
+export interface FutureTradingSegment {
+  /** ms timestamp */
+  start?: number;
+  end?: number;
+  /** RTH / Night / Break */
+  type?: string;
+}
+
+/** Futures trading session (future_trading_date). */
+export interface FutureTradingTime {
+  contractCode?: string;
+  bizDate?: string;
+  zone?: string;
+  tradingTimes?: FutureTradingSegment[];
+}
+
+/** Futures tick-trade item (future_tick). */
+export interface FutureTradeTickItem {
+  contractCode?: string;
+  index?: number;
+  time?: number;
+  price?: number;
+  volume?: number;
+  direction?: string;
+}
+
+/** Futures depth snapshot (future_depth). */
+export interface FutureDepth {
+  contractCode?: string;
+  timestamp?: number;
+  asks?: DepthLevel[];
+  bids?: DepthLevel[];
+}
+
+/** Warrant brief (warrant_briefs). */
+export interface WarrantBrief {
+  symbol?: string;
+  name?: string;
+  latestPrice?: number;
+  change?: number;
+  changeRate?: number;
+  volume?: number;
+  amount?: number;
+  underlying?: string;
+  issuer?: string;
+  expiryDate?: string;
+  strikePrice?: number;
+  warrantType?: string;
+}
+
+/** Warrant filter paged result (warrant_filter). */
+export interface WarrantFilterResult {
+  total?: number;
+  items?: WarrantBrief[];
+  pageSize?: number;
+  page?: number;
+}
+
+/** Industry list row (industry_list). */
+export interface IndustryItem {
+  id?: string;
+  name?: string;
+  level?: string;
+}
+
+/** Stock belonging to an industry (industry_stock_list). */
+export interface IndustryStock {
+  symbol?: string;
+  name?: string;
+  industryId?: string;
+  change?: number;
+  changeRate?: number;
+}
+
+/** Trading calendar entry (trading_calendar). */
+export interface TradingCalendarItem {
+  market?: string;
+  date?: string;
+  isTrading?: boolean;
+  sessionType?: string;
+}
+
+/** FX rate (financial_exchange_rate). */
+export interface ExchangeRate {
+  currency?: string;
+  date?: string;
+  rate?: number;
+  baseCurrency?: string;
+}
+
+/** Financial currency per symbol (financial_currency). */
+export interface FinancialCurrency {
+  symbol?: string;
+  market?: string;
+  currency?: string;
+}
+
+/** Overnight quote (quote_overnight). */
+export interface QuoteOvernight {
+  symbol?: string;
+  preClose?: number;
+  open?: number;
+  close?: number;
+  high?: number;
+  low?: number;
+  volume?: number;
+  amount?: number;
+  change?: number;
+  changeRate?: number;
+  beginTime?: number;
+  endTime?: number;
+}
+
+/** Single market-scanner tag. */
+export interface MarketScannerTag {
+  field?: string;
+  name?: string;
+  values?: string[];
+}
+
+/** Market scanner tag set (market_scanner_tags). */
+export interface MarketScannerTags {
+  tagFields?: string[];
+  tags?: MarketScannerTag[];
+}
+
+/** Fund contract info (fund_contracts). */
+export interface FundContractInfo {
+  symbol?: string;
+  name?: string;
+  currency?: string;
+  fundType?: string;
+  inception?: string;
+  netAssetValue?: number;
+  expenseRatio?: number;
+}
+
+/** Fund real-time NAV (fund_quote). */
+export interface FundQuote {
+  symbol?: string;
+  latestNav?: number;
+  change?: number;
+  changeRate?: number;
+  date?: string;
+}
+
+/** Fund historical NAV (fund_history_quote). */
+export interface FundHistoryQuote {
+  symbol?: string;
+  date?: string;
+  nav?: number;
+}

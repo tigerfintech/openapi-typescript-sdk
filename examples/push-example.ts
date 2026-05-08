@@ -15,7 +15,9 @@ import { createClientConfig } from '../src/config/client-config';
 import { PushClient } from '../src/push/push-client';
 
 async function main() {
-  const config = createClientConfig();
+  const config = createClientConfig({
+    propertiesFilePath: process.env.TIGER_CONFIG_PATH,
+  });
   const pc = new PushClient(config);
 
   // Register ALL available callback types

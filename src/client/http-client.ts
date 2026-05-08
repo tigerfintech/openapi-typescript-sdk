@@ -13,7 +13,7 @@ import { parseApiResponse, type ApiResponse } from './api-response';
 import type { ApiRequest } from './api-request';
 
 /** SDK 版本号 */
-const SDK_VERSION = '0.1.0';
+const SDK_VERSION = '0.4.0';
 /** User-Agent 字符串 */
 const USER_AGENT = `openapi-typescript-sdk-${SDK_VERSION}`;
 /** 默认字符集 */
