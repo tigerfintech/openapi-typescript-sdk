@@ -96,6 +96,8 @@ export class PushClient {
 
   private socket: TLSSocketLike | null = null;
   private _state: ConnectionState = ConnectionState.Disconnected;
+  /** Whether this connect attempt already fell back to unverified TLS */
+  private tlsFallback = false;
   private callbacks: Callbacks = {};
 
   /** Subscription state: subject -> Set<symbol> */
@@ -143,6 +145,7 @@ export class PushClient {
       }
       this._state = ConnectionState.Connecting;
       this.stopped = false;
+      this.tlsFallback = false;
       this.recvBuffer = Buffer.alloc(0);
 
       const socket = this.createSocket(this.pushHost, this.pushPort);
@@ -205,6 +208,24 @@ export class PushClient {
 
       socket.on('error', (err: Error) => {
         if (!settled) {
+          // If this is a TLS certificate error, warn and retry without verification.
+          const isTlsCertError = err.message.includes('certificate') ||
+            err.message.includes('CERT') ||
+            (err as NodeJS.ErrnoException).code === 'DEPTH_ZERO_SELF_SIGNED_CERT' ||
+            (err as NodeJS.ErrnoException).code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ||
+            (err as NodeJS.ErrnoException).code === 'CERT_HAS_EXPIRED';
+          if (isTlsCertError && !this.tlsFallback) {
+            this.tlsFallback = true;
+            settled = true;
+            clearTimeout(timeout);
+            socket.destroy();
+            this.socket = null;
+            this._state = ConnectionState.Disconnected;
+            console.warn(`[TigerOpen] TLS certificate verification failed: ${err.message}. Retrying without verification.`);
+            // Retry immediately using unverified TLS
+            this.connect().then(resolve).catch(reject);
+            return;
+          }
           settled = true;
           clearTimeout(timeout);
           this._state = ConnectionState.Disconnected;
@@ -265,8 +286,9 @@ export class PushClient {
   /** Create a TLS socket instance */
   private createSocket(host: string, port: number): TLSSocketLike {
     if (this.socketFactory) return this.socketFactory(host, port);
-    return tls.connect({ host, port, rejectUnauthorized: false }) as unknown as TLSSocketLike;
+    return tls.connect({ host, port, rejectUnauthorized: !this.tlsFallback }) as unknown as TLSSocketLike;
   }
+
 
   /** Handle incoming TCP data: buffer + decode varint32 frames */
   private handleData(chunk: Buffer, onConnected?: () => void): void {
