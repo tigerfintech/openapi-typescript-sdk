@@ -541,9 +541,19 @@ export class QuoteClient {
     return acc;
   }
 
-  /** Futures tick trades. wire: future_tick (API v3.0) */
+  /** Futures tick trades. wire: future_tick (API v3.0)
+   * Server returns {contractCode, items:[...]}; unwrap items and backfill contractCode.
+   * endIndex defaults to 30 when not set (consistent with Python/Go SDK). */
   async getFutureTradeTicks(req: FutureTradeTicksRequest): Promise<FutureTradeTickItem[]> {
-    return this.callInto<FutureTradeTickItem[]>('future_tick', req, '3.0');
+    if (!req.endIndex) req.endIndex = 30;
+    const wrap = await this.callInto<{ contractCode?: string; items?: FutureTradeTickItem[] }>('future_tick', req, '3.0');
+    const items = wrap?.items ?? [];
+    if (wrap?.contractCode) {
+      for (const item of items) {
+        if (!item.contractCode) item.contractCode = wrap.contractCode;
+      }
+    }
+    return items;
   }
 
   /** Futures depth. wire: future_depth */
