@@ -171,15 +171,26 @@ export interface ForexOrderResult {
   submitTime?: number;
 }
 
+/** Segment fund available item (segment_fund_available response). */
+export interface SegmentFundAvailableItem {
+  fromSegment?: string;
+  currency?: string;
+  amount?: number;
+}
+
+/** Segment fund transfer/cancel response. */
 export interface SegmentFund {
-  id?: string;
-  status?: string;
+  id?: string | number;
   fromSegment?: string;
   toSegment?: string;
   currency?: string;
   amount?: number;
-  availableAmount?: number;
-  submitTime?: number;
+  status?: string;
+  statusDesc?: string;
+  message?: string;
+  settledAt?: number;
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 export interface SegmentFundHistoryItem {
@@ -189,8 +200,10 @@ export interface SegmentFundHistoryItem {
   currency?: string;
   amount?: number;
   status?: string;
-  submitTime?: number;
-  updateTime?: number;
+  statusDesc?: string;
+  settledAt?: number;
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 export interface FundDetails {

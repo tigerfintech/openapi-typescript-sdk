@@ -8,7 +8,7 @@
  *
  * Priority: environment variables > code options (incl. config file) > defaults
  */
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, statSync } from 'fs';
 import { join } from 'path';
 import { homedir, networkInterfaces } from 'os';
 import { parsePropertiesString } from './config-parser';
@@ -67,7 +67,8 @@ export interface ClientConfigOptions {
   quoteServerUrl?: string;
   /** Enable dynamic domain resolution (default: true) */
   enableDynamicDomain?: boolean;
-  /** Explicit properties file path (synchronous read) */
+  /** Explicit properties file path or directory (synchronous read).
+   * If a directory is given, appends 'tiger_openapi_config.properties' automatically. */
   propertiesFilePath?: string;
 }
 
@@ -146,7 +147,16 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
   // Load properties: explicit path > auto-discovery
   let fileProps: Record<string, string> = {};
   if (opts.propertiesFilePath) {
-    fileProps = loadPropertiesFile(opts.propertiesFilePath);
+    // Support both directory path and full file path
+    let filePath = opts.propertiesFilePath;
+    if (existsSync(filePath) && statSync(filePath).isDirectory()) {
+      filePath = join(filePath, CONFIG_FILE_NAME);
+    } else if (!existsSync(filePath) && !filePath.endsWith('.properties')) {
+      // Path doesn't exist as-is; try treating it as a directory
+      const asDir = join(filePath, CONFIG_FILE_NAME);
+      if (existsSync(asDir)) filePath = asDir;
+    }
+    fileProps = loadPropertiesFile(filePath);
   } else {
     const discovered = discoverConfigFile();
     if (discovered) {

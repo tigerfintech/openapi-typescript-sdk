@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-05-12
+
+### Fixed
+
+- **`getFutureTradeTicks` 响应解包修正**：服务端返回 `{contractCode, items:[...]}` 结构，现正确解包 items 并回填 contractCode 到每条记录。`endIndex` 未设置时默认 30（与 Python/Go SDK 一致）。
+- **`SegmentFundHistoryItem` 字段名修正**：`submitTime`/`updateTime` → `createdAt`/`updatedAt`/`settledAt`，补充 `statusDesc` 字段，与服务端实际响应对齐。
+- **`SegmentFundAvailable` 返回类型修正**：由 `SegmentFund[]` 改为专用 `SegmentFundAvailableItem[]`（仅含 `fromSegment`/`currency`/`amount`）。
+- **`SegmentFund` 模型更新**：`ID` 类型改为 `string | number`，补充 `statusDesc`/`message`/`settledAt`/`createdAt`/`updatedAt` 字段。
+- **`getFundingHistory` 响应解析修正**：服务端返回裸 list（无 items 包装），改用 `callInto` 替代 `callIntoItems`。
+- **响应签名验证修正**：部分接口不返回 sign 字段，不再抛异常，改为跳过验证。
+- **重试逻辑修正**：API 业务错误（code != 0）不再触发指数退避重试（之前会重试 5 次导致 ~30s 假超时）。
+- **HTTP 连接管理**：添加 `Connection: close` header，避免 keep-alive 连接未释放。
+
+### Added
+
+- **`propertiesFilePath` 支持目录路径**：传入目录时自动拼接 `tiger_openapi_config.properties`，简化配置加载。
+
 ## [0.4.0] - 2026-05-08
 
 本次发布达到与 Python / Java / Go SDK **100% API 覆盖**。新增约 65 个方法,重构 12 个方法签名。包含多处 breaking change。
