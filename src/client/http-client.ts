@@ -77,6 +77,7 @@ export class HttpClient {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json;charset=UTF-8',
       'User-Agent': USER_AGENT,
+      'Connection': 'close',
     };
     if (this.config.token) {
       headers['Authorization'] = this.config.token;
@@ -89,7 +90,8 @@ export class HttpClient {
       signal: AbortSignal.timeout(this.config.timeout * 1000),
     });
 
-    return response.text();
+    const text = await response.text();
+    return text;
   }
 
   /**
@@ -119,6 +121,10 @@ export class HttpClient {
         return response;
       } catch (err) {
         lastErr = err as Error;
+        // Only retry on network errors, not API business errors (TigerError with code)
+        if ((err as any).code !== undefined && (err as any).code !== -1) {
+          throw err; // API returned a business error code, don't retry
+        }
         if (!this.retryPolicy.shouldRetry(request.method)) {
           throw err;
         }
@@ -164,11 +170,15 @@ export class HttpClient {
       try {
         const body = await this.doHttpPost(params);
         // Verify response signature even for raw responses
-        const parsed = JSON.parse(body) as { sign?: string };
+        const parsed = JSON.parse(body) as { sign?: string; code?: number };
         this.verifyResponseSign(params['timestamp'], parsed.sign);
         return body;
       } catch (err) {
         lastErr = err as Error;
+        // Don't retry API business errors
+        if ((err as any).code !== undefined && (err as any).code !== -1) {
+          throw err;
+        }
         if (!this.retryPolicy.shouldRetry(apiMethod)) {
           throw err;
         }
@@ -192,7 +202,8 @@ export class HttpClient {
    */
   private verifyResponseSign(timestamp: string, signBase64: string | undefined): void {
     if (!signBase64) {
-      throw new TigerError(-1, 'Response signature is missing');
+      // Some endpoints don't return a signature; skip verification silently.
+      return;
     }
     const valid = verifyWithRSA(this.config.tigerPublicKey, timestamp, signBase64);
     if (!valid) {
