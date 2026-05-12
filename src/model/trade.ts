@@ -220,13 +220,18 @@ export interface FundDetails {
 }
 
 export interface FundingHistoryItem {
-  id?: string;
-  segType?: string;
+  id?: number;
+  refId?: string;
+  type?: number;
+  typeDesc?: string;
   currency?: string;
   amount?: number;
+  businessDate?: string;
   status?: string;
-  submitTime?: number;
-  updateTime?: number;
+  statusDesc?: string;
+  completedStatus?: boolean;
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 export interface TransferItem {
