@@ -15,7 +15,9 @@ export function camelToSnake(key: string): string {
 /**
  * Recursively convert all object keys from camelCase to snake_case.
  * Preserves arrays, primitives, and Date/null/undefined.
- * Keys already containing an underscore are kept as-is (already snake_case).
+ *
+ * Note: camelToSnake is idempotent for pure snake_case keys (no uppercase
+ * letters → no replacements), so no pre-check is needed.
  */
 export function keysToSnakeCase(value: unknown): unknown {
   if (Array.isArray(value)) {
@@ -24,8 +26,7 @@ export function keysToSnakeCase(value: unknown): unknown {
   if (value && typeof value === 'object' && value.constructor === Object) {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      const newKey = k.includes('_') ? k : camelToSnake(k);
-      out[newKey] = keysToSnakeCase(v);
+      out[camelToSnake(k)] = keysToSnakeCase(v);
     }
     return out;
   }
