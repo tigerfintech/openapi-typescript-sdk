@@ -20,27 +20,37 @@ function cleanup() {
 describe('TokenManager', () => {
   afterEach(cleanup);
 
-  it('从文件加载 Token', () => {
+  it('从文件加载 Token', async () => {
     setup();
     const path = join(testDir, 'token.properties');
     writeFileSync(path, 'token=test_token_123\n');
     const m = new TokenManager({ filePath: path });
-    const token = m.loadToken();
+    const token = await m.loadToken();
     expect(token).toBe('test_token_123');
     expect(m.getToken()).toBe('test_token_123');
   });
 
-  it('文件不存在时抛出错误', () => {
-    const m = new TokenManager({ filePath: '/nonexistent/path' });
-    expect(() => m.loadToken()).toThrow();
+  it('loadTokenSync 从文件加载 Token', () => {
+    setup();
+    const path = join(testDir, 'token.properties');
+    writeFileSync(path, 'token=sync_token_789\n');
+    const m = new TokenManager({ filePath: path });
+    const token = m.loadTokenSync();
+    expect(token).toBe('sync_token_789');
+    expect(m.getToken()).toBe('sync_token_789');
   });
 
-  it('无 token 字段时抛出错误', () => {
+  it('文件不存在时抛出错误', async () => {
+    const m = new TokenManager({ filePath: '/nonexistent/path' });
+    await expect(m.loadToken()).rejects.toThrow();
+  });
+
+  it('无 token 字段时抛出错误', async () => {
     setup();
     const path = join(testDir, 'token.properties');
     writeFileSync(path, 'other_key=value\n');
     const m = new TokenManager({ filePath: path });
-    expect(() => m.loadToken()).toThrow('Token 文件中未找到 token 字段');
+    await expect(m.loadToken()).rejects.toThrow('Token 文件中未找到 token 字段');
   });
 
   it('设置 Token 并更新文件', () => {
@@ -53,18 +63,71 @@ describe('TokenManager', () => {
     expect(content).toBe('token=new_token_456\n');
   });
 
-  it('设置后重新加载 Token', () => {
+  it('setToken 无 filePath 时不写文件（fileEnabled=false）', () => {
+    // 不传 filePath → fileEnabled = false，setToken 仅更新内存
+    const m = new TokenManager();
+    m.setToken('memory_only_token');
+    expect(m.getToken()).toBe('memory_only_token');
+  });
+
+  it('syncToken 更新内存但不触发 tokenWriter', () => {
+    const written: string[] = [];
+    const path = join(testDir, 'token.properties');
+    setup();
+    const m = new TokenManager({
+      filePath: path,
+      tokenWriter: (t) => written.push(t),
+    });
+    m.syncToken('synced_token');
+    expect(m.getToken()).toBe('synced_token');
+    expect(written).toHaveLength(0);
+  });
+
+  it('setToken 触发 tokenWriter 回调', () => {
+    const written: string[] = [];
+    const m = new TokenManager({
+      tokenWriter: (t) => written.push(t),
+    });
+    m.setToken('callback_token');
+    expect(written).toEqual(['callback_token']);
+  });
+
+  it('设置后重新加载 Token', async () => {
     setup();
     const path = join(testDir, 'token.properties');
     const m1 = new TokenManager({ filePath: path });
     m1.setToken('round_trip_token');
     const m2 = new TokenManager({ filePath: path });
-    expect(m2.loadToken()).toBe('round_trip_token');
+    expect(await m2.loadToken()).toBe('round_trip_token');
   });
 
   it('停止未启动的刷新不报错', () => {
     const m = new TokenManager();
     expect(() => m.stopAutoRefresh()).not.toThrow();
+  });
+
+  it('tokenLoader 优先于文件加载', async () => {
+    const m = new TokenManager({
+      tokenLoader: () => 'loader_token',
+    });
+    const token = await m.loadToken();
+    expect(token).toBe('loader_token');
+    expect(m.getToken()).toBe('loader_token');
+  });
+
+  it('异步 tokenLoader 正常工作', async () => {
+    const m = new TokenManager({
+      tokenLoader: async () => 'async_loader_token',
+    });
+    const token = await m.loadToken();
+    expect(token).toBe('async_loader_token');
+  });
+
+  it('tokenLoader 返回空值时抛出错误', async () => {
+    const m = new TokenManager({
+      tokenLoader: () => '',
+    });
+    await expect(m.loadToken()).rejects.toThrow('自定义 tokenLoader 返回空值');
   });
 });
 

@@ -19,6 +19,10 @@ export interface TokenManagerOptions {
   refreshInterval?: number;
   /** Token 刷新阈值（秒），0 表示不刷新，最小 30 秒 */
   refreshDuration?: number;
+  /** 自定义 token 加载函数，优先于文件加载 */
+  tokenLoader?: () => Promise<string> | string;
+  /** token 写入后的回调（SetToken 成功后触发，SyncToken 不触发） */
+  tokenWriter?: (token: string) => void;
 }
 
 /** Token 刷新函数类型 */
@@ -30,11 +34,16 @@ export type RefreshFn = () => Promise<string>;
 export class TokenManager {
   private token = '';
   private filePath: string;
+  /** 仅当显式传入 filePath 时才写文件（fileEnabled = true） */
+  private fileEnabled: boolean;
   private refreshInterval: number;
   private refreshDuration: number;
   private timer: ReturnType<typeof setInterval> | null = null;
+  private tokenLoader: (() => Promise<string> | string) | undefined;
+  private tokenWriter: ((token: string) => void) | undefined;
 
   constructor(options?: TokenManagerOptions) {
+    this.fileEnabled = options?.filePath !== undefined;
     this.filePath = options?.filePath ?? DEFAULT_TOKEN_FILE;
     this.refreshInterval = options?.refreshInterval ?? DEFAULT_REFRESH_INTERVAL;
     let dur = options?.refreshDuration ?? 0;
@@ -42,10 +51,41 @@ export class TokenManager {
       dur = 30;
     }
     this.refreshDuration = dur;
+    this.tokenLoader = options?.tokenLoader;
+    this.tokenWriter = options?.tokenWriter;
   }
 
-  /** 从 properties 文件加载 Token */
-  loadToken(): string {
+  /**
+   * 从 properties 文件（或自定义 tokenLoader）加载 Token。
+   * 若设置了 tokenLoader，优先调用；否则从 properties 文件读取。
+   */
+  async loadToken(): Promise<string> {
+    if (this.tokenLoader) {
+      const token = await this.tokenLoader();
+      if (!token) {
+        throw new Error('自定义 tokenLoader 返回空值');
+      }
+      this.token = token;
+      return token;
+    }
+    const content = readFileSync(this.filePath, 'utf-8');
+    const props = parsePropertiesString(content);
+    const token = props['token'];
+    if (!token) {
+      throw new Error('Token 文件中未找到 token 字段');
+    }
+    this.token = token;
+    return token;
+  }
+
+  /**
+   * 同步版文件加载（仅用于无 tokenLoader 时的兼容入口）。
+   * 建议优先使用 loadToken()（异步）。
+   */
+  loadTokenSync(): string {
+    if (this.tokenLoader) {
+      throw new Error('tokenLoader 是异步函数，请使用 loadToken()');
+    }
     const content = readFileSync(this.filePath, 'utf-8');
     const props = parsePropertiesString(content);
     const token = props['token'];
@@ -61,10 +101,26 @@ export class TokenManager {
     return this.token;
   }
 
-  /** 设置 Token 并更新文件 */
+  /**
+   * 设置 Token；若启用了文件持久化（显式传入 filePath），则同步写文件。
+   * 成功后触发 tokenWriter 回调（如有）。
+   */
   setToken(token: string): void {
     this.token = token;
-    this.saveTokenToFile(token);
+    if (this.fileEnabled) {
+      this.saveTokenToFile(token);
+    }
+    if (this.tokenWriter) {
+      this.tokenWriter(token);
+    }
+  }
+
+  /**
+   * 仅更新内存中的 token，不写文件，不触发 tokenWriter 回调。
+   * 用于多个组件共享 token 时的内部同步。
+   */
+  syncToken(token: string): void {
+    this.token = token;
   }
 
   /** 将 Token 保存到 properties 文件 */
@@ -122,6 +178,10 @@ export class TokenManager {
         // 刷新失败时静默跳过
       }
     }, this.refreshInterval);
+    // 防止 timer 阻止 Node.js 进程退出
+    if (this.timer.unref) {
+      this.timer.unref();
+    }
   }
 
   /** 停止后台刷新 */
