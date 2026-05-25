@@ -105,6 +105,8 @@ export interface OrderIdResult {
 export interface Transaction {
   id?: number;
   orderId?: number;
+  /** Numeric account ID (wire: accountId). */
+  accountId?: number;
   account?: string;
   symbol?: string;
   secType?: string;
@@ -112,12 +114,24 @@ export interface Transaction {
   currency?: string;
   identifier?: string;
   action?: string;
+  /** Order/commission price. */
   price?: number;
+  /** Fill price (wire: filledPrice). */
+  filledPrice?: number;
   quantity?: number;
   filledQuantity?: number;
+  /** Scale for filledQuantity (wire: filledQuantityScale). */
+  filledQuantityScale?: number;
+  /** Order amount. */
   amount?: number;
+  /** Fill amount (wire: filledAmount). */
+  filledAmount?: number;
   commission?: number;
-  transactedAt?: number;
+  /** Fill timestamp string, format "YYYY-MM-DD HH:MM:SS" (server returns string, not number). */
+  transactedAt?: string;
+  /** Fill time as Unix millisecond timestamp (wire: transactionTime). */
+  transactionTime?: number;
+  /** Legacy time field. */
   time?: number;
 }
 

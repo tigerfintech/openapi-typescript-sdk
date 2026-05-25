@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-05-25
+
+### Added
+
+- **Token 自动刷新**：新增 `TokenManager`（后台 `setInterval` + `timer.unref()` 避免进程挂起）、`tokenLoader` / `tokenWriter` 回调、`syncToken()` 内存同步方法，与 Go SDK v0.3.6 功能对齐。
+- **`HttpClient.close()`**：停止后台 token 刷新 timer，避免长期运行服务中的泄漏。
+- **`TIGEROPEN_TOKEN_FILE` 环境变量**：支持通过环境变量指定 token 文件路径。
+- **`HttpClient.queryToken()` / `refreshToken()` / `startTokenAutoRefresh()`**：手动刷新与自动刷新控制接口。
+- **Push `accountSubs` 改为 `Map<SubjectType, string>`**：记录订阅时的 account，重连后自动恢复订阅，避免断连后 account 丢失。
+
+### Fixed
+
+- **`Transaction` 响应模型修正**（对应 Go SDK v0.3.1）：`transactedAt` 类型 `number` → `string`（服务端返回 "YYYY-MM-DD HH:MM:SS" 格式字符串非时间戳）；新增 `accountId`、`filledPrice`、`filledAmount`、`filledQuantityScale`、`transactionTime` 字段与服务端实际响应对齐。
+- **请求时间戳修正**：原 `toISOString()` 生成 UTC 时间，改为本地时间格式 `YYYY-MM-DD HH:MM:SS`，与 Go SDK 签名格式对齐，避免服务端拒绝请求。
+- **`keysToSnakeCase` 守卫移除**：移除阻止嵌套对象 key 转换的错误 `typeof v !== 'object'` 守卫，确保 `orderLegs`、`algoParams` 等嵌套字段的 key 正确转为 snake_case。
+- **域名查询优化**：`queryDomains()` 仅调用一次，结果同时用于 `serverUrl` 和 `quoteServerUrl`，消除冗余请求。
+- **Token 加载优先级修正**：`TIGEROPEN_TOKEN` 环境变量 > `tokenLoader` > token 文件，与 Go SDK 保持一致。
+
 ## [0.4.2] - 2026-05-12
 
 ### Fixed
