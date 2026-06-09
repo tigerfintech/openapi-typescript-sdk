@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.5] - 2026-06-09
+
+### Fixed
+
+- **`index.ts` 补全公共导出**：原入口文件仅导出 `VERSION` 常量，导致 JS/TS 项目无法通过 `import { TradeClient } from '@tigeropenapi/tigeropen'` 引入任何功能。现已 re-export 所有公共 API：`TradeClient`、`QuoteClient`、`PushClient`、`HttpClient`、`createClientConfig`、`TokenManager`、全部 model 类型及枚举。
+- **ESM 构建缺少 `.js` 扩展名**：Node.js ESM 规范要求相对路径导入必须带完整文件扩展名，但 TypeScript `moduleResolution: node` 不自动生成扩展名，导致 `import ... from '@tigeropenapi/tigeropen'` 在 Node.js ESM 项目中报 `ERR_MODULE_NOT_FOUND` / `ERR_UNSUPPORTED_DIR_IMPORT`。新增 `scripts/fix-esm-imports.mjs` postbuild 脚本，自动为 `dist/esm/` 所有相对导入补充 `.js` / `/index.js`，已接入 `npm run build`。
+
 ## [0.4.4] - 2026-06-09
 
 ### Added
