@@ -26,6 +26,7 @@ import type {
   EstimateTradableQuantity,
   ForexOrderResult,
   SegmentFund,
+  SegmentFundAvailableItem,
   SegmentFundHistoryItem,
   FundDetails,
   FundingHistoryItem,
@@ -284,8 +285,8 @@ export class TradeClient {
   // ===== v0.4.0 NEW: Segment fund transfer =====
 
   /** Query amount available for inter-segment transfer. Returns array. */
-  async getSegmentFundAvailable(req: SegmentFundRequest): Promise<SegmentFund[]> {
-    return this.callInto<SegmentFund[]>('segment_fund_available', withAccount(req, this.account));
+  async getSegmentFundAvailable(req: SegmentFundRequest): Promise<SegmentFundAvailableItem[]> {
+    return this.callInto<SegmentFundAvailableItem[]>('segment_fund_available', withAccount(req, this.account));
   }
 
   /** Query segment fund transfer history. Server returns plain array (no items wrapper). */
@@ -313,9 +314,10 @@ export class TradeClient {
     return this.callIntoItems<FundDetails>('fund_details', withAccount(req, this.account));
   }
 
-  /** Funding history (wire method: `transfer_fund`). */
+  /** Funding history (wire method: `transfer_fund`).
+   * Server returns bare list (no items wrapper). */
   async getFundingHistory(req: FundingHistoryRequest): Promise<FundingHistoryItem[]> {
-    return this.callIntoItems<FundingHistoryItem>(
+    return this.callInto<FundingHistoryItem[]>(
       'transfer_fund',
       withAccount(req, this.account),
     );

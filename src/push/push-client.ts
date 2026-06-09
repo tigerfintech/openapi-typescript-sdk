@@ -102,8 +102,8 @@ export class PushClient {
 
   /** Subscription state: subject -> Set<symbol> */
   private subscriptions = new Map<SubjectType, Set<string>>();
-  /** Account-level subscriptions */
-  private accountSubs = new Set<SubjectType>();
+  /** Account-level subscriptions: subject -> account string used at subscribe time */
+  private accountSubs = new Map<SubjectType, string>();
 
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -399,8 +399,8 @@ export class PushClient {
     for (const [subject, symbols] of this.subscriptions) {
       this.doSubscribe(subject, Array.from(symbols));
     }
-    for (const subject of this.accountSubs) {
-      this.doSubscribe(subject, undefined, this.config.account);
+    for (const [subject, account] of this.accountSubs) {
+      this.doSubscribe(subject, undefined, account);
     }
   }
 
@@ -637,8 +637,9 @@ export class PushClient {
 
   /** Subscribe to asset changes */
   subscribeAsset(account?: string): void {
-    this.doSubscribe(SubjectType.Asset, undefined, account || this.config.account);
-    this.accountSubs.add(SubjectType.Asset);
+    const acct = account || this.config.account;
+    this.doSubscribe(SubjectType.Asset, undefined, acct);
+    this.accountSubs.set(SubjectType.Asset, acct);
   }
   /** Unsubscribe from asset changes */
   unsubscribeAsset(): void {
@@ -648,8 +649,9 @@ export class PushClient {
 
   /** Subscribe to position changes */
   subscribePosition(account?: string): void {
-    this.doSubscribe(SubjectType.Position, undefined, account || this.config.account);
-    this.accountSubs.add(SubjectType.Position);
+    const acct = account || this.config.account;
+    this.doSubscribe(SubjectType.Position, undefined, acct);
+    this.accountSubs.set(SubjectType.Position, acct);
   }
   /** Unsubscribe from position changes */
   unsubscribePosition(): void {
@@ -659,8 +661,9 @@ export class PushClient {
 
   /** Subscribe to order status */
   subscribeOrder(account?: string): void {
-    this.doSubscribe(SubjectType.Order, undefined, account || this.config.account);
-    this.accountSubs.add(SubjectType.Order);
+    const acct = account || this.config.account;
+    this.doSubscribe(SubjectType.Order, undefined, acct);
+    this.accountSubs.set(SubjectType.Order, acct);
   }
   /** Unsubscribe from order status */
   unsubscribeOrder(): void {
@@ -670,8 +673,9 @@ export class PushClient {
 
   /** Subscribe to transaction details */
   subscribeTransaction(account?: string): void {
-    this.doSubscribe(SubjectType.Transaction, undefined, account || this.config.account);
-    this.accountSubs.add(SubjectType.Transaction);
+    const acct = account || this.config.account;
+    this.doSubscribe(SubjectType.Transaction, undefined, acct);
+    this.accountSubs.set(SubjectType.Transaction, acct);
   }
   /** Unsubscribe from transaction details */
   unsubscribeTransaction(): void {
@@ -690,8 +694,8 @@ export class PushClient {
     return result;
   }
 
-  /** Get account-level subscriptions */
-  getAccountSubscriptions(): SubjectType[] {
-    return Array.from(this.accountSubs);
+  /** Get account-level subscriptions: subject -> account */
+  getAccountSubscriptions(): Map<SubjectType, string> {
+    return new Map(this.accountSubs);
   }
 }

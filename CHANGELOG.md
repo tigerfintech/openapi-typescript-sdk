@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.1] - 2026-06-09
+## [0.4.4] - 2026-06-09
 
 ### Added
 
@@ -15,6 +15,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - 将 `OptionExercisePageRequest` 重命名为 `OptionExerciseRecordsRequest`，与方法名 `getOptionExerciseRecords` 对齐。
+
+## [0.4.3] - 2026-05-25
+
+### Added
+
+- **Token 自动刷新**：新增 `TokenManager`（后台 `setInterval` + `timer.unref()` 避免进程挂起）、`tokenLoader` / `tokenWriter` 回调、`syncToken()` 内存同步方法，与 Go SDK v0.3.6 功能对齐。
+- **`HttpClient.close()`**：停止后台 token 刷新 timer，避免长期运行服务中的泄漏。
+- **`TIGEROPEN_TOKEN_FILE` 环境变量**：支持通过环境变量指定 token 文件路径。
+- **`HttpClient.queryToken()` / `refreshToken()` / `startTokenAutoRefresh()`**：手动刷新与自动刷新控制接口。
+- **Push `accountSubs` 改为 `Map<SubjectType, string>`**：记录订阅时的 account，重连后自动恢复订阅，避免断连后 account 丢失。
+
+### Fixed
+
+- **`Transaction` 响应模型修正**（对应 Go SDK v0.3.1）：`transactedAt` 类型 `number` → `string`（服务端返回 "YYYY-MM-DD HH:MM:SS" 格式字符串非时间戳）；新增 `accountId`、`filledPrice`、`filledAmount`、`filledQuantityScale`、`transactionTime` 字段与服务端实际响应对齐。
+- **请求时间戳修正**：原 `toISOString()` 生成 UTC 时间，改为本地时间格式 `YYYY-MM-DD HH:MM:SS`，与 Go SDK 签名格式对齐，避免服务端拒绝请求。
+- **`keysToSnakeCase` 守卫移除**：移除阻止嵌套对象 key 转换的错误 `typeof v !== 'object'` 守卫，确保 `orderLegs`、`algoParams` 等嵌套字段的 key 正确转为 snake_case。
+- **域名查询优化**：`queryDomains()` 仅调用一次，结果同时用于 `serverUrl` 和 `quoteServerUrl`，消除冗余请求。
+- **Token 加载优先级修正**：`TIGEROPEN_TOKEN` 环境变量 > `tokenLoader` > token 文件，与 Go SDK 保持一致。
+
+## [0.4.2] - 2026-05-12
+
+### Fixed
+
+- **`FundingHistoryItem` 字段修正**：对照服务端 `FundDepositWithdrawDTO` 及真实响应重写。`id` 类型 `string` → `number`，移除不存在的 `segType`/`submitTime`/`updateTime`，新增 `refId`/`type`/`typeDesc`/`businessDate`/`statusDesc`/`completedStatus`/`createdAt`/`updatedAt`。
+
+## [0.4.1] - 2026-05-12
+
+### Fixed
+
+- **`getFutureTradeTicks` 响应解包修正**：服务端返回 `{contractCode, items:[...]}` 结构，现正确解包 items 并回填 contractCode 到每条记录。`endIndex` 未设置时默认 30（与 Python/Go SDK 一致）。
+- **`SegmentFundHistoryItem` 字段名修正**：`submitTime`/`updateTime` → `createdAt`/`updatedAt`/`settledAt`，补充 `statusDesc` 字段，与服务端实际响应对齐。
+- **`SegmentFundAvailable` 返回类型修正**：由 `SegmentFund[]` 改为专用 `SegmentFundAvailableItem[]`（仅含 `fromSegment`/`currency`/`amount`）。
+- **`SegmentFund` 模型更新**：`ID` 类型改为 `string | number`，补充 `statusDesc`/`message`/`settledAt`/`createdAt`/`updatedAt` 字段。
+- **`getFundingHistory` 响应解析修正**：服务端返回裸 list（无 items 包装），改用 `callInto` 替代 `callIntoItems`。
+- **响应签名验证修正**：部分接口不返回 sign 字段，不再抛异常，改为跳过验证。
+- **重试逻辑修正**：API 业务错误（code != 0）不再触发指数退避重试（之前会重试 5 次导致 ~30s 假超时）。
+- **HTTP 连接管理**：添加 `Connection: close` header，避免 keep-alive 连接未释放。
+
+### Added
+
+- **`propertiesFilePath` 支持目录路径**：传入目录时自动拼接 `tiger_openapi_config.properties`，简化配置加载。
 
 ## [0.4.0] - 2026-05-08
 

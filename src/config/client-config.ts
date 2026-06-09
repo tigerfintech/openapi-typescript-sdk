@@ -8,11 +8,12 @@
  *
  * Priority: environment variables > code options (incl. config file) > defaults
  */
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, statSync } from 'fs';
 import { join } from 'path';
 import { homedir, networkInterfaces } from 'os';
 import { parsePropertiesString } from './config-parser';
 import { queryDomains, resolveDynamicServerUrl, resolveDynamicQuoteServerUrl } from './domain';
+import { TokenManager } from './token-manager';
 
 /** Default config file name */
 const CONFIG_FILE_NAME = 'tiger_openapi_config.properties';
@@ -31,6 +32,7 @@ const ENV_TIGER_ID = 'TIGEROPEN_TIGER_ID';
 const ENV_PRIVATE_KEY = 'TIGEROPEN_PRIVATE_KEY';
 const ENV_ACCOUNT = 'TIGEROPEN_ACCOUNT';
 const ENV_TOKEN = 'TIGEROPEN_TOKEN';
+const ENV_TOKEN_FILE = 'TIGEROPEN_TOKEN_FILE';
 
 /** Client configuration interface */
 export interface ClientConfig {
@@ -43,6 +45,12 @@ export interface ClientConfig {
   timeout: number;
   token?: string;
   tokenRefreshDuration?: number;
+  /** 后台 token 检查间隔（毫秒），仅 tokenRefreshDuration > 0 时生效，默认 5 分钟 */
+  tokenCheckInterval?: number;
+  /** 自定义 token 加载函数，替代默认的文件加载 */
+  tokenLoader?: () => Promise<string> | string;
+  /** token 刷新写入后的可选回调 */
+  tokenWriter?: (token: string) => void;
   serverUrl: string;
   /** Quote server URL for quote-specific requests; falls back to serverUrl */
   quoteServerUrl: string;
@@ -62,12 +70,19 @@ export interface ClientConfigOptions {
   timeout?: number;
   token?: string;
   tokenRefreshDuration?: number;
+  /** 后台 token 检查间隔（毫秒），仅 tokenRefreshDuration > 0 时生效，默认 5 分钟 */
+  tokenCheckInterval?: number;
+  /** 自定义 token 加载函数，替代默认的文件加载 */
+  tokenLoader?: () => Promise<string> | string;
+  /** token 刷新写入后的可选回调 */
+  tokenWriter?: (token: string) => void;
   serverUrl?: string;
   /** Explicit quote server URL; resolved dynamically if not set */
   quoteServerUrl?: string;
   /** Enable dynamic domain resolution (default: true) */
   enableDynamicDomain?: boolean;
-  /** Explicit properties file path (synchronous read) */
+  /** Explicit properties file path or directory (synchronous read).
+   * If a directory is given, appends 'tiger_openapi_config.properties' automatically. */
   propertiesFilePath?: string;
   /** Override Tiger public key (e.g. for sandbox/QA environments) */
   tigerPublicKey?: string;
@@ -148,7 +163,16 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
   // Load properties: explicit path > auto-discovery
   let fileProps: Record<string, string> = {};
   if (opts.propertiesFilePath) {
-    fileProps = loadPropertiesFile(opts.propertiesFilePath);
+    // Support both directory path and full file path
+    let filePath = opts.propertiesFilePath;
+    if (existsSync(filePath) && statSync(filePath).isDirectory()) {
+      filePath = join(filePath, CONFIG_FILE_NAME);
+    } else if (!existsSync(filePath) && !filePath.endsWith('.properties')) {
+      // Path doesn't exist as-is; try treating it as a directory
+      const asDir = join(filePath, CONFIG_FILE_NAME);
+      if (existsSync(asDir)) filePath = asDir;
+    }
+    fileProps = loadPropertiesFile(filePath);
   } else {
     const discovered = discoverConfigFile();
     if (discovered) {
@@ -184,6 +208,34 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
     token = envToken;
   }
 
+  // Token loading priority: env TIGEROPEN_TOKEN > tokenLoader > token file (TIGEROPEN_TOKEN_FILE or default)
+  if (!token) {
+    if (opts.tokenLoader) {
+      // tokenLoader is async-capable; we do a best-effort synchronous call here.
+      // If the loader returns a Promise, the token will be set later via HttpClient.
+      try {
+        const result = opts.tokenLoader();
+        if (result instanceof Promise) {
+          // Cannot await in sync constructor; HttpClient.startTokenAutoRefresh() will
+          // resolve this Promise and sync the token after construction.
+        } else if (result) {
+          token = result;
+        }
+      } catch {
+        // loader failed; leave token undefined
+      }
+    } else {
+      // Load from token file: TIGEROPEN_TOKEN_FILE env var > default file
+      const tokenFilePath = process.env[ENV_TOKEN_FILE] || 'tiger_openapi_token.properties';
+      const tm = new TokenManager({ filePath: tokenFilePath });
+      try {
+        token = tm.loadTokenSync();
+      } catch {
+        // file not found or no token field; leave token undefined
+      }
+    }
+  }
+
   // Validate required fields
   if (!tigerId) {
     throw new Error(
@@ -201,14 +253,16 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
   let serverUrl: string;
   let quoteServerUrl: string;
 
+  // Query dynamic domains once (may spawn a child process); reuse for both URLs.
+  let domainConf: Record<string, unknown> = {};
+  if (enableDynamicDomain && (!opts.serverUrl || !opts.quoteServerUrl)) {
+    domainConf = queryDomains(license);
+  }
+
   if (opts.serverUrl) {
     serverUrl = opts.serverUrl;
   } else {
-    let dynamicUrl = '';
-    if (enableDynamicDomain) {
-      const domainConf = queryDomains(license);
-      dynamicUrl = resolveDynamicServerUrl(domainConf, license);
-    }
+    const dynamicUrl = resolveDynamicServerUrl(domainConf, license);
     serverUrl = dynamicUrl || DEFAULT_SERVER_URL;
   }
 
@@ -216,11 +270,7 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
   if (opts.quoteServerUrl) {
     quoteServerUrl = opts.quoteServerUrl;
   } else {
-    let dynamicQuoteUrl = '';
-    if (enableDynamicDomain) {
-      const domainConf = queryDomains(license);
-      dynamicQuoteUrl = resolveDynamicQuoteServerUrl(domainConf, license);
-    }
+    const dynamicQuoteUrl = resolveDynamicQuoteServerUrl(domainConf, license);
     quoteServerUrl = dynamicQuoteUrl || serverUrl;
   }
 
@@ -234,6 +284,9 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
     timeout: opts.timeout ?? DEFAULT_TIMEOUT,
     token,
     tokenRefreshDuration: opts.tokenRefreshDuration,
+    tokenCheckInterval: opts.tokenCheckInterval,
+    tokenLoader: opts.tokenLoader,
+    tokenWriter: opts.tokenWriter,
     serverUrl,
     quoteServerUrl,
     deviceId: detectDeviceId(),

@@ -105,6 +105,8 @@ export interface OrderIdResult {
 export interface Transaction {
   id?: number;
   orderId?: number;
+  /** Numeric account ID (wire: accountId). */
+  accountId?: number;
   account?: string;
   symbol?: string;
   secType?: string;
@@ -112,12 +114,24 @@ export interface Transaction {
   currency?: string;
   identifier?: string;
   action?: string;
+  /** Order/commission price. */
   price?: number;
+  /** Fill price (wire: filledPrice). */
+  filledPrice?: number;
   quantity?: number;
   filledQuantity?: number;
+  /** Scale for filledQuantity (wire: filledQuantityScale). */
+  filledQuantityScale?: number;
+  /** Order amount. */
   amount?: number;
+  /** Fill amount (wire: filledAmount). */
+  filledAmount?: number;
   commission?: number;
-  transactedAt?: number;
+  /** Fill timestamp string, format "YYYY-MM-DD HH:MM:SS" (server returns string, not number). */
+  transactedAt?: string;
+  /** Fill time as Unix millisecond timestamp (wire: transactionTime). */
+  transactionTime?: number;
+  /** Legacy time field. */
   time?: number;
 }
 
@@ -171,15 +185,26 @@ export interface ForexOrderResult {
   submitTime?: number;
 }
 
+/** Segment fund available item (segment_fund_available response). */
+export interface SegmentFundAvailableItem {
+  fromSegment?: string;
+  currency?: string;
+  amount?: number;
+}
+
+/** Segment fund transfer/cancel response. */
 export interface SegmentFund {
-  id?: string;
-  status?: string;
+  id?: string | number;
   fromSegment?: string;
   toSegment?: string;
   currency?: string;
   amount?: number;
-  availableAmount?: number;
-  submitTime?: number;
+  status?: string;
+  statusDesc?: string;
+  message?: string;
+  settledAt?: number;
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 export interface SegmentFundHistoryItem {
@@ -189,8 +214,10 @@ export interface SegmentFundHistoryItem {
   currency?: string;
   amount?: number;
   status?: string;
-  submitTime?: number;
-  updateTime?: number;
+  statusDesc?: string;
+  settledAt?: number;
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 export interface FundDetails {
@@ -207,13 +234,18 @@ export interface FundDetails {
 }
 
 export interface FundingHistoryItem {
-  id?: string;
-  segType?: string;
+  id?: number;
+  refId?: string;
+  type?: number;
+  typeDesc?: string;
   currency?: string;
   amount?: number;
+  businessDate?: string;
   status?: string;
-  submitTime?: number;
-  updateTime?: number;
+  statusDesc?: string;
+  completedStatus?: boolean;
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 export interface TransferItem {
