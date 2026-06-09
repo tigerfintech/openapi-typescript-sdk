@@ -211,3 +211,73 @@ export interface PositionTransferExternalRecordsRequest {
   limit?: number;
   lang?: string;
 }
+
+/** 行权检验请求 (wire: option_exercise_check) */
+export interface OptionExerciseCheckRequest {
+  account?: string;
+  secretKey?: string;
+  /** 期权合约 ID */
+  contractId: number;
+  /** Exercise | Expire */
+  type: string;
+  quantity?: number;
+  /** yyyy-MM-dd，Exercise 类型建议填 */
+  executingDate?: string;
+  /** Exercise 类型建议填 */
+  isForce?: boolean;
+  /** 0–10，Expire 类型专用 */
+  itmRate?: number;
+  lang?: string;
+}
+
+/** 查询可行权持仓请求 (wire: option_exercise_position) */
+export interface OptionExercisePositionRequest {
+  account?: string;
+  secretKey?: string;
+  /** Exercise | Expire */
+  type: string;
+  lang?: string;
+}
+
+/** 提交行权申请请求 (wire: option_exercise_submit) */
+export interface OptionExerciseSubmitRequest {
+  account?: string;
+  secretKey?: string;
+  contractId: number;
+  /** Exercise | Expire */
+  type: string;
+  quantity: number;
+  /** Exercise 必填，yyyy-MM-dd */
+  executingDate?: string;
+  /** Exercise 必填 */
+  isForce?: boolean;
+  /** 0–10，Expire 专用 */
+  itmRate?: number;
+  lang?: string;
+}
+
+/** 分页查询行权记录请求 (wire: option_exercise_record) */
+export interface OptionExerciseRecordsRequest {
+  account?: string;
+  secretKey?: string;
+  /** 从 1 开始，默认 1 */
+  page?: number;
+  /** 1–100，默认 20 */
+  size?: number;
+  /** New | Cancel | Success | Fail */
+  status?: string;
+  /** Exercise | Expire */
+  type?: string;
+  symbol?: string;
+  /** symbol | expire_date | strike | is_call */
+  orderBy?: string;
+  lang?: string;
+}
+
+/** 撤销行权申请请求 (wire: option_exercise_cancel) */
+export interface OptionExerciseCancelRequest {
+  account?: string;
+  secretKey?: string;
+  id: number;
+  lang?: string;
+}
