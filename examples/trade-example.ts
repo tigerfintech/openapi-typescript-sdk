@@ -239,6 +239,38 @@ async function main() {
     skip('getOrder', 'no existing order to look up');
   }
 
+  console.log('\n=== v0.4.1: 期权行权（只读） ===');
+  try {
+    const r = await tc.getOptionExercisePositions({ type: 'Exercise' });
+    ok('getOptionExercisePositions(Exercise)', `rows=${r?.items?.length ?? 0} pageCount=${r?.pageCount ?? 0}`);
+  } catch (e) { fail('getOptionExercisePositions(Exercise)', e); }
+
+  try {
+    const r = await tc.getOptionExercisePositions({ type: 'Expire' });
+    ok('getOptionExercisePositions(Expire)', `rows=${r?.items?.length ?? 0} pageCount=${r?.pageCount ?? 0}`);
+  } catch (e) { fail('getOptionExercisePositions(Expire)', e); }
+
+  try {
+    const r = await tc.getOptionExerciseRecords({ page: 1, size: 10 });
+    ok('getOptionExerciseRecords', `rows=${r?.items?.length ?? 0} itemCount=${r?.itemCount ?? 0}`);
+  } catch (e) { fail('getOptionExerciseRecords', e); }
+
+  try {
+    const positions = await tc.getOptionExercisePositions({ type: 'Exercise' });
+    if (positions?.items && positions.items.length > 0) {
+      const p = positions.items[0];
+      const r = await tc.checkOptionExercise({
+        contractId: p.contractId ?? 0,
+        type: 'Exercise',
+        quantity: p.availableQuantity ?? 0,
+        executingDate: p.expireDate,
+      });
+      ok('checkOptionExercise', `symbol=${r?.symbol ?? ''} availableQty=${r?.availableQuantity ?? 0}`);
+    } else {
+      skip('checkOptionExercise', 'no exercisable positions');
+    }
+  } catch (e) { fail('checkOptionExercise', e); }
+
   printSummary();
 }
 
