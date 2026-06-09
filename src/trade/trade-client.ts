@@ -33,6 +33,9 @@ import type {
   PositionTransferRecord,
   PositionTransferDetail,
   PositionTransferExternalRecord,
+  OptionExerciseCheckResult,
+  OptionExercisePositionPageResult,
+  OptionExerciseRecordPageResult,
 } from '../model/trade';
 import type {
   OrdersRequest,
@@ -53,6 +56,11 @@ import type {
   PositionTransferRecordsRequest,
   PositionTransferDetailRequest,
   PositionTransferExternalRecordsRequest,
+  OptionExerciseCheckRequest,
+  OptionExercisePositionRequest,
+  OptionExerciseSubmitRequest,
+  OptionExerciseRecordsRequest,
+  OptionExerciseCancelRequest,
 } from '../model/trade-requests';
 import { normalizeOrderStatus } from '../model/order-status';
 
@@ -355,5 +363,48 @@ export class TradeClient {
       'position_transfer_external_records',
       merged,
     );
+  }
+
+  /** 行权检验：预估行权/作废后正股持仓变化 (wire: option_exercise_check) */
+  async checkOptionExercise(
+    req: OptionExerciseCheckRequest,
+  ): Promise<OptionExerciseCheckResult | undefined> {
+    const merged = { ...req };
+    if (!merged.account) merged.account = this.account;
+    return this.callInto<OptionExerciseCheckResult>('option_exercise_check', merged);
+  }
+
+  /** 查询可行权持仓列表 (wire: option_exercise_position) */
+  async getOptionExercisePositions(
+    req: OptionExercisePositionRequest,
+  ): Promise<OptionExercisePositionPageResult | undefined> {
+    const merged = { ...req };
+    if (!merged.account) merged.account = this.account;
+    return this.callInto<OptionExercisePositionPageResult>('option_exercise_position', merged);
+  }
+
+  /** 提交行权/作废申请 (wire: option_exercise_submit) */
+  async submitOptionExercise(req: OptionExerciseSubmitRequest): Promise<boolean> {
+    const merged = { ...req };
+    if (!merged.account) merged.account = this.account;
+    const result = await this.callInto<boolean>('option_exercise_submit', merged);
+    return result ?? false;
+  }
+
+  /** 分页查询行权记录 (wire: option_exercise_record) */
+  async getOptionExerciseRecords(
+    req: OptionExerciseRecordsRequest,
+  ): Promise<OptionExerciseRecordPageResult | undefined> {
+    const merged = { ...req };
+    if (!merged.account) merged.account = this.account;
+    return this.callInto<OptionExerciseRecordPageResult>('option_exercise_record', merged);
+  }
+
+  /** 撤销行权申请 (wire: option_exercise_cancel) */
+  async cancelOptionExercise(req: OptionExerciseCancelRequest): Promise<boolean> {
+    const merged = { ...req };
+    if (!merged.account) merged.account = this.account;
+    const result = await this.callInto<boolean>('option_exercise_cancel', merged);
+    return result ?? false;
   }
 }
