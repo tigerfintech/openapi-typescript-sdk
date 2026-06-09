@@ -84,6 +84,8 @@ export interface ClientConfigOptions {
   /** Explicit properties file path or directory (synchronous read).
    * If a directory is given, appends 'tiger_openapi_config.properties' automatically. */
   propertiesFilePath?: string;
+  /** Override Tiger public key (e.g. for sandbox/QA environments) */
+  tigerPublicKey?: string;
 }
 
 /**
@@ -288,7 +290,7 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
     serverUrl,
     quoteServerUrl,
     deviceId: detectDeviceId(),
-    tigerPublicKey: TIGER_PUBLIC_KEY,
+    tigerPublicKey: opts.tigerPublicKey ?? TIGER_PUBLIC_KEY,
   };
 }
 

@@ -289,3 +289,68 @@ export interface PositionTransferExternalRecord {
   submitTime?: number;
   updateTime?: number;
 }
+
+/** 行权检验结果 */
+export interface OptionExerciseCheckResult {
+  availableQuantity: number;
+  position: number;
+  stkPosition: number;
+  stkPositionChange: number;
+  stkPositionBefore: number;
+  stkPositionAfter: number;
+  symbol?: string;
+}
+
+/** 可行权期权持仓条目 */
+export interface OptionExercisePosition {
+  contractId?: number;
+  symbol?: string;
+  stkSymbol?: string;
+  expireDate?: string;
+  strike?: string;
+  callPut?: string;
+  market?: string;
+  accountId?: number;
+  position: number;
+  availableQuantity: number;
+}
+
+/** 可行权持仓分页结果 */
+export interface OptionExercisePositionPageResult {
+  pageNum: number;
+  pageSize: number;
+  itemCount: number;
+  pageCount: number;
+  items?: OptionExercisePosition[];
+}
+
+/** 行权申请记录条目 */
+export interface OptionExerciseRecord {
+  id?: number;
+  contractId?: number;
+  symbol?: string;
+  stkSymbol?: string;
+  expireDate?: string;
+  strike?: string;
+  callPut?: string;
+  /** Exercise | Expire */
+  type?: string;
+  requestQuantity: number;
+  quantity: number;
+  /** New | Cancel | Success | Fail */
+  status?: string;
+  executingDate?: string;
+  itmRate: number;
+  isForce: boolean;
+  reason?: string;
+  accountId?: number;
+}
+
+/** 行权记录分页结果 */
+export interface OptionExerciseRecordPageResult {
+  pageNum: number;
+  pageSize: number;
+  itemCount: number;
+  pageCount: number;
+  items?: OptionExerciseRecord[];
+}

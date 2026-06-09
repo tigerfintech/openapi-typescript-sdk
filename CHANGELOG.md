@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4] - 2026-06-09
+
+### Added
+
+- **期权行权 5 个接口**：新增 `checkOptionExercise`、`getOptionExercisePositions`、`submitOptionExercise`、`getOptionExerciseRecords`、`cancelOptionExercise`，对应 wire method `option_exercise_check / option_exercise_position / option_exercise_submit / option_exercise_record / option_exercise_cancel`。全部接口自动注入 `account`。
+- **请求/响应模型**：新增 `OptionExerciseCheckRequest`、`OptionExercisePositionRequest`、`OptionExerciseSubmitRequest`、`OptionExerciseRecordsRequest`、`OptionExerciseCancelRequest` 及对应结果类型 `OptionExerciseCheckResult`、`OptionExercisePositionPageResult`、`OptionExerciseRecordPageResult`。
+
+### Fixed
+
+- 将 `OptionExercisePageRequest` 重命名为 `OptionExerciseRecordsRequest`，与方法名 `getOptionExerciseRecords` 对齐。
+
 ## [0.4.3] - 2026-05-25
 
 ### Added
