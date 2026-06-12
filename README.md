@@ -312,7 +312,7 @@ const { createClientConfig } = require('@tigeropenapi/tigeropen');
 ## References
 
 - [TypeScript SDK Documentation](https://docs.itigerup.com/docs/typescript)
-- [Tiger Brokers OpenAPI Docs](https://quant.itigerup.com/openapi/zh/python/overview/introduction.html)
+- [Tiger Brokers OpenAPI Docs](https://docs-en.itigerup.com/docs/)
 - [npm package](https://www.npmjs.com/package/@tigeropenapi/tigeropen)
 
 ## License
@@ -635,7 +635,7 @@ const { createClientConfig } = require('@tigeropenapi/tigeropen');
 ## 参考链接
 
 - [TypeScript SDK 文档](https://docs.itigerup.com/docs/typescript)
-- [老虎证券 OpenAPI 文档](https://quant.itigerup.com/openapi/zh/python/overview/introduction.html)
+- [老虎证券 OpenAPI 文档](https://docs.itigerup.com/docs/)
 - [npm 包](https://www.npmjs.com/package/@tigeropenapi/tigeropen)
 
 ## 许可证
