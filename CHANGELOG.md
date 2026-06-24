@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.6] - 2026-06-24
+
+### Added
+
+- **冰山单支持**：新增 `icebergOrder()`（基础参数）和 `icebergOrderFull()`（完整参数，含 `minDisplaySize`、`checkIntervals`、`priceType`、`startTime`、`endTime`）两个订单构造辅助函数。
+- **`IcebergPriceType` 枚举**：`LIMIT_PRICE` / `OPPONENT_PRICE`。
+- **`Order` 类型新增冰山单字段**：`displaySize`、`minDisplaySize`、`checkIntervals`、`priceType`、`startTime`、`endTime`。
+- **单元测试**：`icebergOrder` / `icebergOrderFull` 覆盖基础构造、完整参数及零值省略三个场景。
+
 ## [0.4.5] - 2026-06-09
 
 ### Fixed
