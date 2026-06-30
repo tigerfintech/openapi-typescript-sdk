@@ -15,7 +15,7 @@ import {
   icebergOrder,
   icebergOrderFull,
 } from '../../src/model/order-helpers';
-import { OrderType, TimeInForce, IcebergPriceType } from '../../src/model/enums';
+import { OrderType, TimeInForce, PriceType } from '../../src/model/enums';
 
 describe('marketOrder', () => {
   it('应构造市价单', () => {
@@ -135,7 +135,7 @@ describe('icebergOrderFull', () => {
     const startTime = 1782293585902;
     const endTime = 1782297185902;
     const o = icebergOrderFull('DU123', 'AAPL', 'STK', 'BUY', 1000, 180.0,
-      100, 50, 30, IcebergPriceType.LIMIT_PRICE, startTime, endTime);
+      100, 50, 30, PriceType.LIMIT_PRICE, startTime, endTime);
     expect(o.orderType).toBe('ICEBERG');
     expect(o.displaySize).toBe(100);
     expect(o.minDisplaySize).toBe(50);
@@ -146,7 +146,7 @@ describe('icebergOrderFull', () => {
   });
 
   it('startTime/endTime 为 0 时不设置', () => {
-    const o = icebergOrderFull('DU123', 'AAPL', 'STK', 'BUY', 1000, 180.0, 100, 50, 30, 'OPPONENT_PRICE', 0, 0);
+    const o = icebergOrderFull('DU123', 'AAPL', 'STK', 'BUY', 1000, 180.0, 100, 50, 30, 'ASK_PRICE', 0, 0);
     expect(o.startTime).toBeUndefined();
     expect(o.endTime).toBeUndefined();
   });

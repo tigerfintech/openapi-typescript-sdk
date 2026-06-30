@@ -51,11 +51,15 @@ export enum OrderType {
 }
 
 /** 冰山单价格类型 */
-export enum IcebergPriceType {
-  /** 固定限价 */
+export enum PriceType {
+  /** 限价 */
   LIMIT_PRICE = 'LIMIT_PRICE',
-  /** 对手价 */
-  OPPONENT_PRICE = 'OPPONENT_PRICE',
+  /** 卖一价 */
+  ASK_PRICE = 'ASK_PRICE',
+  /** 买一价 */
+  BID_PRICE = 'BID_PRICE',
+  /** 最新价 */
+  LATEST_PRICE = 'LATEST_PRICE',
 }
 
 /**

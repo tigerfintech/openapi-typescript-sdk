@@ -3,7 +3,7 @@
  * All helpers return an `OrderRequest` with sensible defaults.
  */
 import type { OrderRequest, OrderLegRequest, AlgoParamsRequest } from './order';
-import { OrderType, TimeInForce, IcebergPriceType } from './enums';
+import { OrderType, TimeInForce, PriceType } from './enums';
 
 /** Market order */
 export function marketOrder(
@@ -178,7 +178,7 @@ export function icebergOrder(
     timeInForce: TimeInForce.DAY,
     outsideRth: false,
     displaySize,
-    priceType: IcebergPriceType.LIMIT_PRICE,
+    priceType: PriceType.LIMIT_PRICE,
   };
 }
 
@@ -197,7 +197,7 @@ export function icebergOrderFull(
   displaySize: number,
   minDisplaySize?: number,
   checkIntervals?: number,
-  priceType?: IcebergPriceType | string,
+  priceType?: PriceType | string,
   startTime?: number,
   endTime?: number,
 ): OrderRequest {

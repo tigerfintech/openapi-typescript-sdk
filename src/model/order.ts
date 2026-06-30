@@ -137,7 +137,7 @@ export interface OrderRequest {
   minDisplaySize?: number;
   /** 冰山单：价检间隔（秒） */
   checkIntervals?: number;
-  /** 冰山单：价格类型（LIMIT_PRICE / OPPONENT_PRICE） */
+  /** 冰山单：价格类型（LIMIT_PRICE / ASK_PRICE / BID_PRICE / LATEST_PRICE） */
   priceType?: string;
   /** 冰山单：生效开始时间（epoch ms） */
   startTime?: number;
