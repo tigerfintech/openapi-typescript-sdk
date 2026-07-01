@@ -3,7 +3,7 @@
  * All helpers return an `OrderRequest` with sensible defaults.
  */
 import type { OrderRequest, OrderLegRequest, AlgoParamsRequest } from './order';
-import { OrderType, TimeInForce } from './enums';
+import { OrderType, TimeInForce, PriceType } from './enums';
 
 /** Market order */
 export function marketOrder(
@@ -156,6 +156,66 @@ export function algoOrder(
     timeInForce: TimeInForce.DAY,
     outsideRth: false,
   };
+}
+
+/**
+ * Iceberg order (basic) — only displaySize required.
+ */
+export function icebergOrder(
+  account: string,
+  symbol: string,
+  secType: string,
+  action: string,
+  quantity: number,
+  limitPrice: number,
+  displaySize: number,
+): OrderRequest {
+  return {
+    account, symbol, secType, action,
+    orderType: OrderType.ICEBERG,
+    totalQuantity: quantity,
+    limitPrice,
+    timeInForce: TimeInForce.DAY,
+    outsideRth: false,
+    displaySize,
+    priceType: PriceType.LIMIT_PRICE,
+  };
+}
+
+/**
+ * Iceberg order (full params).
+ * Pass `priceType` as empty string to use server default (LIMIT_PRICE).
+ * Pass `startTime` / `endTime` as 0 to omit the time window.
+ */
+export function icebergOrderFull(
+  account: string,
+  symbol: string,
+  secType: string,
+  action: string,
+  quantity: number,
+  limitPrice: number,
+  displaySize: number,
+  minDisplaySize?: number,
+  checkIntervals?: number,
+  priceType?: PriceType | string,
+  startTime?: number,
+  endTime?: number,
+): OrderRequest {
+  const req: OrderRequest = {
+    account, symbol, secType, action,
+    orderType: OrderType.ICEBERG,
+    totalQuantity: quantity,
+    limitPrice,
+    timeInForce: TimeInForce.DAY,
+    outsideRth: false,
+    displaySize,
+  };
+  if (minDisplaySize !== undefined && minDisplaySize > 0) req.minDisplaySize = minDisplaySize;
+  if (checkIntervals !== undefined && checkIntervals > 0) req.checkIntervals = checkIntervals;
+  if (priceType) req.priceType = priceType;
+  if (startTime && startTime > 0) req.startTime = startTime;
+  if (endTime && endTime > 0) req.endTime = endTime;
+  return req;
 }
 
 /** Attached profit / loss leg */

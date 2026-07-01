@@ -12,8 +12,10 @@ import {
   auctionMarketOrder,
   algoOrder,
   orderLeg,
+  icebergOrder,
+  icebergOrderFull,
 } from '../../src/model/order-helpers';
-import { OrderType, TimeInForce } from '../../src/model/enums';
+import { OrderType, TimeInForce, PriceType } from '../../src/model/enums';
 
 describe('marketOrder', () => {
   it('应构造市价单', () => {
@@ -112,5 +114,40 @@ describe('orderLeg', () => {
     const leg = orderLeg('LOSS', 140.0, 'GTC');
     expect(leg.legType).toBe('LOSS');
     expect(leg.price).toBe(140.0);
+  });
+});
+
+describe('icebergOrder', () => {
+  it('应构造冰山单（最简）', () => {
+    const o = icebergOrder('DU123', 'AAPL', 'STK', 'BUY', 1000, 180.0, 100);
+    expect(o.orderType).toBe('ICEBERG');
+    expect(o.totalQuantity).toBe(1000);
+    expect(o.limitPrice).toBe(180.0);
+    expect(o.displaySize).toBe(100);
+    expect(o.timeInForce).toBe('DAY');
+    expect(o.minDisplaySize).toBeUndefined();
+    expect(o.startTime).toBeUndefined();
+  });
+});
+
+describe('icebergOrderFull', () => {
+  it('应构造冰山单（完整参数）', () => {
+    const startTime = 1782293585902;
+    const endTime = 1782297185902;
+    const o = icebergOrderFull('DU123', 'AAPL', 'STK', 'BUY', 1000, 180.0,
+      100, 50, 30, PriceType.LIMIT_PRICE, startTime, endTime);
+    expect(o.orderType).toBe('ICEBERG');
+    expect(o.displaySize).toBe(100);
+    expect(o.minDisplaySize).toBe(50);
+    expect(o.checkIntervals).toBe(30);
+    expect(o.priceType).toBe('LIMIT_PRICE');
+    expect(o.startTime).toBe(startTime);
+    expect(o.endTime).toBe(endTime);
+  });
+
+  it('startTime/endTime 为 0 时不设置', () => {
+    const o = icebergOrderFull('DU123', 'AAPL', 'STK', 'BUY', 1000, 180.0, 100, 50, 30, 'ASK_PRICE', 0, 0);
+    expect(o.startTime).toBeUndefined();
+    expect(o.endTime).toBeUndefined();
   });
 });
