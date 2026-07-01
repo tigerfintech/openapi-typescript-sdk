@@ -88,10 +88,12 @@ function withAccount<T extends { account?: string }>(req: T | undefined, account
 export class TradeClient {
   private httpClient: HttpClient;
   private account: string;
+  private secretKey?: string;
 
-  constructor(httpClient: HttpClient, account: string) {
+  constructor(httpClient: HttpClient, account: string, secretKey?: string) {
     this.httpClient = httpClient;
     this.account = account;
+    this.secretKey = secretKey;
   }
 
   private async callInto<T>(method: string, bizParams: unknown): Promise<T> {
@@ -134,19 +136,26 @@ export class TradeClient {
   // === Order operations ===
 
   async placeOrder(order: OrderRequest): Promise<PlaceOrderResult | undefined> {
-    return this.callInto<PlaceOrderResult>('place_order', { ...order, account: this.account });
+    const params: Record<string, unknown> = { ...order, account: this.account };
+    if (!params.secretKey && this.secretKey) params.secretKey = this.secretKey;
+    return this.callInto<PlaceOrderResult>('place_order', params);
   }
 
   async previewOrder(order: OrderRequest): Promise<PreviewResult | undefined> {
     return this.callInto<PreviewResult>('preview_order', { ...order, account: this.account });
   }
 
-  async modifyOrder(id: number, order: OrderRequest): Promise<OrderIdResult | undefined> {
-    return this.callInto<OrderIdResult>('modify_order', { ...order, account: this.account, id });
+  async modifyOrder(id: number | string, order: OrderRequest): Promise<OrderIdResult | undefined> {
+    const params: Record<string, unknown> = { ...order, account: this.account, id };
+    if (!params.secretKey && this.secretKey) params.secretKey = this.secretKey;
+    return this.callInto<OrderIdResult>('modify_order', params);
   }
 
-  async cancelOrder(id: number): Promise<OrderIdResult | undefined> {
-    return this.callInto<OrderIdResult>('cancel_order', { account: this.account, id });
+  async cancelOrder(id: number | string, secretKey?: string): Promise<OrderIdResult | undefined> {
+    const sk = secretKey ?? this.secretKey;
+    const params: Record<string, unknown> = { account: this.account, id };
+    if (sk) params.secretKey = sk;
+    return this.callInto<OrderIdResult>('cancel_order', params);
   }
 
   // === Order queries (BREAKING v0.4.0) ===

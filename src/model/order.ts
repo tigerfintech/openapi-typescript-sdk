@@ -25,8 +25,9 @@ export interface AlgoParams {
 /** Order response model (returned by order query methods). */
 export interface Order {
   account?: string;
-  id?: number;
-  orderId?: number;
+  /** int64 order ID — may be a string when it exceeds Number.MAX_SAFE_INTEGER */
+  id?: number | string;
+  orderId?: number | string;
   externalId?: string;
   action?: string;
   orderType?: string;
@@ -86,6 +87,8 @@ export interface OrderRequest {
   account?: string;
   /** Global order ID (required for modify) */
   id?: number;
+  /** Institutional account trading key (client fills it in automatically if set) */
+  secretKey?: string;
   /** Account-level order ID */
   orderId?: number;
   /** BUY / SELL */
@@ -128,6 +131,18 @@ export interface OrderRequest {
   remark?: string;
   /** User mark */
   userMark?: string;
+  /** 冰山单：展示数量 */
+  displaySize?: number;
+  /** 冰山单：最小展示数量 */
+  minDisplaySize?: number;
+  /** 冰山单：价检间隔（秒） */
+  checkIntervals?: number;
+  /** 冰山单：价格类型（LIMIT_PRICE / ASK_PRICE / BID_PRICE / LATEST_PRICE） */
+  priceType?: string;
+  /** 冰山单：生效开始时间（epoch ms） */
+  startTime?: number;
+  /** 冰山单：生效结束时间（epoch ms） */
+  endTime?: number;
 }
 
 /** Attached leg for request side */

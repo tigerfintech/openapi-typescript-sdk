@@ -47,6 +47,19 @@ export enum OrderType {
   TWAP = 'TWAP',
   VWAP = 'VWAP',
   OCA = 'OCA',
+  ICEBERG = 'ICEBERG',
+}
+
+/** 冰山单价格类型 */
+export enum PriceType {
+  /** 限价 */
+  LIMIT_PRICE = 'LIMIT_PRICE',
+  /** 卖一价 */
+  ASK_PRICE = 'ASK_PRICE',
+  /** 买一价 */
+  BID_PRICE = 'BID_PRICE',
+  /** 最新价 */
+  LATEST_PRICE = 'LATEST_PRICE',
 }
 
 /**

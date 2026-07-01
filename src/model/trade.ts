@@ -91,15 +91,17 @@ export interface PreviewResult {
 }
 
 export interface PlaceOrderResult {
-  id: number;
+  /** int64 order ID — may be a string when it exceeds Number.MAX_SAFE_INTEGER */
+  id: number | string;
   /** Account-level order ID; the server returns snake_case `order_id` */
-  order_id?: number;
-  subIds?: number[];
+  order_id?: number | string;
+  subIds?: (number | string)[];
   orders?: Order[];
 }
 
 export interface OrderIdResult {
-  id: number;
+  /** int64 order ID — may be a string when it exceeds Number.MAX_SAFE_INTEGER */
+  id: number | string;
 }
 
 export interface Transaction {

@@ -105,19 +105,20 @@ async function main() {
     ok('getFilledOrders', `count=${os.length} (last 30d)`);
   } catch (e) { fail('getFilledOrders', e); }
 
-  let existingOrderID = 0;
+  let existingOrder: { symbol?: string; secType?: string } | undefined;
   try {
-    const orders = await tc.getOrders({});
-    existingOrderID = orders[0]?.id ?? 0;
+    const now = Date.now();
+    const filled = await tc.getFilledOrders({ startDate: now - 30 * 24 * 3600 * 1000, endDate: now });
+    existingOrder = filled[0] ? { symbol: filled[0].symbol, secType: filled[0].secType } : undefined;
   } catch { /* ignore */ }
 
-  if (existingOrderID) {
+  if (existingOrder?.symbol) {
     try {
-      const txs = await tc.getOrderTransactions({ orderId: existingOrderID, symbol: 'AAPL', secType: 'STK' });
-      ok(`getOrderTransactions(${existingOrderID})`, `count=${txs.length}`);
-    } catch (e) { fail(`getOrderTransactions(${existingOrderID})`, e); }
+      const txs = await tc.getOrderTransactions({ symbol: existingOrder.symbol, secType: existingOrder.secType });
+      ok(`getOrderTransactions(${existingOrder.symbol})`, `count=${txs.length}`);
+    } catch (e) { fail(`getOrderTransactions(${existingOrder.symbol})`, e); }
   } else {
-    skip('getOrderTransactions', 'no existing order');
+    skip('getOrderTransactions', 'no filled orders in last 30 days');
   }
 
   console.log('\n=== Place / modify / cancel ===');
@@ -215,28 +216,30 @@ async function main() {
 
   console.log('\n=== v0.4.0: Position transfer records (read-only) ===');
   try {
-    const rows = await tc.getPositionTransferRecords({ sinceDate: '2025-01-01', toDate: '2025-05-07' });
+    const rows = await tc.getPositionTransferRecords({ sinceDate: '2025-04-01', toDate: '2025-05-31' });
     ok('getPositionTransferRecords', `rows=${rows.length}`);
   } catch (e) { fail('getPositionTransferRecords', e); }
 
   try {
-    const rows = await tc.getPositionTransferExternalRecords({ sinceDate: '2025-01-01', toDate: '2025-05-07' });
+    const rows = await tc.getPositionTransferExternalRecords({ sinceDate: '2025-04-01', toDate: '2025-05-31' });
     ok('getPositionTransferExternalRecords', `rows=${rows.length}`);
   } catch (e) { fail('getPositionTransferExternalRecords', e); }
 
-  console.log('\n=== v0.4.0: GetOrder by id ===');
-  let firstId = 0;
+  console.log('\n=== v0.4.0: GetOrder by orderId ===');
+  // Note: Order.id is int64 and exceeds JS MAX_SAFE_INTEGER — use Order.orderId instead
+  let firstOrderId = existingOrder ? 0 : 0; // filled above; re-fetch for orderId
   try {
-    const os = await tc.getOrders({ limit: 1 });
-    firstId = os[0]?.id ?? 0;
+    const now = Date.now();
+    const filled = await tc.getFilledOrders({ startDate: now - 30 * 24 * 3600 * 1000, endDate: now });
+    firstOrderId = filled[0]?.orderId ?? 0;
   } catch { /* ignore */ }
-  if (firstId) {
+  if (firstOrderId) {
     try {
-      const o = await tc.getOrder({ id: firstId });
-      ok(`getOrder(${firstId})`, o ? `id=${o.id ?? 0} status=${o.status ?? ''} symbol=${o.symbol ?? ''}` : '(empty)');
-    } catch (e) { fail(`getOrder(${firstId})`, e); }
+      const o = await tc.getOrder({ orderId: firstOrderId });
+      ok(`getOrder(orderId=${firstOrderId})`, o ? `orderId=${o.orderId ?? 0} status=${o.status ?? ''} symbol=${o.symbol ?? ''}` : '(empty)');
+    } catch (e) { fail(`getOrder(orderId=${firstOrderId})`, e); }
   } else {
-    skip('getOrder', 'no existing order to look up');
+    skip('getOrder', 'no filled orders in last 30 days');
   }
 
   console.log('\n=== v0.4.1: 期权行权（只读） ===');
