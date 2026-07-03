@@ -45,7 +45,7 @@ async function main() {
   });
   console.log(`tiger_id=${cfg.tigerId} account=${cfg.account}\n`);
 
-  const tc = new TradeClient(new HttpClient(cfg), cfg.account);
+  const tc = new TradeClient(new HttpClient(cfg), cfg.account, cfg.secretKey);
 
   console.log('=== Contract queries ===');
   try {
