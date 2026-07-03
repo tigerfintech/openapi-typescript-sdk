@@ -31,6 +31,7 @@ const TIGER_PUBLIC_KEY =
 const ENV_TIGER_ID = 'TIGEROPEN_TIGER_ID';
 const ENV_PRIVATE_KEY = 'TIGEROPEN_PRIVATE_KEY';
 const ENV_ACCOUNT = 'TIGEROPEN_ACCOUNT';
+const ENV_SECRET_KEY = 'TIGEROPEN_SECRET_KEY';
 const ENV_TOKEN = 'TIGEROPEN_TOKEN';
 const ENV_TOKEN_FILE = 'TIGEROPEN_TOKEN_FILE';
 
@@ -39,6 +40,8 @@ export interface ClientConfig {
   tigerId: string;
   privateKey: string;
   account: string;
+  /** Institution secret key for trade authentication (institution accounts only) */
+  secretKey?: string;
   license?: string;
   language: string;
   timezone?: string;
@@ -64,6 +67,8 @@ export interface ClientConfigOptions {
   tigerId?: string;
   privateKey?: string;
   account?: string;
+  /** Institution secret key for trade authentication (institution accounts only) */
+  secretKey?: string;
   license?: string;
   language?: string;
   timezone?: string;
@@ -184,6 +189,7 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
   let tigerId = opts.tigerId || fileProps['tiger_id'] || '';
   let privateKey = opts.privateKey || resolvePrivateKey(fileProps) || '';
   let account = opts.account || fileProps['account'] || '';
+  let secretKey = opts.secretKey || fileProps['secret_key'] || undefined;
   let token = opts.token || fileProps['token'];
   const license = opts.license || fileProps['license'];
   const language = opts.language || fileProps['language'] || DEFAULT_LANGUAGE;
@@ -193,6 +199,7 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
   const envTigerId = process.env[ENV_TIGER_ID];
   const envPrivateKey = process.env[ENV_PRIVATE_KEY];
   const envAccount = process.env[ENV_ACCOUNT];
+  const envSecretKey = process.env[ENV_SECRET_KEY];
   const envToken = process.env[ENV_TOKEN];
 
   if (envTigerId) {
@@ -203,6 +210,9 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
   }
   if (envAccount) {
     account = envAccount;
+  }
+  if (envSecretKey) {
+    secretKey = envSecretKey;
   }
   if (envToken) {
     token = envToken;
@@ -278,6 +288,7 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
     tigerId,
     privateKey,
     account,
+    secretKey: secretKey || undefined,
     license,
     language,
     timezone,
