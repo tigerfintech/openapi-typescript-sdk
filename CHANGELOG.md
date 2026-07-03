@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.7] - 2026-07-03
+
+### Fixed
+
+- **`createClientConfig` 不读 `secret_key`**：机构账号的 secret_key 无法从 properties 文件或 `TIGEROPEN_SECRET_KEY` 环境变量自动加载，导致所有交易接口报 `access forbidden`；现已在 `ClientConfig` / `ClientConfigOptions` 新增 `secretKey` 字段，并在配置加载时同步读取
+
 ## [0.4.6] - 2026-06-24
 
 ### Added
