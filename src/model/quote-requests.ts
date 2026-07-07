@@ -187,13 +187,6 @@ export interface OptionQueryItem {
   pageToken?: string;
 }
 
-/** Option K-line. wire: option_kline (v2.0) */
-export interface OptionBarsRequest {
-  optionQuery?: OptionQueryItem[];
-  market?: string;
-  lang?: string;
-}
-
 /** Option tick trades. wire: option_trade_tick */
 export interface OptionTradeTicksRequest {
   contracts?: OptionQueryItem[];
