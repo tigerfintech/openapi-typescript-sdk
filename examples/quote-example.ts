@@ -49,7 +49,7 @@ async function main() {
   } catch (e) { fail('getMarketState(US)', e); }
 
   try {
-    const briefs = await qc.getBrief({ symbols: ['AAPL', 'TSLA'] });
+    const briefs = await qc.getRealTimeQuote({ symbols: ['AAPL', 'TSLA'] });
     ok('getBrief', briefs.map(b => `${b.symbol}=${b.latestPrice}`).join(' '));
   } catch (e) { fail('getBrief', e); }
 
@@ -101,7 +101,7 @@ async function main() {
       skip('getOptionKline', 'no identifier from chain');
     } else {
       try {
-        const briefs = await qc.getOptionBrief([optIdentifier]);
+        const briefs = await qc.getOptionQuote([optIdentifier]);
         ok('getOptionBrief', `${briefs[0]?.symbol ?? ''} latestPrice=${briefs[0]?.latestPrice ?? 0}`);
       } catch (e) { fail('getOptionBrief', e); }
       try {
@@ -214,7 +214,7 @@ async function main() {
   } catch (e) { fail('getStockDetails(AAPL)', e); }
 
   try {
-    const dbs = await qc.getStockDelayBriefs({ symbols: ['AAPL'] });
+    const dbs = await qc.getDelayedQuote({ symbols: ['AAPL'] });
     ok('getStockDelayBriefs(AAPL)', `count=${dbs.length}`);
   } catch (e) { fail('getStockDelayBriefs(AAPL)', e); }
 
