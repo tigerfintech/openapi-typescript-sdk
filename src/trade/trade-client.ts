@@ -7,7 +7,8 @@
  * v0.4.0: 所有查询类方法改为 Request 对象签名(OrdersRequest 等),补齐 17
  * 个新方法(账户管理 / 资产分析 / 资金调拨 / 持仓划转等)。
  */
-import type { HttpClient } from '../client/http-client';
+import { HttpClient } from '../client/http-client';
+import type { ClientConfig } from '../config/client-config';
 import { createApiRequest } from '../client/api-request';
 import { unmarshalData } from '../client/api-response';
 import type { OrderRequest, Order } from '../model/order';
@@ -94,6 +95,11 @@ export class TradeClient {
     this.httpClient = httpClient;
     this.account = account;
     this.secretKey = secretKey;
+  }
+
+  /** Create a TradeClient directly from a ClientConfig — no need to construct HttpClient manually. */
+  static fromConfig(config: ClientConfig, account: string, secretKey?: string): TradeClient {
+    return new TradeClient(new HttpClient(config), account, secretKey);
   }
 
   private async callInto<T>(method: string, bizParams: unknown): Promise<T> {
