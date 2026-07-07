@@ -31,10 +31,6 @@ import type {
   CapitalDistribution,
   ScannerResult,
   QuotePermission,
-  FinancialDailyRequest,
-  FinancialReportRequest,
-  CorporateActionRequest,
-  FutureKlineRequest,
   MarketScannerRequest,
   SymbolName,
   TradeMeta,
@@ -62,6 +58,9 @@ import type {
   FundContractInfo,
   FundQuote,
   FundHistoryQuote,
+  FinancialDailyRequest,
+  FinancialReportRequest,
+  CorporateActionRequest,
 } from '../model/quote';
 import type {
   BriefRequest,
@@ -72,8 +71,8 @@ import type {
   TradeMetasRequest,
   StockDetailsRequest,
   StockDelayBriefsRequest,
-  BarsRequest,
-  BarsByPageRequest,
+  KlineRequest,
+  KlineByPageRequest,
   TimelineHistoryRequest,
   TradeRankRequest,
   ShortInterestRequest,
@@ -91,8 +90,8 @@ import type {
   AllFutureContractsRequest,
   FutureContinuousContractsRequest,
   FutureHistoryMainContractRequest,
-  FutureBarsRequest,
-  FutureBarsByPageRequest,
+  FutureKlineRequest,
+  FutureKlineByPageRequest,
   FutureTradeTicksRequest,
   FutureDepthRequest,
   FutureTradingTimesRequest,
@@ -198,8 +197,8 @@ export class QuoteClient {
     return this.callInto<Brief[]>('quote_real_time', req);
   }
 
-  async getKline(symbols: string[], period: string): Promise<Kline[]> {
-    return this.callInto<Kline[]>('kline', { symbols, period });
+  async getKline(req: KlineRequest): Promise<Kline[]> {
+    return this.callInto<Kline[]>('kline', req);
   }
 
   async getTimeline(symbols: string[]): Promise<Timeline[]> {
@@ -277,16 +276,6 @@ export class QuoteClient {
     return this.callInto<FutureQuote[]>('future_real_time_quote', req);
   }
 
-  /** Futures K-line; use -1 for unbounded beginTime / endTime. */
-  async getFutureKline(req: FutureKlineRequest): Promise<FutureKline[]> {
-    const body: FutureKlineRequest = {
-      ...req,
-      beginTime: req.beginTime ?? -1,
-      endTime: req.endTime ?? -1,
-    };
-    return this.callInto<FutureKline[]>('future_kline', body);
-  }
-
   // === Fundamentals ===
 
   async getFinancialDaily(req: FinancialDailyRequest): Promise<FinancialDailyItem[]> {
@@ -355,17 +344,8 @@ export class QuoteClient {
     return this.callInto<Brief[]>('quote_delay', req);
   }
 
-  /** K-line bars (full request). wire: kline */
-  async getBars(req: BarsRequest): Promise<Kline[]> {
-    return this.callInto<Kline[]>('kline', req);
-  }
-
-  /**
-   * Client-side paginated K-line fetch — loops over getBars until TotalSize
-   * bars are collected. Items are returned oldest-first, matching
-   * Python/Go get_bars_by_page behaviour.
-   */
-  async getBarsByPage(req: BarsByPageRequest): Promise<KlineItem[]> {
+  /** Client-side paginated K-line fetch. Loops until totalSize bars are collected, oldest-first. */
+  async getKlineByPage(req: KlineByPageRequest): Promise<KlineItem[]> {
     const pageSize = req.pageSize && req.pageSize > 0 ? req.pageSize : 200;
     const totalSize = req.totalSize && req.totalSize > 0 ? req.totalSize : 1000;
     let beginTime = req.beginTime ?? -1;
@@ -375,7 +355,7 @@ export class QuoteClient {
 
     const acc: KlineItem[] = [];
     while (acc.length < totalSize) {
-      const sub: BarsRequest = {
+      const sub: KlineRequest = {
         symbols: req.symbol ? [req.symbol] : undefined,
         period: req.period,
         right: req.right,
@@ -392,7 +372,6 @@ export class QuoteClient {
       const items = pageOut[0].items;
       acc.push(...items);
       if (items.length < pageSize) break;
-      // next page endTime = oldest bar time - 1
       let oldest = items[0].time;
       for (const it of items) {
         if (it.time < oldest) oldest = it.time;
@@ -497,12 +476,10 @@ export class QuoteClient {
     return this.callInto<FutureMainContractHistory[]>('future_main_contract', req);
   }
 
-  /**
-   * Futures K-line (full request with index pagination). wire: future_kline
-   * begin_time / end_time default to -1 when unset (server requires them present).
-   */
-  async getFutureBars(req: FutureBarsRequest): Promise<FutureKline[]> {
-    const body: FutureBarsRequest = {
+  /** Futures K-line. wire: future_kline
+   * beginTime / endTime default to -1 when unset (server requires them present). */
+  async getFutureKline(req: FutureKlineRequest): Promise<FutureKline[]> {
+    const body: FutureKlineRequest = {
       ...req,
       beginTime: req.beginTime ?? -1,
       endTime: req.endTime ?? -1,
@@ -511,7 +488,7 @@ export class QuoteClient {
   }
 
   /** Client-side paginated futures K-line fetch. */
-  async getFutureBarsByPage(req: FutureBarsByPageRequest): Promise<FutureKlineItem[]> {
+  async getFutureKlineByPage(req: FutureKlineByPageRequest): Promise<FutureKlineItem[]> {
     const pageSize = req.pageSize && req.pageSize > 0 ? req.pageSize : 200;
     const totalSize = req.totalSize && req.totalSize > 0 ? req.totalSize : 1000;
     let beginTime = req.beginTime ?? -1;
@@ -521,7 +498,7 @@ export class QuoteClient {
 
     const acc: FutureKlineItem[] = [];
     while (acc.length < totalSize) {
-      const sub: FutureBarsRequest = {
+      const sub: FutureKlineRequest = {
         contractCode: req.contractCode,
         period: req.period,
         beginTime,

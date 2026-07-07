@@ -190,4 +190,16 @@ describe('TradeClient', () => {
       await expect(tc.getOrders()).rejects.toThrow('network error');
     });
   });
+
+  describe('fromConfig 静态工厂', () => {
+    it('fromConfig 返回 TradeClient 实例', () => {
+      const cfg = {
+        tigerId: 'test', privateKey: 'pk', account: 'acc', language: 'zh_CN',
+        serverUrl: 'https://openapi.tigerfintech.com', quoteServerUrl: 'https://openapi.tigerfintech.com',
+        tokenRefreshDuration: 0,
+      } as Parameters<typeof TradeClient.fromConfig>[0];
+      const client = TradeClient.fromConfig(cfg, 'acc123');
+      expect(client).toBeInstanceOf(TradeClient);
+    });
+  });
 });

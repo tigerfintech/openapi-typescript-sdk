@@ -49,10 +49,10 @@ describe('QuoteClient', () => {
       expect(capturedBiz(mockHttpClient)).toEqual({ symbols: ['AAPL', 'GOOG'] });
     });
 
-    it('getKline 发送 symbols 数组和 period', async () => {
+    it('getKline 多 symbol 发送 symbols 数组和 period', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([{ symbol: 'AAPL', period: 'day', items: [] }]));
-      await qc.getKline('AAPL', 'day');
-      expect(capturedBiz(mockHttpClient)).toEqual({ symbols: ['AAPL'], period: 'day' });
+      await qc.getKline({ symbols: ['AAPL', 'TSLA'], period: 'day' });
+      expect(capturedBiz(mockHttpClient)).toEqual({ symbols: ['AAPL', 'TSLA'], period: 'day' });
     });
 
     it('getTimeline 发送 symbols 数组', async () => {
@@ -75,21 +75,23 @@ describe('QuoteClient', () => {
   });
 
   describe('期权行情方法', () => {
-    it('getOptionExpiration 发送 symbols 数组', async () => {
+    it('getOptionExpiration 多 symbol 发送 symbols 数组', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
-      await qc.getOptionExpiration('AAPL');
-      expect(capturedBiz(mockHttpClient)).toEqual({ symbols: ['AAPL'] });
+      await qc.getOptionExpiration(['AAPL', 'TSLA']);
+      expect(capturedBiz(mockHttpClient)).toEqual({ symbols: ['AAPL', 'TSLA'] });
     });
 
-    it('getOptionChain 使用 v3,option_basic 里 expiry 为时间戳', async () => {
+    it('getOptionChain 多 (symbol,expiry) 对，option_basic 里 expiry 为时间戳', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
-      await qc.getOptionChain('AAPL', '2024-01-19');
+      await qc.getOptionChain([['AAPL', '2024-01-19'], ['TSLA', '2024-02-16']]);
       const call = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
       expect(call.method).toBe('option_chain');
       expect(call.version).toBe('3.0');
       const parsed = JSON.parse(call.bizContent);
+      expect(parsed.option_basic).toHaveLength(2);
       expect(parsed.option_basic[0].symbol).toBe('AAPL');
       expect(typeof parsed.option_basic[0].expiry).toBe('number');
+      expect(parsed.option_basic[1].symbol).toBe('TSLA');
     });
 
     it('getOptionBrief 使用 v2,解析 identifier', async () => {
@@ -104,13 +106,14 @@ describe('QuoteClient', () => {
       expect(parsed.option_basic[0].strike).toBe(150);
     });
 
-    it('getOptionKline 使用 v2,option_query 带 period', async () => {
+    it('getOptionKline 多 identifier，使用 v2，option_query 带 period', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
-      await qc.getOptionKline('AAPL  240119C00150000', 'day');
+      await qc.getOptionKline(['AAPL  240119C00150000', 'AAPL  240119P00140000'], 'day');
       const call = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
       expect(call.method).toBe('option_kline');
       expect(call.version).toBe('2.0');
       const parsed = JSON.parse(call.bizContent);
+      expect(parsed.option_query).toHaveLength(2);
       expect(parsed.option_query[0].period).toBe('day');
     });
   });
@@ -219,6 +222,18 @@ describe('QuoteClient', () => {
     it('executeRequest 抛错应向上传播', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockRejectedValue(new Error('network error'));
       await expect(qc.getMarketState('US')).rejects.toThrow('network error');
+    });
+  });
+
+  describe('fromConfig 静态工厂', () => {
+    it('fromConfig 返回 QuoteClient 实例', () => {
+      const cfg = {
+        tigerId: 'test', privateKey: 'pk', account: 'acc', language: 'zh_CN',
+        serverUrl: 'https://openapi.tigerfintech.com', quoteServerUrl: 'https://openapi.tigerfintech.com',
+        tokenRefreshDuration: 0,
+      } as Parameters<typeof QuoteClient.fromConfig>[0];
+      const client = QuoteClient.fromConfig(cfg);
+      expect(client).toBeInstanceOf(QuoteClient);
     });
   });
 });
