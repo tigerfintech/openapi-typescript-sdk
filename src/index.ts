@@ -16,7 +16,7 @@
  */
 
 /** SDK 版本号 */
-export const VERSION = '0.4.8';
+export { SDK_VERSION as VERSION } from './version';
 
 // Config
 export { createClientConfig, loadPropertiesFile } from './config';
