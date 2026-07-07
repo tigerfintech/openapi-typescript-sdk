@@ -5,7 +5,8 @@
  * Request parameters are written in camelCase in TypeScript and are
  * converted to snake_case on the wire automatically.
  */
-import type { HttpClient } from '../client/http-client';
+import { HttpClient } from '../client/http-client';
+import type { ClientConfig } from '../config/client-config';
 import { createApiRequest } from '../client/api-request';
 import { unmarshalData } from '../client/api-response';
 import type {
@@ -30,10 +31,6 @@ import type {
   CapitalDistribution,
   ScannerResult,
   QuotePermission,
-  FinancialDailyRequest,
-  FinancialReportRequest,
-  CorporateActionRequest,
-  FutureKlineRequest,
   MarketScannerRequest,
   SymbolName,
   TradeMeta,
@@ -61,6 +58,9 @@ import type {
   FundContractInfo,
   FundQuote,
   FundHistoryQuote,
+  FinancialDailyRequest,
+  FinancialReportRequest,
+  CorporateActionRequest,
 } from '../model/quote';
 import type {
   BriefRequest,
@@ -71,8 +71,8 @@ import type {
   TradeMetasRequest,
   StockDetailsRequest,
   StockDelayBriefsRequest,
-  BarsRequest,
-  BarsByPageRequest,
+  KlineRequest,
+  KlineByPageRequest,
   TimelineHistoryRequest,
   TradeRankRequest,
   ShortInterestRequest,
@@ -81,7 +81,6 @@ import type {
   StockIndustryRequest,
   KlineQuotaRequest,
   QuotePermissionRequest,
-  OptionBarsRequest,
   OptionTradeTicksRequest,
   OptionTimelineRequest,
   OptionDepthRequest,
@@ -91,8 +90,8 @@ import type {
   AllFutureContractsRequest,
   FutureContinuousContractsRequest,
   FutureHistoryMainContractRequest,
-  FutureBarsRequest,
-  FutureBarsByPageRequest,
+  FutureKlineRequest,
+  FutureKlineByPageRequest,
   FutureTradeTicksRequest,
   FutureDepthRequest,
   FutureTradingTimesRequest,
@@ -158,6 +157,11 @@ export class QuoteClient {
     this.httpClient = httpClient;
   }
 
+  /** Create a QuoteClient directly from a ClientConfig — no need to construct HttpClient manually. */
+  static fromConfig(config: ClientConfig): QuoteClient {
+    return new QuoteClient(new HttpClient(config, undefined, { useQuoteServerUrl: true }));
+  }
+
   private async callInto<T>(method: string, bizParams?: unknown, version?: string): Promise<T> {
     const request = createApiRequest(method, bizParams, version);
     const response = await this.httpClient.executeRequest(request);
@@ -193,8 +197,8 @@ export class QuoteClient {
     return this.callInto<Brief[]>('quote_real_time', req);
   }
 
-  async getKline(symbol: string, period: string): Promise<Kline[]> {
-    return this.callInto<Kline[]>('kline', { symbols: [symbol], period });
+  async getKline(req: KlineRequest): Promise<Kline[]> {
+    return this.callInto<Kline[]>('kline', req);
   }
 
   async getTimeline(symbols: string[]): Promise<Timeline[]> {
@@ -213,20 +217,23 @@ export class QuoteClient {
 
   // === Options ===
 
-  async getOptionExpiration(symbol: string): Promise<OptionExpiration[]> {
-    return this.callInto<OptionExpiration[]>('option_expiration', { symbols: [symbol] });
+  async getOptionExpiration(symbols: string[]): Promise<OptionExpiration[]> {
+    return this.callInto<OptionExpiration[]>('option_expiration', { symbols });
   }
 
-  /** Option chain; `expiry` is "YYYY-MM-DD". */
-  async getOptionChain(symbol: string, expiry: string): Promise<OptionChain[]> {
-    const d = new Date(expiry + 'T00:00:00Z');
-    const expiryMs = d.getTime();
-    if (Number.isNaN(expiryMs)) {
-      throw new Error(`invalid expiry date, expected YYYY-MM-DD: ${expiry}`);
-    }
+  /** Option chain; each item is [symbol, "YYYY-MM-DD"]. */
+  async getOptionChain(items: Array<[string, string]>): Promise<OptionChain[]> {
+    const optionBasic = items.map(([symbol, expiry]) => {
+      const d = new Date(expiry + 'T00:00:00Z');
+      const expiryMs = d.getTime();
+      if (Number.isNaN(expiryMs)) {
+        throw new Error(`invalid expiry date, expected YYYY-MM-DD: ${expiry}`);
+      }
+      return { symbol, expiry: expiryMs };
+    });
     return this.callInto<OptionChain[]>(
       'option_chain',
-      { option_basic: [{ symbol, expiry: expiryMs }] },
+      { option_basic: optionBasic },
       '3.0',
     );
   }
@@ -239,13 +246,14 @@ export class QuoteClient {
     return this.callInto<Brief[]>('option_brief', { option_basic: optionBasic }, '2.0');
   }
 
-  async getOptionKline(identifier: string, period: string): Promise<Kline[]> {
-    const p = parseOptionIdentifier(identifier);
+  async getOptionKline(identifiers: string[], period: string): Promise<Kline[]> {
+    const optionQuery = identifiers.map((id) => {
+      const p = parseOptionIdentifier(id);
+      return { symbol: p.symbol, expiry: p.expiryMs, right: p.right, strike: p.strike, period };
+    });
     return this.callInto<Kline[]>(
       'option_kline',
-      {
-        option_query: [{ symbol: p.symbol, expiry: p.expiryMs, right: p.right, strike: p.strike, period }],
-      },
+      { option_query: optionQuery },
       '2.0',
     );
   }
@@ -266,16 +274,6 @@ export class QuoteClient {
   /** Real-time futures quotes. wire: future_real_time_quote */
   async getFutureRealTimeQuote(req: FutureBriefRequest): Promise<FutureQuote[]> {
     return this.callInto<FutureQuote[]>('future_real_time_quote', req);
-  }
-
-  /** Futures K-line; use -1 for unbounded beginTime / endTime. */
-  async getFutureKline(req: FutureKlineRequest): Promise<FutureKline[]> {
-    const body: FutureKlineRequest = {
-      ...req,
-      beginTime: req.beginTime ?? -1,
-      endTime: req.endTime ?? -1,
-    };
-    return this.callInto<FutureKline[]>('future_kline', body);
   }
 
   // === Fundamentals ===
@@ -346,17 +344,8 @@ export class QuoteClient {
     return this.callInto<Brief[]>('quote_delay', req);
   }
 
-  /** K-line bars (full request). wire: kline */
-  async getBars(req: BarsRequest): Promise<Kline[]> {
-    return this.callInto<Kline[]>('kline', req);
-  }
-
-  /**
-   * Client-side paginated K-line fetch — loops over getBars until TotalSize
-   * bars are collected. Items are returned oldest-first, matching
-   * Python/Go get_bars_by_page behaviour.
-   */
-  async getBarsByPage(req: BarsByPageRequest): Promise<KlineItem[]> {
+  /** Client-side paginated K-line fetch. Loops until totalSize bars are collected, oldest-first. */
+  async getKlineByPage(req: KlineByPageRequest): Promise<KlineItem[]> {
     const pageSize = req.pageSize && req.pageSize > 0 ? req.pageSize : 200;
     const totalSize = req.totalSize && req.totalSize > 0 ? req.totalSize : 1000;
     let beginTime = req.beginTime ?? -1;
@@ -366,7 +355,7 @@ export class QuoteClient {
 
     const acc: KlineItem[] = [];
     while (acc.length < totalSize) {
-      const sub: BarsRequest = {
+      const sub: KlineRequest = {
         symbols: req.symbol ? [req.symbol] : undefined,
         period: req.period,
         right: req.right,
@@ -383,7 +372,6 @@ export class QuoteClient {
       const items = pageOut[0].items;
       acc.push(...items);
       if (items.length < pageSize) break;
-      // next page endTime = oldest bar time - 1
       let oldest = items[0].time;
       for (const it of items) {
         if (it.time < oldest) oldest = it.time;
@@ -438,11 +426,6 @@ export class QuoteClient {
   // Batch 4: option / future extensions
   // ==========================================================================
 
-  /** Option K-line. wire: option_kline (v2.0) */
-  async getOptionBars(req: OptionBarsRequest): Promise<Kline[]> {
-    return this.callInto<Kline[]>('option_kline', req, '2.0');
-  }
-
   /** Option tick trades. wire: option_trade_tick */
   async getOptionTradeTicks(req: OptionTradeTicksRequest): Promise<TradeTick[]> {
     return this.callInto<TradeTick[]>('option_trade_tick', req);
@@ -493,12 +476,10 @@ export class QuoteClient {
     return this.callInto<FutureMainContractHistory[]>('future_main_contract', req);
   }
 
-  /**
-   * Futures K-line (full request with index pagination). wire: future_kline
-   * begin_time / end_time default to -1 when unset (server requires them present).
-   */
-  async getFutureBars(req: FutureBarsRequest): Promise<FutureKline[]> {
-    const body: FutureBarsRequest = {
+  /** Futures K-line. wire: future_kline
+   * beginTime / endTime default to -1 when unset (server requires them present). */
+  async getFutureKline(req: FutureKlineRequest): Promise<FutureKline[]> {
+    const body: FutureKlineRequest = {
       ...req,
       beginTime: req.beginTime ?? -1,
       endTime: req.endTime ?? -1,
@@ -507,7 +488,7 @@ export class QuoteClient {
   }
 
   /** Client-side paginated futures K-line fetch. */
-  async getFutureBarsByPage(req: FutureBarsByPageRequest): Promise<FutureKlineItem[]> {
+  async getFutureKlineByPage(req: FutureKlineByPageRequest): Promise<FutureKlineItem[]> {
     const pageSize = req.pageSize && req.pageSize > 0 ? req.pageSize : 200;
     const totalSize = req.totalSize && req.totalSize > 0 ? req.totalSize : 1000;
     let beginTime = req.beginTime ?? -1;
@@ -517,7 +498,7 @@ export class QuoteClient {
 
     const acc: FutureKlineItem[] = [];
     while (acc.length < totalSize) {
-      const sub: FutureBarsRequest = {
+      const sub: FutureKlineRequest = {
         contractCode: req.contractCode,
         period: req.period,
         beginTime,

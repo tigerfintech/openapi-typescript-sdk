@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fc from 'fast-check';
 import { HttpClient } from '../../src/client/http-client';
 import { TigerError } from '../../src/client/errors';
+import { SDK_VERSION } from '../../src/version';
 import type { ClientConfig } from '../../src/config/client-config';
 
 /** Create test ClientConfig */
@@ -107,7 +108,7 @@ describe('HttpClient.execute', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
       const callArgs = mockFetch.mock.calls[0];
       const headers = callArgs[1].headers;
-      expect(headers['User-Agent']).toBe('openapi-typescript-sdk-0.4.0');
+      expect(headers['User-Agent']).toBe(`openapi-typescript-sdk-${SDK_VERSION}`);
       expect(headers['Content-Type']).toBe('application/json;charset=UTF-8');
     });
   });
