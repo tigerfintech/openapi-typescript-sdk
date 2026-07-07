@@ -5,7 +5,8 @@
  * Request parameters are written in camelCase in TypeScript and are
  * converted to snake_case on the wire automatically.
  */
-import type { HttpClient } from '../client/http-client';
+import { HttpClient } from '../client/http-client';
+import type { ClientConfig } from '../config/client-config';
 import { createApiRequest } from '../client/api-request';
 import { unmarshalData } from '../client/api-response';
 import type {
@@ -158,6 +159,11 @@ export class QuoteClient {
     this.httpClient = httpClient;
   }
 
+  /** Create a QuoteClient directly from a ClientConfig — no need to construct HttpClient manually. */
+  static fromConfig(config: ClientConfig): QuoteClient {
+    return new QuoteClient(new HttpClient(config, undefined, { useQuoteServerUrl: true }));
+  }
+
   private async callInto<T>(method: string, bizParams?: unknown, version?: string): Promise<T> {
     const request = createApiRequest(method, bizParams, version);
     const response = await this.httpClient.executeRequest(request);
@@ -193,8 +199,8 @@ export class QuoteClient {
     return this.callInto<Brief[]>('quote_real_time', req);
   }
 
-  async getKline(symbol: string, period: string): Promise<Kline[]> {
-    return this.callInto<Kline[]>('kline', { symbols: [symbol], period });
+  async getKline(symbols: string[], period: string): Promise<Kline[]> {
+    return this.callInto<Kline[]>('kline', { symbols, period });
   }
 
   async getTimeline(symbols: string[]): Promise<Timeline[]> {
@@ -213,20 +219,23 @@ export class QuoteClient {
 
   // === Options ===
 
-  async getOptionExpiration(symbol: string): Promise<OptionExpiration[]> {
-    return this.callInto<OptionExpiration[]>('option_expiration', { symbols: [symbol] });
+  async getOptionExpiration(symbols: string[]): Promise<OptionExpiration[]> {
+    return this.callInto<OptionExpiration[]>('option_expiration', { symbols });
   }
 
-  /** Option chain; `expiry` is "YYYY-MM-DD". */
-  async getOptionChain(symbol: string, expiry: string): Promise<OptionChain[]> {
-    const d = new Date(expiry + 'T00:00:00Z');
-    const expiryMs = d.getTime();
-    if (Number.isNaN(expiryMs)) {
-      throw new Error(`invalid expiry date, expected YYYY-MM-DD: ${expiry}`);
-    }
+  /** Option chain; each item is [symbol, "YYYY-MM-DD"]. */
+  async getOptionChain(items: Array<[string, string]>): Promise<OptionChain[]> {
+    const optionBasic = items.map(([symbol, expiry]) => {
+      const d = new Date(expiry + 'T00:00:00Z');
+      const expiryMs = d.getTime();
+      if (Number.isNaN(expiryMs)) {
+        throw new Error(`invalid expiry date, expected YYYY-MM-DD: ${expiry}`);
+      }
+      return { symbol, expiry: expiryMs };
+    });
     return this.callInto<OptionChain[]>(
       'option_chain',
-      { option_basic: [{ symbol, expiry: expiryMs }] },
+      { option_basic: optionBasic },
       '3.0',
     );
   }
@@ -239,13 +248,14 @@ export class QuoteClient {
     return this.callInto<Brief[]>('option_brief', { option_basic: optionBasic }, '2.0');
   }
 
-  async getOptionKline(identifier: string, period: string): Promise<Kline[]> {
-    const p = parseOptionIdentifier(identifier);
+  async getOptionKline(identifiers: string[], period: string): Promise<Kline[]> {
+    const optionQuery = identifiers.map((id) => {
+      const p = parseOptionIdentifier(id);
+      return { symbol: p.symbol, expiry: p.expiryMs, right: p.right, strike: p.strike, period };
+    });
     return this.callInto<Kline[]>(
       'option_kline',
-      {
-        option_query: [{ symbol: p.symbol, expiry: p.expiryMs, right: p.right, strike: p.strike, period }],
-      },
+      { option_query: optionQuery },
       '2.0',
     );
   }
