@@ -192,9 +192,14 @@ export class QuoteClient {
     return this.callInto<MarketState[]>('market_state', { market });
   }
 
-  /** Real-time stock briefs. wire: quote_real_time */
-  async getBrief(req: BriefRequest): Promise<Brief[]> {
+  /** Real-time stock quotes. wire: quote_real_time */
+  async getRealTimeQuote(req: BriefRequest): Promise<Brief[]> {
     return this.callInto<Brief[]>('quote_real_time', req);
+  }
+
+  /** @deprecated Use getRealTimeQuote instead. */
+  async getBrief(req: BriefRequest): Promise<Brief[]> {
+    return this.getRealTimeQuote(req);
   }
 
   async getKline(req: KlineRequest): Promise<Kline[]> {
@@ -238,12 +243,17 @@ export class QuoteClient {
     );
   }
 
-  async getOptionBrief(identifiers: string[]): Promise<Brief[]> {
+  async getOptionQuote(identifiers: string[]): Promise<Brief[]> {
     const optionBasic = identifiers.map((id) => {
       const p = parseOptionIdentifier(id);
       return { symbol: p.symbol, expiry: p.expiryMs, right: p.right, strike: p.strike };
     });
     return this.callInto<Brief[]>('option_brief', { option_basic: optionBasic }, '2.0');
+  }
+
+  /** @deprecated Use getOptionQuote instead. */
+  async getOptionBrief(identifiers: string[]): Promise<Brief[]> {
+    return this.getOptionQuote(identifiers);
   }
 
   async getOptionKline(identifiers: string[], period: string): Promise<Kline[]> {
@@ -339,9 +349,14 @@ export class QuoteClient {
     return this.callIntoItems<StockDetail>('stock_detail', req);
   }
 
-  /** Delayed stock briefs. wire: quote_delay */
-  async getStockDelayBriefs(req: StockDelayBriefsRequest): Promise<Brief[]> {
+  /** Delayed stock quotes. wire: quote_delay */
+  async getDelayedQuote(req: StockDelayBriefsRequest): Promise<Brief[]> {
     return this.callInto<Brief[]>('quote_delay', req);
+  }
+
+  /** @deprecated Use getDelayedQuote instead. */
+  async getStockDelayBriefs(req: StockDelayBriefsRequest): Promise<Brief[]> {
+    return this.getDelayedQuote(req);
   }
 
   /** Client-side paginated K-line fetch. Loops until totalSize bars are collected, oldest-first. */
@@ -571,9 +586,14 @@ export class QuoteClient {
     return this.callInto<FundHistoryQuote[]>('fund_history_quote', req);
   }
 
-  /** Warrant briefs. wire: warrant_briefs */
-  async getWarrantBriefs(req: WarrantBriefsRequest): Promise<WarrantBrief[]> {
+  /** Real-time warrant quotes. wire: warrant_briefs */
+  async getWarrantQuote(req: WarrantBriefsRequest): Promise<WarrantBrief[]> {
     return this.callInto<WarrantBrief[]>('warrant_briefs', req);
+  }
+
+  /** @deprecated Use getWarrantQuote instead. */
+  async getWarrantBriefs(req: WarrantBriefsRequest): Promise<WarrantBrief[]> {
+    return this.getWarrantQuote(req);
   }
 
   /** Warrant filter (paged). wire: warrant_filter */
