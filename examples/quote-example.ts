@@ -49,9 +49,9 @@ async function main() {
   } catch (e) { fail('getMarketState(US)', e); }
 
   try {
-    const briefs = await qc.getBrief({ symbols: ['AAPL', 'TSLA'] });
-    ok('getBrief', briefs.map(b => `${b.symbol}=${b.latestPrice}`).join(' '));
-  } catch (e) { fail('getBrief', e); }
+    const briefs = await qc.getRealTimeQuote({ symbols: ['AAPL', 'TSLA'] });
+    ok('getRealTimeQuote', briefs.map(b => `${b.symbol}=${b.latestPrice}`).join(' '));
+  } catch (e) { fail('getRealTimeQuote', e); }
 
   try {
     const ks = await qc.getKline({ symbols: ['AAPL'], period: 'day' });
@@ -85,7 +85,7 @@ async function main() {
 
   if (!expiryDate) {
     skip('getOptionChain', 'no expiry available');
-    skip('getOptionBrief', 'no expiry available');
+    skip('getOptionQuote', 'no expiry available');
     skip('getOptionKline', 'no expiry available');
   } else {
     try {
@@ -97,13 +97,13 @@ async function main() {
     } catch (e) { fail(`getOptionChain(${expiryDate})`, e); }
 
     if (!optIdentifier) {
-      skip('getOptionBrief', 'no identifier from chain');
+      skip('getOptionQuote', 'no identifier from chain');
       skip('getOptionKline', 'no identifier from chain');
     } else {
       try {
-        const briefs = await qc.getOptionBrief([optIdentifier]);
-        ok('getOptionBrief', `${briefs[0]?.symbol ?? ''} latestPrice=${briefs[0]?.latestPrice ?? 0}`);
-      } catch (e) { fail('getOptionBrief', e); }
+        const briefs = await qc.getOptionQuote([optIdentifier]);
+        ok('getOptionQuote', `${briefs[0]?.symbol ?? ''} latestPrice=${briefs[0]?.latestPrice ?? 0}`);
+      } catch (e) { fail('getOptionQuote', e); }
       try {
         const ks = await qc.getOptionKline([optIdentifier], 'day');
         ok('getOptionKline', `bars=${ks[0]?.items.length ?? 0}`);
@@ -214,9 +214,9 @@ async function main() {
   } catch (e) { fail('getStockDetails(AAPL)', e); }
 
   try {
-    const dbs = await qc.getStockDelayBriefs({ symbols: ['AAPL'] });
-    ok('getStockDelayBriefs(AAPL)', `count=${dbs.length}`);
-  } catch (e) { fail('getStockDelayBriefs(AAPL)', e); }
+    const dbs = await qc.getDelayedQuote({ symbols: ['AAPL'] });
+    ok('getDelayedQuote(AAPL)', `count=${dbs.length}`);
+  } catch (e) { fail('getDelayedQuote(AAPL)', e); }
 
   try {
     const ks = await qc.getKline({ symbols: ['AAPL'], period: 'day', limit: 10 });
@@ -344,7 +344,7 @@ async function main() {
   } catch (e) { fail('getFundHistoryQuote(00003.HK)', e); }
 
   console.log('\n=== v0.4.0: Warrants ===');
-  skip('getWarrantBriefs', 'needs explicit HK warrant symbol');
+  skip('getWarrantQuote', 'needs explicit HK warrant symbol');
   skip('getWarrantFilter', 'needs explicit underlying symbol');
 
   console.log('\n=== v0.4.0: Industry ===');

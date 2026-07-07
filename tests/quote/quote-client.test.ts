@@ -43,9 +43,9 @@ describe('QuoteClient', () => {
       expect(capturedBiz(mockHttpClient)).toEqual({ market: 'US' });
     });
 
-    it('getBrief 发送 symbols 数组', async () => {
+    it('getRealTimeQuote 发送 symbols 数组', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([{ symbol: 'AAPL', latestPrice: 150.0 }]));
-      await qc.getBrief({ symbols: ['AAPL', 'GOOG'] });
+      await qc.getRealTimeQuote({ symbols: ['AAPL', 'GOOG'] });
       expect(capturedBiz(mockHttpClient)).toEqual({ symbols: ['AAPL', 'GOOG'] });
     });
 
@@ -94,9 +94,9 @@ describe('QuoteClient', () => {
       expect(parsed.option_basic[1].symbol).toBe('TSLA');
     });
 
-    it('getOptionBrief 使用 v2,解析 identifier', async () => {
+    it('getOptionQuote 使用 v2,解析 identifier', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
-      await qc.getOptionBrief(['AAPL  240119C00150000']);
+      await qc.getOptionQuote(['AAPL  240119C00150000']);
       const call = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
       expect(call.method).toBe('option_brief');
       expect(call.version).toBe('2.0');
