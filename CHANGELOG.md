@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.8] - 2026-07-07
+
+### Breaking Changes
+
+- **多 symbol 支持（行情接口签名变更）**：下列接口参数由单 symbol 改为数组，调用方需更新：
+  - `getKline(symbol: string, period)` → `getKline(symbols: string[], period)`
+  - `getOptionExpiration(symbol: string)` → `getOptionExpiration(symbols: string[])`
+  - `getOptionChain(symbol: string, expiry: string)` → `getOptionChain(items: Array<[string, string]>)`（每项为 `[symbol, "YYYY-MM-DD"]` 对）
+  - `getOptionKline(identifier: string, period)` → `getOptionKline(identifiers: string[], period)`
+- **删除重复方法 `getOptionBars`**：该方法与 `getOptionKline` 均对应 `option_kline` API，已删除，请统一使用 `getOptionKline`。同时删除 `OptionBarsRequest` 类型。
+- **`getKline` 签名变更（Request 对象）**：`getKline(symbols: string[], period: string)` → `getKline(req: KlineRequest)`；删除同名 `getBars` 方法及 `BarsRequest` 类型。
+- **`getKlineByPage` 重命名**：`getBarsByPage(req: BarsByPageRequest)` → `getKlineByPage(req: KlineByPageRequest)`；删除 `BarsByPageRequest` 类型。
+- **`getFutureBars` 删除**：改用 `getFutureKline(req: FutureKlineRequest)`；删除 `FutureBarsRequest` 类型。
+- **`getFutureKlineByPage` 重命名**：`getFutureBarsByPage(req: FutureBarsByPageRequest)` → `getFutureKlineByPage(req: FutureKlineByPageRequest)`；删除 `FutureBarsByPageRequest` 类型。
+
+### Added
+
+- **`QuoteClient.fromConfig(config)`**：直接从 `ClientConfig` 创建 `QuoteClient`，内部自动使用 quote server URL，无需手动构造 `HttpClient`。
+- **`TradeClient.fromConfig(config, account, secretKey?)`**：直接从 `ClientConfig` 创建 `TradeClient`，无需手动构造 `HttpClient`。
+
 ## [0.4.7] - 2026-07-03
 
 ### Fixed

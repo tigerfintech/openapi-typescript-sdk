@@ -16,7 +16,7 @@
  */
 
 /** SDK 版本号 */
-export const VERSION = '0.4.6';
+export { SDK_VERSION as VERSION } from './version';
 
 // Config
 export { createClientConfig, loadPropertiesFile } from './config';
@@ -83,11 +83,11 @@ export type {
 } from './model/quote';
 // Models — quote requests
 export type {
-  BriefRequest, DepthQuoteRequest, TradeTickRequest, BarsRequest, BarsByPageRequest,
-  FutureBriefRequest, FutureBarsRequest, FutureBarsByPageRequest, FutureTradeTicksRequest,
+  BriefRequest, DepthQuoteRequest, TradeTickRequest, KlineRequest, KlineByPageRequest,
+  FutureBriefRequest, FutureKlineRequest, FutureKlineByPageRequest, FutureTradeTicksRequest,
   FutureDepthRequest, FutureContractSingleRequest, FutureContinuousContractsRequest,
   FutureHistoryMainContractRequest, FutureTradingTimesRequest, AllFutureContractsRequest,
-  OptionBarsRequest, OptionTradeTicksRequest, OptionTimelineRequest, OptionDepthRequest,
+  OptionTradeTicksRequest, OptionTimelineRequest, OptionDepthRequest,
   OptionSymbolsRequest, OptionAnalysisRequest, OptionQueryItem,
   ShortInterestRequest, StockBrokerRequest, StockDetailsRequest, StockFundamentalRequest,
   StockIndustryRequest, StockDelayBriefsRequest, SymbolsRequest, TradeMetasRequest,

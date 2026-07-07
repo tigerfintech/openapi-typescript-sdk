@@ -75,11 +75,10 @@ export interface StockDelayBriefsRequest {
   lang?: string;
 }
 
-/**
- * K-line bars (full options). wire: kline
+/** K-line request. wire: kline
  * BeginTime/EndTime (ms) and BeginIndex/EndIndex are mutually exclusive.
  */
-export interface BarsRequest {
+export interface KlineRequest {
   symbols?: string[];
   period?: string;
   right?: string;
@@ -97,7 +96,7 @@ export interface BarsRequest {
 }
 
 /** K-line client-side pagination wrapper. */
-export interface BarsByPageRequest {
+export interface KlineByPageRequest {
   symbol?: string;
   period?: string;
   beginTime?: number;
@@ -187,13 +186,6 @@ export interface OptionQueryItem {
   pageToken?: string;
 }
 
-/** Option K-line. wire: option_kline (v2.0) */
-export interface OptionBarsRequest {
-  optionQuery?: OptionQueryItem[];
-  market?: string;
-  lang?: string;
-}
-
 /** Option tick trades. wire: option_trade_tick */
 export interface OptionTradeTicksRequest {
   contracts?: OptionQueryItem[];
@@ -257,8 +249,8 @@ export interface FutureHistoryMainContractRequest {
   lang?: string;
 }
 
-/** Futures K-line (index + pagination). wire: future_kline */
-export interface FutureBarsRequest {
+/** Futures K-line request. wire: future_kline */
+export interface FutureKlineRequest {
   contractCodes?: string[];
   contractCode?: string;
   period?: string;
@@ -272,7 +264,7 @@ export interface FutureBarsRequest {
 }
 
 /** Futures K-line client-side pagination wrapper. */
-export interface FutureBarsByPageRequest {
+export interface FutureKlineByPageRequest {
   contractCode?: string;
   period?: string;
   beginTime?: number;

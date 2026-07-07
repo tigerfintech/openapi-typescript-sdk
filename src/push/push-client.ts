@@ -39,8 +39,9 @@ const DEFAULT_RECONNECT_INTERVAL = 5_000;
 const MAX_RECONNECT_INTERVAL = 60_000;
 /** Default connect timeout (ms) */
 const DEFAULT_CONNECT_TIMEOUT = 30_000;
+import { SDK_VERSION as _SDK_VERSION } from '../version';
 /** SDK version identifier */
-const SDK_VERSION = 'typescript/0.4.0';
+const SDK_VERSION = `typescript/${_SDK_VERSION}`;
 /** Protocol version */
 const ACCEPT_VERSION = '1.0';
 /** Default send heartbeat interval (ms) */

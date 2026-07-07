@@ -54,7 +54,7 @@ async function main() {
   } catch (e) { fail('getBrief', e); }
 
   try {
-    const ks = await qc.getKline('AAPL', 'day');
+    const ks = await qc.getKline({ symbols: ['AAPL'], period: 'day' });
     ok('getKline(AAPL day)', ks.length > 0 ? `symbol=${ks[0].symbol} bars=${ks[0].items.length}` : '(empty)');
   } catch (e) { fail('getKline(AAPL day)', e); }
 
@@ -77,7 +77,7 @@ async function main() {
   console.log('\n=== Options ===');
   let expiryDate = '', optIdentifier = '';
   try {
-    const exps = await qc.getOptionExpiration('AAPL');
+    const exps = await qc.getOptionExpiration(['AAPL']);
     const dates = exps[0]?.dates ?? [];
     ok('getOptionExpiration(AAPL)', `dates=${dates.length} first=${dates[0] ?? ''}`);
     if (dates.length > 0) expiryDate = dates[Math.floor(dates.length / 2)];
@@ -89,7 +89,7 @@ async function main() {
     skip('getOptionKline', 'no expiry available');
   } else {
     try {
-      const chain = await qc.getOptionChain('AAPL', expiryDate);
+      const chain = await qc.getOptionChain([['AAPL', expiryDate]]);
       const items = chain[0]?.items ?? [];
       ok(`getOptionChain(${expiryDate})`, `rows=${items.length}`);
       const mid = items[Math.floor(items.length / 2)];
@@ -105,7 +105,7 @@ async function main() {
         ok('getOptionBrief', `${briefs[0]?.symbol ?? ''} latestPrice=${briefs[0]?.latestPrice ?? 0}`);
       } catch (e) { fail('getOptionBrief', e); }
       try {
-        const ks = await qc.getOptionKline(optIdentifier, 'day');
+        const ks = await qc.getOptionKline([optIdentifier], 'day');
         ok('getOptionKline', `bars=${ks[0]?.items.length ?? 0}`);
       } catch (e) { fail('getOptionKline', e); }
     }
@@ -219,9 +219,9 @@ async function main() {
   } catch (e) { fail('getStockDelayBriefs(AAPL)', e); }
 
   try {
-    const ks = await qc.getBars({ symbols: ['AAPL'], period: 'day', limit: 10 });
-    ok('getBars(AAPL day x10)', `symbols=${ks.length} bars0=${ks[0]?.items?.length ?? 0}`);
-  } catch (e) { fail('getBars(AAPL day x10)', e); }
+    const ks = await qc.getKline({ symbols: ['AAPL'], period: 'day', limit: 10 });
+    ok('getKline(AAPL day x10)', `symbols=${ks.length} bars0=${ks[0]?.items?.length ?? 0}`);
+  } catch (e) { fail('getKline(AAPL day x10)', e); }
 
   try {
     const tl = await qc.getTimelineHistory({ symbols: ['AAPL'], date: '2025-05-07' });
@@ -300,9 +300,9 @@ async function main() {
   skip('getFutureHistoryMainContract', 'needs explicit contractCodes+time range');
 
   try {
-    const ks = await qc.getFutureBars({ contractCodes: [fCode], period: 'day', limit: 10 });
-    ok(`getFutureBars(${fCode})`, `count=${ks.length} bars0=${ks[0]?.items?.length ?? 0}`);
-  } catch (e) { fail(`getFutureBars(${fCode})`, e); }
+    const ks = await qc.getFutureKline({ contractCodes: [fCode], period: 'day', beginTime: -1, endTime: -1 });
+    ok(`getFutureKline(${fCode})`, `count=${ks.length} bars0=${ks[0]?.items?.length ?? 0}`);
+  } catch (e) { fail(`getFutureKline(${fCode})`, e); }
 
   try {
     const ticks = await qc.getFutureTradeTicks({ contractCode: fCode, limit: 10 });
