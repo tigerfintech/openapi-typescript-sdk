@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `getOptionExpiration(symbol: string)` → `getOptionExpiration(symbols: string[])`
   - `getOptionChain(symbol: string, expiry: string)` → `getOptionChain(items: Array<[string, string]>)`（每项为 `[symbol, "YYYY-MM-DD"]` 对）
   - `getOptionKline(identifier: string, period)` → `getOptionKline(identifiers: string[], period)`
+- **删除重复方法 `getOptionBars`**：该方法与 `getOptionKline` 均对应 `option_kline` API，已删除，请统一使用 `getOptionKline`。同时删除 `OptionBarsRequest` 类型。
 
 ### Added
 

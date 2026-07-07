@@ -82,7 +82,6 @@ import type {
   StockIndustryRequest,
   KlineQuotaRequest,
   QuotePermissionRequest,
-  OptionBarsRequest,
   OptionTradeTicksRequest,
   OptionTimelineRequest,
   OptionDepthRequest,
@@ -447,11 +446,6 @@ export class QuoteClient {
   // ==========================================================================
   // Batch 4: option / future extensions
   // ==========================================================================
-
-  /** Option K-line. wire: option_kline (v2.0) */
-  async getOptionBars(req: OptionBarsRequest): Promise<Kline[]> {
-    return this.callInto<Kline[]>('option_kline', req, '2.0');
-  }
 
   /** Option tick trades. wire: option_trade_tick */
   async getOptionTradeTicks(req: OptionTradeTicksRequest): Promise<TradeTick[]> {

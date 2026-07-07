@@ -87,7 +87,7 @@ export type {
   FutureBriefRequest, FutureBarsRequest, FutureBarsByPageRequest, FutureTradeTicksRequest,
   FutureDepthRequest, FutureContractSingleRequest, FutureContinuousContractsRequest,
   FutureHistoryMainContractRequest, FutureTradingTimesRequest, AllFutureContractsRequest,
-  OptionBarsRequest, OptionTradeTicksRequest, OptionTimelineRequest, OptionDepthRequest,
+  OptionTradeTicksRequest, OptionTimelineRequest, OptionDepthRequest,
   OptionSymbolsRequest, OptionAnalysisRequest, OptionQueryItem,
   ShortInterestRequest, StockBrokerRequest, StockDetailsRequest, StockFundamentalRequest,
   StockIndustryRequest, StockDelayBriefsRequest, SymbolsRequest, TradeMetasRequest,
