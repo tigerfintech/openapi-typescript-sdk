@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `getOptionChain(symbol: string, expiry: string)` → `getOptionChain(items: Array<[string, string]>)`（每项为 `[symbol, "YYYY-MM-DD"]` 对）
   - `getOptionKline(identifier: string, period)` → `getOptionKline(identifiers: string[], period)`
 - **删除重复方法 `getOptionBars`**：该方法与 `getOptionKline` 均对应 `option_kline` API，已删除，请统一使用 `getOptionKline`。同时删除 `OptionBarsRequest` 类型。
+- **`getKline` 签名变更（Request 对象）**：`getKline(symbols: string[], period: string)` → `getKline(req: KlineRequest)`；删除同名 `getBars` 方法及 `BarsRequest` 类型。
+- **`getKlineByPage` 重命名**：`getBarsByPage(req: BarsByPageRequest)` → `getKlineByPage(req: KlineByPageRequest)`；删除 `BarsByPageRequest` 类型。
+- **`getFutureBars` 删除**：改用 `getFutureKline(req: FutureKlineRequest)`；删除 `FutureBarsRequest` 类型。
+- **`getFutureKlineByPage` 重命名**：`getFutureBarsByPage(req: FutureBarsByPageRequest)` → `getFutureKlineByPage(req: FutureKlineByPageRequest)`；删除 `FutureBarsByPageRequest` 类型。
 
 ### Added
 
