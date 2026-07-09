@@ -105,9 +105,51 @@ async function main() {
         ok('getOptionQuote', `${briefs[0]?.symbol ?? ''} latestPrice=${briefs[0]?.latestPrice ?? 0}`);
       } catch (e) { fail('getOptionQuote', e); }
       try {
-        const ks = await qc.getOptionKline([optIdentifier], 'day');
+        const nowMs = Date.now();
+        const beginMs = nowMs - 30 * 24 * 60 * 60 * 1000;
+        const ks = await qc.getOptionKline([optIdentifier], 'day', beginMs, nowMs);
         ok('getOptionKline', `bars=${ks[0]?.items.length ?? 0}`);
       } catch (e) { fail('getOptionKline', e); }
+    }
+  }
+
+  // HK options smoke test
+  console.log('\n=== Options (HK) ===');
+  let hkExpiryDate = '', hkOptIdentifier = '';
+  try {
+    const exps = await qc.getOptionExpiration(['00700.HK'], 'HK');
+    const dates = exps[0]?.dates ?? [];
+    hkExpiryDate = dates[0] ?? '';
+    ok('getOptionExpiration(00700.HK)', `dates=${dates.length} first=${hkExpiryDate}`);
+  } catch (e) { fail('getOptionExpiration(00700.HK)', e); }
+
+  if (!hkExpiryDate) {
+    skip('getOptionChain(HK)', 'no expiry available');
+    skip('getOptionQuote(HK)', 'no expiry available');
+    skip('getOptionKline(HK)', 'no expiry available');
+  } else {
+    try {
+      const chain = await qc.getOptionChain([['00700.HK', hkExpiryDate]], 'Asia/Hong_Kong');
+      const items = chain[0]?.items ?? [];
+      ok(`getOptionChain(HK ${hkExpiryDate})`, `rows=${items.length}`);
+      const mid = items[Math.floor(items.length / 2)];
+      hkOptIdentifier = mid?.call?.identifier ?? mid?.put?.identifier ?? '';
+    } catch (e) { fail('getOptionChain(00700.HK)', e); }
+
+    if (!hkOptIdentifier) {
+      skip('getOptionQuote(HK)', 'no identifier from chain');
+      skip('getOptionKline(HK)', 'no identifier from chain');
+    } else {
+      try {
+        const briefs = await qc.getOptionQuote([hkOptIdentifier], 'Asia/Hong_Kong');
+        ok('getOptionQuote(HK)', `${briefs[0]?.symbol ?? ''} latestPrice=${briefs[0]?.latestPrice ?? 0}`);
+      } catch (e) { fail('getOptionQuote(HK)', e); }
+      try {
+        const nowMs = Date.now();
+        const beginMs = nowMs - 30 * 24 * 60 * 60 * 1000;
+        const ks = await qc.getOptionKline([hkOptIdentifier], 'day', beginMs, nowMs, 'Asia/Hong_Kong');
+        ok('getOptionKline(HK)', `bars=${ks[0]?.items.length ?? 0}`);
+      } catch (e) { fail('getOptionKline(HK)', e); }
     }
   }
 

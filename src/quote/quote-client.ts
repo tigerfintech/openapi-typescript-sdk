@@ -111,10 +111,49 @@ import type {
 } from '../model/quote-requests';
 
 /**
+ * resolveOptionTimezone returns the timezone string to use for expiry conversion.
+ * Explicit tz takes precedence; otherwise infer from symbol (.HK suffix → Asia/Hong_Kong, else America/New_York).
+ */
+function resolveOptionTimezone(tz: string | undefined, symbol: string): string {
+  if (tz) return tz;
+  return symbol.toUpperCase().endsWith('.HK') ? 'Asia/Hong_Kong' : 'America/New_York';
+}
+
+/**
+ * Convert a "YYYY-MM-DD" date string to the Unix timestamp (ms) of local midnight
+ * in the given IANA timezone.
+ *
+ * Strategy: use Intl.DateTimeFormat to determine what UTC time corresponds to
+ * local midnight in the target timezone, correctly handling DST.
+ */
+function localMidnightMs(dateStr: string, timezone: string): number {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  // Use noon UTC as a safe anchor (avoids DST ambiguity right at midnight)
+  const noonUtc = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  // Determine what hour/minute/second UTC noon appears as in the target timezone
+  const timeParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(noonUtc);
+  const h = parseInt(timeParts.find(p => p.type === 'hour')!.value, 10);
+  const m = parseInt(timeParts.find(p => p.type === 'minute')!.value, 10);
+  const s = parseInt(timeParts.find(p => p.type === 'second')!.value, 10);
+  // UTC offset at noon = 12:00:00 UTC − local time shown for noon UTC
+  // Local midnight = noon UTC − 12h + offset = noon UTC − (h*3600+m*60+s)s
+  return noonUtc.getTime() - (h * 3600 + m * 60 + s) * 1000;
+}
+
+/**
  * Parse an OCC-style option identifier like "AAPL  260619C00150000"
  * into its component parts.
+ *
+ * @param timezone - Optional IANA timezone for expiry conversion (e.g. 'America/New_York').
+ *   If omitted, defaults to America/New_York for US symbols and Asia/Hong_Kong for .HK symbols.
  */
-export function parseOptionIdentifier(identifier: string): {
+export function parseOptionIdentifier(identifier: string, timezone?: string): {
   symbol: string;
   expiryMs: number;
   right: string;
@@ -137,7 +176,12 @@ export function parseOptionIdentifier(identifier: string): {
   const yy = parseInt(datePart.substring(0, 2), 10);
   const mm = parseInt(datePart.substring(2, 4), 10);
   const dd = parseInt(datePart.substring(4, 6), 10);
-  const expiryMs = Date.UTC(2000 + yy, mm - 1, dd);
+
+  const resolvedTz = resolveOptionTimezone(timezone, symbol);
+  const paddedYear = String(2000 + yy).padStart(4, '0');
+  const paddedMonth = String(mm).padStart(2, '0');
+  const paddedDay = String(dd).padStart(2, '0');
+  const expiryMs = localMidnightMs(`${paddedYear}-${paddedMonth}-${paddedDay}`, resolvedTz);
 
   const right = rightChar === 'C' ? 'CALL' : rightChar === 'P' ? 'PUT' : '';
   if (!right) throw new Error(`invalid right character: ${rightChar}`);
@@ -222,18 +266,25 @@ export class QuoteClient {
 
   // === Options ===
 
-  async getOptionExpiration(symbols: string[]): Promise<OptionExpiration[]> {
-    return this.callInto<OptionExpiration[]>('option_expiration', { symbols });
+  async getOptionExpiration(symbols: string[], market?: string): Promise<OptionExpiration[]> {
+    const params: Record<string, unknown> = { symbols };
+    if (market) params.market = market;
+    return this.callInto<OptionExpiration[]>('option_expiration', params);
   }
 
-  /** Option chain; each item is [symbol, "YYYY-MM-DD"]. */
-  async getOptionChain(items: Array<[string, string]>): Promise<OptionChain[]> {
+  /**
+   * Option chain; each item is [symbol, "YYYY-MM-DD"].
+   *
+   * @param timezone - Optional IANA timezone for expiry conversion (e.g. 'America/New_York').
+   *   If omitted, defaults to America/New_York for US symbols and Asia/Hong_Kong for .HK symbols.
+   */
+  async getOptionChain(items: Array<[string, string]>, timezone?: string): Promise<OptionChain[]> {
     const optionBasic = items.map(([symbol, expiry]) => {
-      const d = new Date(expiry + 'T00:00:00Z');
-      const expiryMs = d.getTime();
-      if (Number.isNaN(expiryMs)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(expiry)) {
         throw new Error(`invalid expiry date, expected YYYY-MM-DD: ${expiry}`);
       }
+      const tz = resolveOptionTimezone(timezone, symbol);
+      const expiryMs = localMidnightMs(expiry, tz);
       return { symbol, expiry: expiryMs };
     });
     return this.callInto<OptionChain[]>(
@@ -243,9 +294,15 @@ export class QuoteClient {
     );
   }
 
-  async getOptionQuote(identifiers: string[]): Promise<Brief[]> {
+  /**
+   * Real-time option quotes by OCC-style identifier.
+   *
+   * @param timezone - Optional IANA timezone for expiry conversion (e.g. 'America/New_York').
+   *   If omitted, defaults to America/New_York for US symbols and Asia/Hong_Kong for .HK symbols.
+   */
+  async getOptionQuote(identifiers: string[], timezone?: string): Promise<Brief[]> {
     const optionBasic = identifiers.map((id) => {
-      const p = parseOptionIdentifier(id);
+      const p = parseOptionIdentifier(id, timezone);
       return { symbol: p.symbol, expiry: p.expiryMs, right: p.right, strike: p.strike };
     });
     return this.callInto<Brief[]>('option_brief', { option_basic: optionBasic }, '2.0');
@@ -256,10 +313,32 @@ export class QuoteClient {
     return this.getOptionQuote(identifiers);
   }
 
-  async getOptionKline(identifiers: string[], period: string): Promise<Kline[]> {
+  /**
+   * Option K-line by OCC-style identifier.
+   *
+   * @param timezone - Optional IANA timezone for expiry conversion (e.g. 'America/New_York').
+   *   If omitted, defaults to America/New_York for US symbols and Asia/Hong_Kong for .HK symbols.
+   */
+  async getOptionKline(
+    identifiers: string[],
+    period: string,
+    beginTime: number = -1,
+    endTime: number = -1,
+    timezone?: string,
+  ): Promise<Kline[]> {
+    const resolvedBegin = beginTime === 0 ? -1 : beginTime;
+    const resolvedEnd = endTime === 0 ? -1 : endTime;
     const optionQuery = identifiers.map((id) => {
-      const p = parseOptionIdentifier(id);
-      return { symbol: p.symbol, expiry: p.expiryMs, right: p.right, strike: p.strike, period };
+      const p = parseOptionIdentifier(id, timezone);
+      return {
+        symbol: p.symbol,
+        expiry: p.expiryMs,
+        right: p.right,
+        strike: p.strike,
+        period,
+        begin_time: resolvedBegin,
+        end_time: resolvedEnd,
+      };
     });
     return this.callInto<Kline[]>(
       'option_kline',

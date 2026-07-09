@@ -3,7 +3,7 @@
  * snake_case payload and parses the typed response.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { QuoteClient } from '../../src/quote/quote-client';
+import { QuoteClient, parseOptionIdentifier } from '../../src/quote/quote-client';
 import type { HttpClient } from '../../src/client/http-client';
 import type { ApiResponse } from '../../src/client/api-response';
 
@@ -94,6 +94,30 @@ describe('QuoteClient', () => {
       expect(parsed.option_basic[1].symbol).toBe('TSLA');
     });
 
+    it('getOptionChain AAPL 2024-01-19 使用 America/New_York 时区，expiry = 1705640400000', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
+      await qc.getOptionChain([['AAPL', '2024-01-19']]);
+      const parsed = JSON.parse(vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0].bizContent);
+      // 2024-01-19 00:00:00 America/New_York = 2024-01-19 05:00:00 UTC = 1705640400000
+      expect(parsed.option_basic[0].expiry).toBe(1705640400000);
+    });
+
+    it('getOptionChain 可传入显式 timezone 覆盖自动推断', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
+      await qc.getOptionChain([['AAPL', '2024-01-19']], 'UTC');
+      const parsed = JSON.parse(vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0].bizContent);
+      // With explicit UTC, expiry should be UTC midnight
+      expect(parsed.option_basic[0].expiry).toBe(Date.UTC(2024, 0, 19));
+    });
+
+    it('getOptionChain .HK symbol 自动使用 Asia/Hong_Kong 时区', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
+      await qc.getOptionChain([['TCH.HK', '2024-01-19']]);
+      const parsed = JSON.parse(vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0].bizContent);
+      // 2024-01-19 00:00:00 Asia/Hong_Kong = 2024-01-18 16:00:00 UTC
+      expect(parsed.option_basic[0].expiry).toBe(Date.UTC(2024, 0, 18, 16, 0, 0));
+    });
+
     it('getOptionQuote 使用 v2,解析 identifier', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
       await qc.getOptionQuote(['AAPL  240119C00150000']);
@@ -104,17 +128,55 @@ describe('QuoteClient', () => {
       expect(parsed.option_basic[0].symbol).toBe('AAPL');
       expect(parsed.option_basic[0].right).toBe('CALL');
       expect(parsed.option_basic[0].strike).toBe(150);
+      // 2024-01-19 00:00:00 America/New_York = 1705640400000
+      expect(parsed.option_basic[0].expiry).toBe(1705640400000);
     });
 
     it('getOptionKline 多 identifier，使用 v2，option_query 带 period', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
-      await qc.getOptionKline(['AAPL  240119C00150000', 'AAPL  240119P00140000'], 'day');
+      await qc.getOptionKline(['AAPL  240119C00150000', 'AAPL  240119P00140000'], 'day', -1, -1);
       const call = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
       expect(call.method).toBe('option_kline');
       expect(call.version).toBe('2.0');
       const parsed = JSON.parse(call.bizContent);
       expect(parsed.option_query).toHaveLength(2);
       expect(parsed.option_query[0].period).toBe('day');
+      expect(parsed.option_query[0].begin_time).toBe(-1);
+      expect(parsed.option_query[0].end_time).toBe(-1);
+      // 2024-01-19 00:00:00 America/New_York = 1705640400000
+      expect(parsed.option_query[0].expiry).toBe(1705640400000);
+    });
+  });
+
+  describe('parseOptionIdentifier 时区处理', () => {
+    it('US symbol 默认使用 America/New_York 时区', () => {
+      const result = parseOptionIdentifier('AAPL  240119C00150000');
+      // 2024-01-19 00:00:00 America/New_York = 2024-01-19 05:00:00 UTC = 1705640400000
+      expect(result.expiryMs).toBe(1705640400000);
+    });
+
+    it('.HK symbol 默认使用 Asia/Hong_Kong 时区', () => {
+      const result = parseOptionIdentifier('TCH.HK  240119C00150000');
+      // 2024-01-19 00:00:00 Asia/Hong_Kong = 2024-01-18 16:00:00 UTC
+      expect(result.expiryMs).toBe(Date.UTC(2024, 0, 18, 16, 0, 0));
+    });
+
+    it('显式传入 UTC timezone', () => {
+      const result = parseOptionIdentifier('AAPL  240119C00150000', 'UTC');
+      expect(result.expiryMs).toBe(Date.UTC(2024, 0, 19));
+    });
+
+    it('解析 strike 和 right 正确', () => {
+      const result = parseOptionIdentifier('AAPL  240119C00150000');
+      expect(result.symbol).toBe('AAPL');
+      expect(result.right).toBe('CALL');
+      expect(result.strike).toBe(150);
+    });
+
+    it('解析 PUT 正确', () => {
+      const result = parseOptionIdentifier('AAPL  240119P00140000');
+      expect(result.right).toBe('PUT');
+      expect(result.strike).toBe(140);
     });
   });
 
