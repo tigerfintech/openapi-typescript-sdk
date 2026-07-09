@@ -266,8 +266,10 @@ export class QuoteClient {
 
   // === Options ===
 
-  async getOptionExpiration(symbols: string[]): Promise<OptionExpiration[]> {
-    return this.callInto<OptionExpiration[]>('option_expiration', { symbols });
+  async getOptionExpiration(symbols: string[], market?: string): Promise<OptionExpiration[]> {
+    const params: Record<string, unknown> = { symbols };
+    if (market) params.market = market;
+    return this.callInto<OptionExpiration[]>('option_expiration', params);
   }
 
   /**
@@ -317,10 +319,26 @@ export class QuoteClient {
    * @param timezone - Optional IANA timezone for expiry conversion (e.g. 'America/New_York').
    *   If omitted, defaults to America/New_York for US symbols and Asia/Hong_Kong for .HK symbols.
    */
-  async getOptionKline(identifiers: string[], period: string, timezone?: string): Promise<Kline[]> {
+  async getOptionKline(
+    identifiers: string[],
+    period: string,
+    beginTime: number = -1,
+    endTime: number = -1,
+    timezone?: string,
+  ): Promise<Kline[]> {
+    const resolvedBegin = beginTime === 0 ? -1 : beginTime;
+    const resolvedEnd = endTime === 0 ? -1 : endTime;
     const optionQuery = identifiers.map((id) => {
       const p = parseOptionIdentifier(id, timezone);
-      return { symbol: p.symbol, expiry: p.expiryMs, right: p.right, strike: p.strike, period };
+      return {
+        symbol: p.symbol,
+        expiry: p.expiryMs,
+        right: p.right,
+        strike: p.strike,
+        period,
+        begin_time: resolvedBegin,
+        end_time: resolvedEnd,
+      };
     });
     return this.callInto<Kline[]>(
       'option_kline',
