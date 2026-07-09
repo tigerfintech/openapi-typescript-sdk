@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.9] - 2026-07-09
+
+### Breaking Changes
+
+- **`getOptionKline` 签名变更**：新增必填参数 `beginTime: number` 和 `endTime: number`（毫秒时间戳，传 `-1` 为服务端默认值）。旧调用 `getOptionKline(identifiers, period)` 需改为 `getOptionKline(identifiers, period, -1, -1)`。
+
+### Added
+
+- **`getOptionExpiration` 新增可选 `market` 参数**：`getOptionExpiration(symbols, market?)` — 查询 HK 期权时传 `'HK'`。
+- **`getOptionChain`/`getOptionQuote`/`getOptionKline` 时区参数**：支持 `timezone` 可选参数覆盖自动推断；US 期权默认 `America/New_York`，HK 期权（`.HK` 后缀）默认 `Asia/Hong_Kong`。
+
+### Fixed
+
+- **期权到期日时区错误**：`localMidnightMs` 原使用 `T00:00:00Z`（UTC），导致 US/HK 期权到期日时间戳偏差 4–8 小时。现使用正确本地午夜时间戳。
+
 ## [0.4.8] - 2026-07-07
 
 ### Breaking Changes
