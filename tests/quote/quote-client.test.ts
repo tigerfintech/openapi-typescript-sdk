@@ -134,13 +134,15 @@ describe('QuoteClient', () => {
 
     it('getOptionKline 多 identifier，使用 v2，option_query 带 period', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
-      await qc.getOptionKline(['AAPL  240119C00150000', 'AAPL  240119P00140000'], 'day');
+      await qc.getOptionKline(['AAPL  240119C00150000', 'AAPL  240119P00140000'], 'day', -1, -1);
       const call = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
       expect(call.method).toBe('option_kline');
       expect(call.version).toBe('2.0');
       const parsed = JSON.parse(call.bizContent);
       expect(parsed.option_query).toHaveLength(2);
       expect(parsed.option_query[0].period).toBe('day');
+      expect(parsed.option_query[0].begin_time).toBe(-1);
+      expect(parsed.option_query[0].end_time).toBe(-1);
       // 2024-01-19 00:00:00 America/New_York = 1705640400000
       expect(parsed.option_query[0].expiry).toBe(1705640400000);
     });
