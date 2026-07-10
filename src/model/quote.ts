@@ -462,17 +462,28 @@ export interface KlineQuota {
 
 /** Option historical-volatility time series point. */
 export interface OptionVolatilityPoint {
-  date?: string;
-  volatility?: number;
+  impliedVol?: number;
+  percentile?: number;
+  rank?: number;
+  hisVolatility?: number;
+  timestamp?: number;
+}
+
+/** Implied-volatility metric for a specific period. */
+export interface ImpliedVolMetric {
+  period?: string;
+  percentile?: number;
+  rank?: number;
 }
 
 /** Option analysis (option_analysis). */
 export interface OptionAnalysis {
   symbol?: string;
-  historicalVolatility30Day?: number;
-  historicalVolatility60Day?: number;
-  historicalVolatility90Day?: number;
-  impliedVolatility?: number;
+  impliedVol30Days?: number;
+  hisVolatility?: number;
+  ivHisVRatio?: number;
+  callPutRatio?: number;
+  impliedVolMetric?: ImpliedVolMetric;
   volatilityList?: OptionVolatilityPoint[];
 }
 
@@ -613,11 +624,15 @@ export interface MarketScannerTag {
   values?: string[];
 }
 
-/** Market scanner tag set (market_scanner_tags). */
-export interface MarketScannerTags {
-  tagFields?: string[];
-  tags?: MarketScannerTag[];
+/** Market-scanner tag group (one entry per market). wire: market_scanner_tags returns array of these. */
+export interface MarketScannerTagGroup {
+  market?: string;
+  multiTagField?: string;
+  tagList?: MarketScannerTag[];
 }
+
+/** @deprecated Use MarketScannerTagGroup[] instead. Kept for backwards compatibility. */
+export type MarketScannerTags = MarketScannerTagGroup;
 
 /** Fund contract info (fund_contracts). */
 export interface FundContractInfo {

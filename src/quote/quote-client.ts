@@ -55,6 +55,7 @@ import type {
   FinancialCurrency,
   QuoteOvernight,
   MarketScannerTags,
+  MarketScannerTagGroup,
   FundContractInfo,
   FundQuote,
   FundHistoryQuote,
@@ -730,8 +731,8 @@ export class QuoteClient {
   }
 
   /** Available market-scanner tags. wire: market_scanner_tags */
-  async getMarketScannerTags(req: MarketScannerTagsRequest): Promise<MarketScannerTags | undefined> {
-    return this.callInto<MarketScannerTags>('market_scanner_tags', req);
+  async getMarketScannerTags(req: MarketScannerTagsRequest): Promise<MarketScannerTagGroup[]> {
+    return this.callInto<MarketScannerTagGroup[]>('market_scanner_tags', req);
   }
 
   /** Overnight quote. wire: quote_overnight */
