@@ -278,7 +278,12 @@ async function main() {
   try {
     const si = await qc.getShortInterest({ symbols: ['AAPL'] });
     ok('getShortInterest(AAPL)', `count=${si.length}`);
-  } catch (e) { fail('getShortInterest(AAPL)', e); }
+  } catch (e) {
+    const msg = String(e);
+    if (msg.includes('permission') || msg.includes('code=4') || msg.includes('unauthorized') || msg.includes('not support')) {
+      skip('getShortInterest(AAPL)', `no permission: ${msg}`);
+    } else { fail('getShortInterest(AAPL)', e); }
+  }
 
   try {
     const br = await qc.getStockBroker({ symbol: '00700', limit: 3 });
@@ -309,12 +314,33 @@ async function main() {
   try {
     const os = await qc.getOptionSymbols({ market: 'US' });
     ok('getOptionSymbols(US)', `count=${os.length}`);
-  } catch (e) { fail('getOptionSymbols(US)', e); }
+  } catch (e) {
+    const msg = String(e);
+    if (msg.includes('permission') || msg.includes('code=4') || msg.includes('unauthorized') || msg.includes('not support')) {
+      skip('getOptionSymbols(US)', `no permission: ${msg}`);
+    } else { fail('getOptionSymbols(US)', e); }
+  }
   skip('getOptionBars', 'need explicit OptionQuery; covered by getOptionKline');
   skip('getOptionTradeTicks', 'need explicit OptionQuery');
   skip('getOptionTimeline', 'need explicit OptionQuery');
   skip('getOptionDepth', 'need explicit OptionBasic');
-  skip('getOptionAnalysis', 'need explicit symbols+period');
+
+  try {
+    const analyses = await qc.getOptionAnalysis({ symbols: ['AAPL'], market: 'US', period: '26week' });
+    if (analyses.length > 0) {
+      const a = analyses[0];
+      ok('getOptionAnalysis(AAPL)', `symbol=${a.symbol ?? ''} impliedVol30Days=${a.impliedVol30Days ?? 0} hisVolatility=${a.hisVolatility ?? 0} ivHisVRatio=${a.ivHisVRatio ?? 0} callPutRatio=${a.callPutRatio ?? 0} volListLen=${a.volatilityList?.length ?? 0}`);
+    } else {
+      skip('getOptionAnalysis(AAPL)', 'no data returned (permission or no data)');
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/permission|forbidden|401|403/i.test(msg)) {
+      skip('getOptionAnalysis(AAPL)', `permission denied: ${msg}`);
+    } else {
+      fail('getOptionAnalysis(AAPL)', e);
+    }
+  }
 
   console.log('\n=== v0.4.0: Future extensions ===');
   const fCode = 'MEUR2609';
@@ -435,7 +461,22 @@ async function main() {
   } catch (e) { fail('getTradingCalendar(US)', e); }
 
   console.log('\n=== v0.4.0: Misc ===');
-  skip('getMarketScannerTags', 'requires structured multiTagFieldList with field_request_name');
+  try {
+    const groups = await qc.getMarketScannerTags({ market: 'US', multiTagFieldList: ['MultiTagField_Industry'] });
+    if (groups.length > 0) {
+      const g = groups[0];
+      ok('getMarketScannerTags(US)', `groups=${groups.length} market=${g.market ?? ''} multiTagField=${g.multiTagField ?? ''} tagListLen=${g.tagList?.length ?? 0}`);
+    } else {
+      skip('getMarketScannerTags(US)', 'no data returned (permission or no data)');
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/permission|forbidden|401|403/i.test(msg)) {
+      skip('getMarketScannerTags(US)', `permission denied: ${msg}`);
+    } else {
+      fail('getMarketScannerTags(US)', e);
+    }
+  }
 
   try {
     const rows = await qc.getQuoteOvernight({ symbols: ['AAPL'] });
