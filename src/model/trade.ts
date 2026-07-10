@@ -223,7 +223,8 @@ export interface SegmentFundHistoryItem {
 }
 
 export interface FundDetails {
-  id?: number;
+  /** int64 fund-detail ID — server may return as string (e.g. "4733519770"). */
+  id?: string | number;
   account?: string;
   segType?: string;
   fundType?: string;
