@@ -303,15 +303,14 @@ describe('QuoteClient', () => {
     it('returnGreekValue=true 发送 return_greek_value 字段', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
       await qc.getOptionChain([['AAPL', '2024-01-19']], undefined, true);
-      const parsed = JSON.parse(vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0].bizContent);
-      expect(parsed.return_greek_value).toBe(true);
+      expect(capturedBiz(mockHttpClient).return_greek_value).toBe(true);
     });
 
     it('optionFilter.inTheMoney 序列化为 in_the_money', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
       await qc.getOptionChain([['AAPL', '2024-01-19']], undefined, undefined, { inTheMoney: false });
-      const parsed = JSON.parse(vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0].bizContent);
-      expect(parsed.option_filter.in_the_money).toBe(false);
+      const biz = capturedBiz(mockHttpClient);
+      expect((biz.option_filter as Record<string, unknown>).in_the_money).toBe(false);
     });
 
     it('optionFilter Range 字段序列化为 {min,max} 嵌套对象', async () => {
@@ -320,17 +319,18 @@ describe('QuoteClient', () => {
         impliedVolatility: { min: 0.1, max: 0.5 },
         greeks: { delta: { min: 0.0, max: 0.6 } },
       });
-      const parsed = JSON.parse(vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0].bizContent);
-      expect(parsed.option_filter.implied_volatility).toEqual({ min: 0.1, max: 0.5 });
-      expect(parsed.option_filter.greeks.delta).toEqual({ min: 0.0, max: 0.6 });
+      const biz = capturedBiz(mockHttpClient);
+      const filter = biz.option_filter as Record<string, unknown>;
+      expect(filter.implied_volatility).toEqual({ min: 0.1, max: 0.5 });
+      expect((filter.greeks as Record<string, unknown>).delta).toEqual({ min: 0.0, max: 0.6 });
     });
 
     it('无 filter/greek 时不发送多余字段', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
       await qc.getOptionChain([['AAPL', '2024-01-19']]);
-      const parsed = JSON.parse(vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0].bizContent);
-      expect(parsed.return_greek_value).toBeUndefined();
-      expect(parsed.option_filter).toBeUndefined();
+      const biz = capturedBiz(mockHttpClient);
+      expect(biz.return_greek_value).toBeUndefined();
+      expect(biz.option_filter).toBeUndefined();
     });
   });
 
@@ -338,23 +338,23 @@ describe('QuoteClient', () => {
     it('limit>0 时每个 entry 包含 limit 字段', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
       await qc.getOptionKline(['AAPL  240119C00150000'], 'day', -1, -1, undefined, 20);
-      const parsed = JSON.parse(vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0].bizContent);
-      expect(parsed.option_query[0].limit).toBe(20);
+      const biz = capturedBiz(mockHttpClient);
+      expect((biz.option_query as Record<string, unknown>[])[0].limit).toBe(20);
     });
 
     it('sortDir 非空时发送 sort_dir', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
       await qc.getOptionKline(['AAPL  240119C00150000'], 'day', -1, -1, undefined, 0, 'desc');
-      const parsed = JSON.parse(vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0].bizContent);
-      expect(parsed.option_query[0].sort_dir).toBe('desc');
+      const biz = capturedBiz(mockHttpClient);
+      expect((biz.option_query as Record<string, unknown>[])[0].sort_dir).toBe('desc');
     });
 
     it('limit=0 时不发送 limit 字段', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
       await qc.getOptionKline(['AAPL  240119C00150000'], 'day', -1, -1);
-      const parsed = JSON.parse(vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0].bizContent);
-      expect(parsed.option_query[0].limit).toBeUndefined();
-      expect(parsed.option_query[0].sort_dir).toBeUndefined();
+      const biz = capturedBiz(mockHttpClient);
+      expect((biz.option_query as Record<string, unknown>[])[0].limit).toBeUndefined();
+      expect((biz.option_query as Record<string, unknown>[])[0].sort_dir).toBeUndefined();
     });
   });
 });

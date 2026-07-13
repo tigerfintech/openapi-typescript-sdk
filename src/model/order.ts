@@ -189,6 +189,8 @@ export interface ContractLegRequest {
   action?: string;
   ratio?: number;
 }
+
+/** Attached profit/loss leg for order request side */
 export interface OrderLegRequest {
   legType: string;
   price?: number;
