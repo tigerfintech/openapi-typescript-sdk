@@ -19,6 +19,7 @@ import type {
   Depth,
   OptionExpiration,
   OptionChain,
+  OptionChainFilter,
   FutureExchange,
   FutureContractInfo,
   FutureQuote,
@@ -278,8 +279,15 @@ export class QuoteClient {
    *
    * @param timezone - Optional IANA timezone for expiry conversion (e.g. 'America/New_York').
    *   If omitted, defaults to America/New_York for US symbols and Asia/Hong_Kong for .HK symbols.
+   * @param returnGreekValue - Whether to return Greeks (delta/gamma/theta/vega/rho).
+   * @param optionFilter - Optional filter for in-the-money status, IV range, open interest range, Greeks ranges.
    */
-  async getOptionChain(items: Array<[string, string]>, timezone?: string): Promise<OptionChain[]> {
+  async getOptionChain(
+    items: Array<[string, string]>,
+    timezone?: string,
+    returnGreekValue?: boolean,
+    optionFilter?: OptionChainFilter,
+  ): Promise<OptionChain[]> {
     const optionBasic = items.map(([symbol, expiry]) => {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(expiry)) {
         throw new Error(`invalid expiry date, expected YYYY-MM-DD: ${expiry}`);
@@ -288,10 +296,50 @@ export class QuoteClient {
       const expiryMs = localMidnightMs(expiry, tz);
       return { symbol, expiry: expiryMs };
     });
-    return this.callInto<OptionChain[]>(
-      'option_chain',
-      { option_basic: optionBasic },
-      '3.0',
+    const body: Record<string, unknown> = { option_basic: optionBasic };
+    if (returnGreekValue !== undefined) body['return_greek_value'] = returnGreekValue;
+    if (optionFilter !== undefined) body['option_filter'] = optionFilter;
+    return this.callInto<OptionChain[]>('option_chain', body, '3.0');
+  }
+
+  /**
+   * Option K-line by OCC-style identifier.
+   *
+   * @param timezone - Optional IANA timezone for expiry conversion (e.g. 'America/New_York').
+   *   If omitted, defaults to America/New_York for US symbols and Asia/Hong_Kong for .HK symbols.
+   * @param limit - Maximum number of bars to return.
+   * @param sortDir - Sort direction ('asc' or 'desc').
+   */
+  async getOptionKline(
+    identifiers: string[],
+    period: string,
+    beginTime: number = -1,
+    endTime: number = -1,
+    timezone?: string,
+    limit?: number,
+    sortDir?: string,
+  ): Promise<Kline[]> {
+    const resolvedBegin = beginTime === 0 ? -1 : beginTime;
+    const resolvedEnd = endTime === 0 ? -1 : endTime;
+    const optionQuery = identifiers.map((id) => {
+      const p = parseOptionIdentifier(id, timezone);
+      const entry: Record<string, unknown> = {
+        symbol: p.symbol,
+        expiry: p.expiryMs,
+        right: p.right,
+        strike: p.strike,
+        period,
+        begin_time: resolvedBegin,
+        end_time: resolvedEnd,
+      };
+      if (limit !== undefined && limit > 0) entry['limit'] = limit;
+      if (sortDir !== undefined && sortDir !== '') entry['sort_dir'] = sortDir;
+      return entry;
+    });
+    return this.callInto<Kline[]>(
+      'option_kline',
+      { option_query: optionQuery },
+      '2.0',
     );
   }
 
@@ -312,40 +360,6 @@ export class QuoteClient {
   /** @deprecated Use getOptionQuote instead. */
   async getOptionBrief(identifiers: string[]): Promise<Brief[]> {
     return this.getOptionQuote(identifiers);
-  }
-
-  /**
-   * Option K-line by OCC-style identifier.
-   *
-   * @param timezone - Optional IANA timezone for expiry conversion (e.g. 'America/New_York').
-   *   If omitted, defaults to America/New_York for US symbols and Asia/Hong_Kong for .HK symbols.
-   */
-  async getOptionKline(
-    identifiers: string[],
-    period: string,
-    beginTime: number = -1,
-    endTime: number = -1,
-    timezone?: string,
-  ): Promise<Kline[]> {
-    const resolvedBegin = beginTime === 0 ? -1 : beginTime;
-    const resolvedEnd = endTime === 0 ? -1 : endTime;
-    const optionQuery = identifiers.map((id) => {
-      const p = parseOptionIdentifier(id, timezone);
-      return {
-        symbol: p.symbol,
-        expiry: p.expiryMs,
-        right: p.right,
-        strike: p.strike,
-        period,
-        begin_time: resolvedBegin,
-        end_time: resolvedEnd,
-      };
-    });
-    return this.callInto<Kline[]>(
-      'option_kline',
-      { option_query: optionQuery },
-      '2.0',
-    );
   }
 
   // === Futures ===

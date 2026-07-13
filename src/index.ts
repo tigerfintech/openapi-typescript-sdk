@@ -36,7 +36,7 @@ export { PushClient, ConnectionState, SubjectType } from './push';
 export type { PushClientOptions } from './push';
 
 // Models — order
-export type { Order, OrderRequest } from './model/order';
+export type { Order, OrderRequest, ContractLegRequest } from './model/order';
 export { marketOrder, limitOrder, stopOrder, stopLimitOrder } from './model/order-helpers';
 export { normalizeOrderStatus } from './model/order-status';
 export type { Contract } from './model/contract';
@@ -70,6 +70,7 @@ export type {
 export type {
   MarketState, Brief, Kline, KlineItem, Timeline, TimelineItem, TradeTick, TradeTickItem,
   Depth, DepthLevel, OptionExpiration, OptionChain, OptionChainRow, OptionSymbol,
+  OptionChainFilter, OptionChainFilterGreeks, Range,
   FutureExchange, FutureContractInfo, FutureQuote, FutureKline, FutureKlineItem,
   FutureDepth, FutureTradeTickItem, FutureTradingTime,
   FinancialDailyItem, FinancialReportItem, CorporateAction,

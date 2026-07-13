@@ -143,9 +143,52 @@ export interface OrderRequest {
   startTime?: number;
   /** 冰山单：生效结束时间（epoch ms） */
   endTime?: number;
+  /** GTD 到期时间（epoch ms） */
+  expireTime?: number;
+  /** 盘后委托价格 */
+  afterHoursPrice?: number;
+  /** 批次号 */
+  batchNo?: number;
+  /** 资金类型（CASH / MARGIN） */
+  segType?: string;
+  /** 按金额下单：委托金额 */
+  amount?: number;
+  /** 是否按金额下单 */
+  isQuantityByAmount?: boolean;
+  /** 账户分配列表（机构账户） */
+  allocAccounts?: string[];
+  /** 各账户分配份额（与 allocAccounts 一一对应） */
+  allocShares?: number[];
+  /** 下单来源 */
+  source?: string;
+  /** 下单渠道 */
+  channel?: string;
+  /** 虚拟订单类型 */
+  virtualOrderType?: string;
+  /** 虚拟订单 ID */
+  virtualId?: string;
+  /** 止盈订单 ID（bracket 关联） */
+  profitTakerOrderId?: number;
+  /** 止损订单 ID（bracket 关联） */
+  stopLossOrderId?: number;
+  /** 本地流水号 */
+  localNo?: string;
+  /** OCA 订单组（One-Cancels-All） */
+  ocaOrders?: OrderRequest[];
+  /** 多腿期权各腿（MLEG） */
+  contractLegs?: ContractLegRequest[];
 }
 
-/** Attached leg for request side */
+/** Single leg of a multi-leg option order (MLEG) */
+export interface ContractLegRequest {
+  symbol?: string;
+  secType?: string;
+  expiry?: string;
+  strike?: string;
+  right?: string;
+  action?: string;
+  ratio?: number;
+}
 export interface OrderLegRequest {
   legType: string;
   price?: number;

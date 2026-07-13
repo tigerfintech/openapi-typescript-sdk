@@ -182,6 +182,13 @@ describe('TradeClient', () => {
         account: testAccount, order_id: 12345, symbol: 'AAPL', sec_type: 'STK',
       });
     });
+
+    it('getOrder 使用 order_no wire method（P0 bug fix）', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ id: 99, orderId: 42 }));
+      await tc.getOrder({ id: 99 });
+      const call = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
+      expect(call.method).toBe('order_no');
+    });
   });
 
   describe('错误处理', () => {
