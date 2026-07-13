@@ -115,6 +115,22 @@ describe('TradeClient', () => {
       await tc.cancelOrder(12345);
       expect(capturedBiz(mockHttpClient)).toEqual({ account: testAccount, id: 12345 });
     });
+
+    it('placeOrder 新字段 segType/contractLegs 正确序列化为 snake_case', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ id: 1 }));
+      await tc.placeOrder({
+        ...order,
+        segType: 'CASH',
+        expireTime: 1700000000000,
+        contractLegs: [{ symbol: 'AAPL', secType: 'OPT', right: 'CALL', ratio: 1 }],
+      });
+      const biz = capturedBiz(mockHttpClient);
+      expect(biz.seg_type).toBe('CASH');
+      expect(biz.expire_time).toBe(1700000000000);
+      const legs = biz.contract_legs as Record<string, unknown>[];
+      expect(legs[0].sec_type).toBe('OPT');
+      expect(legs[0].ratio).toBe(1);
+    });
   });
 
   describe('订单查询方法', () => {
@@ -145,6 +161,14 @@ describe('TradeClient', () => {
       expect(capturedBiz(mockHttpClient)).toEqual({
         account: testAccount, start_date: 1000000000000, end_date: 2000000000000,
       });
+    });
+
+    it('getOrder 使用 order_no wire method（P0 bug fix）', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ id: 99, orderId: 42 }));
+      await tc.getOrder({ id: 99 });
+      const call = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
+      expect(call.method).toBe('order_no');
+      expect(capturedBiz(mockHttpClient)).toMatchObject({ account: testAccount, id: 99 });
     });
   });
 
@@ -181,13 +205,6 @@ describe('TradeClient', () => {
       expect(capturedBiz(mockHttpClient)).toEqual({
         account: testAccount, order_id: 12345, symbol: 'AAPL', sec_type: 'STK',
       });
-    });
-
-    it('getOrder 使用 order_no wire method（P0 bug fix）', async () => {
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ id: 99, orderId: 42 }));
-      await tc.getOrder({ id: 99 });
-      const call = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
-      expect(call.method).toBe('order_no');
     });
   });
 

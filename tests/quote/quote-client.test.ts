@@ -332,6 +332,12 @@ describe('QuoteClient', () => {
       expect(biz.return_greek_value).toBeUndefined();
       expect(biz.option_filter).toBeUndefined();
     });
+
+    it('returnGreekValue=false 时显式发送 return_greek_value: false', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
+      await qc.getOptionChain([['AAPL', '2024-01-19']], undefined, false);
+      expect(capturedBiz(mockHttpClient).return_greek_value).toBe(false);
+    });
   });
 
   describe('getOptionKline limit/sortDir (java-parity)', () => {
