@@ -94,6 +94,22 @@ async function main() {
       ok(`getOptionChain(${expiryDate})`, `rows=${items.length}`);
       const mid = items[Math.floor(items.length / 2)];
       optIdentifier = mid?.call?.identifier ?? mid?.put?.identifier ?? '';
+
+      // Verify filter+greek using expiry timestamp from first response
+      if (chain[0]) {
+        try {
+          const trueVal = true;
+          const filtered = await qc.getOptionChain(
+            [['AAPL', expiryDate]],
+            undefined,
+            trueVal,
+            { inTheMoney: false, impliedVolatility: { min: 0.0, max: 5.0 }, greeks: { delta: { min: 0.0, max: 0.6 } } },
+          );
+          const fRows = filtered.flatMap(c => c.items).length;
+          const hasGreek = filtered.some(c => c.items.some(row => (row.call?.delta ?? 0) !== 0 || (row.put?.delta ?? 0) !== 0));
+          ok('getOptionChain(filter+greek)', `rows=${fRows} has_greek=${hasGreek}`);
+        } catch (e) { fail('getOptionChain(filter+greek)', e); }
+      }
     } catch (e) { fail(`getOptionChain(${expiryDate})`, e); }
 
     if (!optIdentifier) {

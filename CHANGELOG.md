@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-07-13
+
+### Fixed
+
+- **`getOrder` wire method 错误**：原使用 `'orders'`（返回列表），修正为 `'order_no'`（返回单个订单）。
+
+### Added
+
+- **`getOptionChain`**：新增可选参数 `returnGreekValue` 和 `optionFilter`，支持按价内外、隐含波动率、持仓量、Greeks 范围过滤；旧调用无需修改（向前兼容）。
+- **`Range` / `OptionChainFilter` / `OptionChainFilterGreeks`**：新增范围过滤接口，字段序列化为 `{min, max}` 嵌套对象。
+- **`getOptionKline`**：新增可选参数 `limit` 和 `sortDir`（向前兼容）。
+- **`OrderRequest`**：补齐缺失字段：`expireTime` / `afterHoursPrice` / `batchNo` / `segType` / `amount` / `isQuantityByAmount` / `allocAccounts` / `allocShares` / `source` / `channel` / `virtualOrderType` / `virtualId` / `profitTakerOrderId` / `stopLossOrderId` / `localNo` / `ocaOrders` / `contractLegs`。
+- **`ContractLegRequest`**：新增多腿期权子腿接口（MLEG）。
+
 ## [0.4.9] - 2026-07-09
 
 ### Breaking Changes

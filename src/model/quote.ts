@@ -138,6 +138,29 @@ export interface OptionChainRow {
   call?: OptionLeg;
 }
 
+/** Range filter, serialized as { min, max } — corresponds to Java Range<T> */
+export interface Range {
+  min?: number;
+  max?: number;
+}
+
+/** Greeks range filters for option_chain (corresponds to Java OptionChainFilterModel.Greeks) */
+export interface OptionChainFilterGreeks {
+  delta?: Range;
+  gamma?: Range;
+  vega?: Range;
+  theta?: Range;
+  rho?: Range;
+}
+
+/** Option chain filter (corresponds to Java OptionChainFilterModel) */
+export interface OptionChainFilter {
+  inTheMoney?: boolean;
+  impliedVolatility?: Range;
+  openInterest?: Range;
+  greeks?: OptionChainFilterGreeks;
+}
+
 export interface OptionChain {
   symbol: string;
   expiry: number;

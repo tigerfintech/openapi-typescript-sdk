@@ -147,6 +147,7 @@ export enum License {
 export enum TimeInForce {
   DAY = 'DAY',
   GTC = 'GTC',
+  GTD = 'GTD',
   OPG = 'OPG',
 }
 
