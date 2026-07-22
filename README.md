@@ -1,93 +1,643 @@
-# openapi-typescript-sdk
+# Tiger OpenAPI TypeScript SDK
 
+TypeScript SDK for Tiger Brokers OpenAPI — market data, trading, account management, and real-time push notifications.
 
+[![npm version](https://img.shields.io/npm/v/@tigeropenapi/tigeropen.svg)](https://www.npmjs.com/package/@tigeropenapi/tigeropen)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Getting started
+## Features
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://git.tigerbrokers.net/server/openapi/openapi-typescript-sdk.git
-git branch -M master
-git push -uf origin master
-```
-
-## Integrate with your tools
-
-- [ ] [Set up project integrations](https://git.tigerbrokers.net/server/openapi/openapi-typescript-sdk/-/settings/integrations)
-
-## Collaborate with your team
-
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+- Market data queries (quotes, klines, depth, options, futures)
+- Order placement, modification, cancellation, and account queries
+- Real-time push via TCP + TLS + Protobuf (quotes, trades, account events)
+- RSA request signing and Tiger public key response verification
+- Auto-discovery of configuration from properties files
+- ESM and CommonJS dual-package support
 
 ## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+```bash
+npm install @tigeropenapi/tigeropen
+# or
+yarn add @tigeropenapi/tigeropen
+# or
+pnpm add @tigeropenapi/tigeropen
+```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+Requires Node.js >= 16.0.0.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+## Quick Start
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+```typescript
+import { createClientConfig } from '@tigeropenapi/tigeropen';
+import { HttpClient } from '@tigeropenapi/tigeropen/client/http-client';
+import { QuoteClient } from '@tigeropenapi/tigeropen/quote/quote-client';
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+// Auto-discovers ~/.tigeropen/tiger_openapi_config.properties
+const config = createClientConfig();
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+const httpClient = new HttpClient(config);
+const qc = new QuoteClient(httpClient);
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+const states = await qc.marketState('US');
+console.log('Market state:', states);
+```
+
+## Configuration
+
+Configuration values are resolved with the following priority:
+
+**environment variables > code options > config file > defaults**
+
+### Method 1: Properties file (explicit path)
+
+Point directly to a properties file:
+
+```typescript
+import { createClientConfig } from '@tigeropenapi/tigeropen';
+
+const config = createClientConfig({
+  propertiesFilePath: '/path/to/tiger_openapi_config.properties',
+});
+```
+
+File format:
+
+```properties
+tiger_id=your_developer_id
+private_key=your_rsa_private_key
+account=your_trading_account
+```
+
+### Method 2: Auto-discovery
+
+When called with no arguments, `createClientConfig()` automatically searches for `tiger_openapi_config.properties` in these locations (in order):
+
+1. `./tiger_openapi_config.properties` (current working directory)
+2. `~/.tigeropen/tiger_openapi_config.properties` (home directory)
+
+```typescript
+import { createClientConfig } from '@tigeropenapi/tigeropen';
+
+// No arguments — auto-discovers config from well-known locations
+const config = createClientConfig();
+```
+
+This is the simplest approach — just place a `tiger_openapi_config.properties` file in your project root or `~/.tigeropen/` directory.
+
+### Method 3: Code options
+
+Pass configuration values directly:
+
+```typescript
+import { createClientConfig } from '@tigeropenapi/tigeropen';
+
+const config = createClientConfig({
+  tigerId: 'your_tiger_id',
+  privateKey: 'your_rsa_private_key',
+  account: 'your_account',
+});
+```
+
+### Method 4: Environment variables
+
+Set the following environment variables:
+
+```bash
+export TIGEROPEN_TIGER_ID=your_developer_id
+export TIGEROPEN_PRIVATE_KEY=your_rsa_private_key
+export TIGEROPEN_ACCOUNT=your_trading_account
+```
+
+Then create the config without any arguments:
+
+```typescript
+const config = createClientConfig();
+```
+
+Environment variables always take the highest priority and override values from code or config files.
+
+### Config options
+
+| Field | Description | Required | Default |
+|-------|-------------|----------|---------|
+| `tigerId` | Developer ID | Yes | — |
+| `privateKey` | RSA private key | Yes | — |
+| `account` | Trading account | No | — |
+| `language` | Language (`zh_CN` / `en_US`) | No | `zh_CN` |
+| `timeout` | Request timeout (seconds) | No | `15` |
+
+### Response signature verification
+
+The SDK includes the Tiger public key (`tigerPublicKey` field in `ClientConfig`) for verifying that API responses originate from Tiger's servers and have not been tampered with.
+
+## Market Data
+
+```typescript
+import { HttpClient } from '@tigeropenapi/tigeropen/client/http-client';
+import { QuoteClient } from '@tigeropenapi/tigeropen/quote/quote-client';
+
+const httpClient = new HttpClient(config);
+const qc = new QuoteClient(httpClient);
+
+// Market status
+const states = await qc.marketState('US');
+
+// Real-time quotes
+const quotes = await qc.quoteRealTime(['AAPL', 'TSLA']);
+
+// K-line data
+const klines = await qc.kline('AAPL', 'day');
+
+// Intraday timeline
+const timeline = await qc.timeline(['AAPL']);
+
+// Order book depth
+const depth = await qc.quoteDepth('AAPL');
+
+// Option expirations
+const expiry = await qc.optionExpiration('AAPL');
+
+// Option chain
+const chain = await qc.optionChain('AAPL', '2024-01-19');
+
+// Futures exchanges
+const exchanges = await qc.futureExchange();
+```
+
+## Trading
+
+```typescript
+import { HttpClient } from '@tigeropenapi/tigeropen/client/http-client';
+import { TradeClient } from '@tigeropenapi/tigeropen/trade/trade-client';
+
+const httpClient = new HttpClient(config);
+const tc = new TradeClient(httpClient, config.account);
+
+// Build a limit order
+const order = {
+  symbol: 'AAPL',
+  secType: 'STK',
+  action: 'BUY',
+  orderType: 'LMT',
+  totalQuantity: 100,
+  limitPrice: 150.0,
+  timeInForce: 'DAY',
+};
+
+// Place order
+const result = await tc.placeOrder(order);
+
+// Preview order (no actual submission)
+const preview = await tc.previewOrder(order);
+
+// Modify order
+await tc.modifyOrder(orderId, { ...order, limitPrice: 155.0 });
+
+// Cancel order
+await tc.cancelOrder(orderId);
+
+// Query orders
+const orders = await tc.orders();
+
+// Query positions
+const positions = await tc.positions();
+
+// Query assets
+const assets = await tc.assets();
+```
+
+## Generic Execute
+
+For APIs not yet wrapped by the SDK, use `HttpClient.execute` directly:
+
+```typescript
+const httpClient = new HttpClient(config);
+
+const resp = await httpClient.execute('market_state', JSON.stringify({ market: 'US' }));
+console.log('Raw response:', resp);
+```
+
+## Real-Time Push
+
+The push client connects to Tiger's push server over a **TCP + TLS** connection using varint32 length-prefixed **Protobuf** framing. It supports automatic reconnection and heartbeat keep-alive.
+
+Callback data types are Protobuf-generated types (e.g. `QuoteData`, `OrderStatusData`, `AssetData`, `PositionData`).
+
+```typescript
+import { PushClient } from '@tigeropenapi/tigeropen/push/push-client';
+import type { QuoteData } from '@tigeropenapi/tigeropen/push/pb/QuoteData';
+import type { OrderStatusData } from '@tigeropenapi/tigeropen/push/pb/OrderStatusData';
+import type { AssetData } from '@tigeropenapi/tigeropen/push/pb/AssetData';
+import type { PositionData } from '@tigeropenapi/tigeropen/push/pb/PositionData';
+
+const pc = new PushClient(config);
+
+pc.setCallbacks({
+  onQuote: (data: QuoteData) => {
+    console.log(`Quote: ${data.symbol} price=${data.latestPrice}`);
+  },
+  onOrder: (data: OrderStatusData) => {
+    console.log(`Order: ${data.symbol} status=${data.status}`);
+  },
+  onAsset: (data: AssetData) => console.log('Asset update'),
+  onPosition: (data: PositionData) => console.log('Position update'),
+  onConnect: () => console.log('Connected'),
+  onDisconnect: () => console.log('Disconnected'),
+  onError: (err) => console.error('Error:', err),
+});
+
+// Connect (authenticates over TLS)
+await pc.connect();
+
+// Subscribe to real-time quotes
+pc.subscribeQuote(['AAPL', 'TSLA']);
+
+// Subscribe to account events
+pc.subscribeAsset();
+pc.subscribeOrder();
+pc.subscribePosition();
+
+// Unsubscribe
+pc.unsubscribeQuote(['TSLA']);
+
+// Disconnect
+pc.disconnect();
+```
+
+### Available subscriptions
+
+| Method | Data type | Callback |
+|--------|-----------|----------|
+| `subscribeQuote(symbols)` | Stock quotes | `onQuote(QuoteData)` |
+| `subscribeTick(symbols)` | Trade ticks | `onTick(TradeTickData)` |
+| `subscribeDepth(symbols)` | Order book depth | `onDepth(QuoteDepthData)` |
+| `subscribeOption(symbols)` | Option quotes | `onOption(QuoteData)` |
+| `subscribeFuture(symbols)` | Futures quotes | `onFuture(QuoteData)` |
+| `subscribeKline(symbols)` | K-line data | `onKline(KlineData)` |
+| `subscribeAsset(account?)` | Asset changes | `onAsset(AssetData)` |
+| `subscribePosition(account?)` | Position changes | `onPosition(PositionData)` |
+| `subscribeOrder(account?)` | Order status | `onOrder(OrderStatusData)` |
+| `subscribeTransaction(account?)` | Transactions | `onTransaction(OrderTransactionData)` |
+
+## Project Structure
+
+```
+openapi-typescript-sdk/
+├── src/
+│   ├── config/    # Configuration management
+│   ├── signer/    # RSA request signing
+│   ├── client/    # HTTP client
+│   ├── model/     # Data models and order helpers
+│   ├── quote/     # Quote client (market data)
+│   ├── trade/     # Trade client (orders, positions, assets)
+│   ├── push/      # TCP+TLS push client (Protobuf)
+│   ├── logger/    # Logger
+│   └── index.ts   # Public exports
+├── proto/         # Protobuf schema definitions
+├── examples/      # Usage examples
+└── tests/         # Unit tests
+```
+
+## ESM and CommonJS
+
+```typescript
+// ESM
+import { createClientConfig } from '@tigeropenapi/tigeropen';
+
+// CommonJS
+const { createClientConfig } = require('@tigeropenapi/tigeropen');
+```
+
+## References
+
+- [TypeScript SDK Documentation](https://docs.itigerup.com/docs/typescript)
+- [Tiger Brokers OpenAPI Docs](https://docs-en.itigerup.com/docs/)
+- [npm package](https://www.npmjs.com/package/@tigeropenapi/tigeropen)
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+[MIT License](LICENSE)
+
+---
+
+# Tiger OpenAPI TypeScript SDK（中文）
+
+老虎证券 OpenAPI TypeScript SDK —— 行情查询、交易下单、账户管理和实时推送。
+
+[![npm version](https://img.shields.io/npm/v/@tigeropenapi/tigeropen.svg)](https://www.npmjs.com/package/@tigeropenapi/tigeropen)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## 功能特性
+
+- 行情查询（报价、K 线、深度、期权、期货）
+- 订单操作（下单、改单、撤单）和账户查询
+- 实时推送：TCP + TLS + Protobuf（行情、成交、账户事件）
+- RSA 请求签名和老虎公钥响应验签
+- 自动发现配置文件
+- ESM 和 CommonJS 双模块支持
+
+## 安装
+
+```bash
+npm install @tigeropenapi/tigeropen
+# 或
+yarn add @tigeropenapi/tigeropen
+# 或
+pnpm add @tigeropenapi/tigeropen
+```
+
+需要 Node.js >= 16.0.0。
+
+## 快速开始
+
+```typescript
+import { createClientConfig } from '@tigeropenapi/tigeropen';
+import { HttpClient } from '@tigeropenapi/tigeropen/client/http-client';
+import { QuoteClient } from '@tigeropenapi/tigeropen/quote/quote-client';
+
+// 自动发现 ~/.tigeropen/tiger_openapi_config.properties
+const config = createClientConfig();
+
+const httpClient = new HttpClient(config);
+const qc = new QuoteClient(httpClient);
+
+const states = await qc.marketState('US');
+console.log('市场状态:', states);
+```
+
+## 配置
+
+配置值按以下优先级解析：
+
+**环境变量 > 代码参数 > 配置文件 > 默认值**
+
+### 方式一：配置文件（指定路径）
+
+直接指定配置文件路径：
+
+```typescript
+import { createClientConfig } from '@tigeropenapi/tigeropen';
+
+const config = createClientConfig({
+  propertiesFilePath: '/path/to/tiger_openapi_config.properties',
+});
+```
+
+文件格式：
+
+```properties
+tiger_id=你的开发者ID
+private_key=你的RSA私钥
+account=你的交易账户
+```
+
+### 方式二：自动发现
+
+不传任何参数时，`createClientConfig()` 会自动按以下顺序搜索 `tiger_openapi_config.properties`：
+
+1. `./tiger_openapi_config.properties`（当前工作目录）
+2. `~/.tigeropen/tiger_openapi_config.properties`（用户主目录）
+
+```typescript
+import { createClientConfig } from '@tigeropenapi/tigeropen';
+
+// 无参数 —— 自动从常见位置发现配置
+const config = createClientConfig();
+```
+
+最简单的方式 —— 只需将 `tiger_openapi_config.properties` 文件放在项目根目录或 `~/.tigeropen/` 目录下。
+
+### 方式三：代码传参
+
+直接传入配置值：
+
+```typescript
+import { createClientConfig } from '@tigeropenapi/tigeropen';
+
+const config = createClientConfig({
+  tigerId: 'your_tiger_id',
+  privateKey: 'your_rsa_private_key',
+  account: 'your_account',
+});
+```
+
+### 方式四：环境变量
+
+设置以下环境变量：
+
+```bash
+export TIGEROPEN_TIGER_ID=你的开发者ID
+export TIGEROPEN_PRIVATE_KEY=你的RSA私钥
+export TIGEROPEN_ACCOUNT=你的交易账户
+```
+
+然后无参数创建配置：
+
+```typescript
+const config = createClientConfig();
+```
+
+环境变量优先级最高，会覆盖代码参数和配置文件中的值。
+
+### 配置项
+
+| 字段 | 说明 | 必填 | 默认值 |
+|------|------|------|--------|
+| `tigerId` | 开发者 ID | 是 | — |
+| `privateKey` | RSA 私钥 | 是 | — |
+| `account` | 交易账户 | 否 | — |
+| `language` | 语言（`zh_CN` / `en_US`） | 否 | `zh_CN` |
+| `timeout` | 请求超时（秒） | 否 | `15` |
+
+### 响应签名验证
+
+SDK 内置了老虎公钥（`ClientConfig` 中的 `tigerPublicKey` 字段），用于验证 API 响应来自老虎服务器且未被篡改。
+
+## 行情查询
+
+```typescript
+import { HttpClient } from '@tigeropenapi/tigeropen/client/http-client';
+import { QuoteClient } from '@tigeropenapi/tigeropen/quote/quote-client';
+
+const httpClient = new HttpClient(config);
+const qc = new QuoteClient(httpClient);
+
+// 市场状态
+const states = await qc.marketState('US');
+
+// 实时报价
+const quotes = await qc.quoteRealTime(['AAPL', 'TSLA']);
+
+// K 线数据
+const klines = await qc.kline('AAPL', 'day');
+
+// 分时数据
+const timeline = await qc.timeline(['AAPL']);
+
+// 盘口深度
+const depth = await qc.quoteDepth('AAPL');
+
+// 期权到期日
+const expiry = await qc.optionExpiration('AAPL');
+
+// 期权链
+const chain = await qc.optionChain('AAPL', '2024-01-19');
+
+// 期货交易所
+const exchanges = await qc.futureExchange();
+```
+
+## 交易
+
+```typescript
+import { HttpClient } from '@tigeropenapi/tigeropen/client/http-client';
+import { TradeClient } from '@tigeropenapi/tigeropen/trade/trade-client';
+
+const httpClient = new HttpClient(config);
+const tc = new TradeClient(httpClient, config.account);
+
+// 构建限价单
+const order = {
+  symbol: 'AAPL',
+  secType: 'STK',
+  action: 'BUY',
+  orderType: 'LMT',
+  totalQuantity: 100,
+  limitPrice: 150.0,
+  timeInForce: 'DAY',
+};
+
+// 下单
+const result = await tc.placeOrder(order);
+
+// 预览订单（不实际提交）
+const preview = await tc.previewOrder(order);
+
+// 改单
+await tc.modifyOrder(orderId, { ...order, limitPrice: 155.0 });
+
+// 撤单
+await tc.cancelOrder(orderId);
+
+// 查询订单
+const orders = await tc.orders();
+
+// 查询持仓
+const positions = await tc.positions();
+
+// 查询资产
+const assets = await tc.assets();
+```
+
+## 通用执行
+
+对于 SDK 尚未封装的 API，可直接使用 `HttpClient.execute`：
+
+```typescript
+const httpClient = new HttpClient(config);
+
+const resp = await httpClient.execute('market_state', JSON.stringify({ market: 'US' }));
+console.log('原始响应:', resp);
+```
+
+## 实时推送
+
+推送客户端通过 **TCP + TLS** 连接到老虎推送服务器，使用 varint32 长度前缀 + **Protobuf** 二进制帧格式。支持自动重连和心跳保活。
+
+回调数据类型为 Protobuf 生成的类型（如 `QuoteData`、`OrderStatusData`、`AssetData`、`PositionData`）。
+
+```typescript
+import { PushClient } from '@tigeropenapi/tigeropen/push/push-client';
+import type { QuoteData } from '@tigeropenapi/tigeropen/push/pb/QuoteData';
+import type { OrderStatusData } from '@tigeropenapi/tigeropen/push/pb/OrderStatusData';
+import type { AssetData } from '@tigeropenapi/tigeropen/push/pb/AssetData';
+import type { PositionData } from '@tigeropenapi/tigeropen/push/pb/PositionData';
+
+const pc = new PushClient(config);
+
+pc.setCallbacks({
+  onQuote: (data: QuoteData) => {
+    console.log(`行情: ${data.symbol} 价格=${data.latestPrice}`);
+  },
+  onOrder: (data: OrderStatusData) => {
+    console.log(`订单: ${data.symbol} 状态=${data.status}`);
+  },
+  onAsset: (data: AssetData) => console.log('资产变动'),
+  onPosition: (data: PositionData) => console.log('持仓变动'),
+  onConnect: () => console.log('已连接'),
+  onDisconnect: () => console.log('已断开'),
+  onError: (err) => console.error('错误:', err),
+});
+
+// 连接（通过 TLS 认证）
+await pc.connect();
+
+// 订阅实时行情
+pc.subscribeQuote(['AAPL', 'TSLA']);
+
+// 订阅账户事件
+pc.subscribeAsset();
+pc.subscribeOrder();
+pc.subscribePosition();
+
+// 取消订阅
+pc.unsubscribeQuote(['TSLA']);
+
+// 断开连接
+pc.disconnect();
+```
+
+### 可用订阅
+
+| 方法 | 数据类型 | 回调 |
+|------|----------|------|
+| `subscribeQuote(symbols)` | 股票行情 | `onQuote(QuoteData)` |
+| `subscribeTick(symbols)` | 逐笔成交 | `onTick(TradeTickData)` |
+| `subscribeDepth(symbols)` | 盘口深度 | `onDepth(QuoteDepthData)` |
+| `subscribeOption(symbols)` | 期权行情 | `onOption(QuoteData)` |
+| `subscribeFuture(symbols)` | 期货行情 | `onFuture(QuoteData)` |
+| `subscribeKline(symbols)` | K 线数据 | `onKline(KlineData)` |
+| `subscribeAsset(account?)` | 资产变动 | `onAsset(AssetData)` |
+| `subscribePosition(account?)` | 持仓变动 | `onPosition(PositionData)` |
+| `subscribeOrder(account?)` | 订单状态 | `onOrder(OrderStatusData)` |
+| `subscribeTransaction(account?)` | 成交明细 | `onTransaction(OrderTransactionData)` |
+
+## 项目结构
+
+```
+openapi-typescript-sdk/
+├── src/
+│   ├── config/    # 配置管理
+│   ├── signer/    # RSA 请求签名
+│   ├── client/    # HTTP 客户端
+│   ├── model/     # 数据模型和订单辅助函数
+│   ├── quote/     # 行情客户端
+│   ├── trade/     # 交易客户端（订单、持仓、资产）
+│   ├── push/      # TCP+TLS 推送客户端（Protobuf）
+│   ├── logger/    # 日志
+│   └── index.ts   # 公共导出
+├── proto/         # Protobuf 协议定义
+├── examples/      # 使用示例
+└── tests/         # 单元测试
+```
+
+## ESM 和 CommonJS
+
+```typescript
+// ESM
+import { createClientConfig } from '@tigeropenapi/tigeropen';
+
+// CommonJS
+const { createClientConfig } = require('@tigeropenapi/tigeropen');
+```
+
+## 参考链接
+
+- [TypeScript SDK 文档](https://docs.itigerup.com/docs/typescript)
+- [老虎证券 OpenAPI 文档](https://docs.itigerup.com/docs/)
+- [npm 包](https://www.npmjs.com/package/@tigeropenapi/tigeropen)
+
+## 许可证
+
+[MIT License](LICENSE)
