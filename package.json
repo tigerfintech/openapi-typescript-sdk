@@ -1,0 +1,60 @@
+{
+  "name": "@tigeropenapi/tigeropen",
+  "version": "0.5.1",
+  "description": "Tiger Brokers OpenAPI TypeScript SDK for market data, trading, and real-time push",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/types/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tigerfintech/openapi-typescript-sdk.git"
+  },
+  "homepage": "https://github.com/tigerfintech/openapi-typescript-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/tigerfintech/openapi-typescript-sdk/issues"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node scripts/fix-esm-imports.mjs",
+    "build:esm": "tsc -p tsconfig.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "prepublishOnly": "npm run build",
+    "publish:all": "npm run build && npm publish --registry https://registry.npmjs.org --access public && npm pkg set name=tigeropen && npm publish --registry https://registry.npmjs.org && npm pkg set name=@tigeropenapi/tigeropen",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist",
+    "proto:generate": "protoc --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=./src/push/pb --ts_proto_opt=esModuleInterop=true,outputEncodeMethods=true,outputJsonMethods=false,outputClientImpl=false -I=./proto ./proto/*.proto"
+  },
+  "keywords": [
+    "tiger",
+    "openapi",
+    "sdk",
+    "trading",
+    "stock"
+  ],
+  "author": "Tiger Fintech",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "fast-check": "^3.15.0",
+    "ts-proto": "^2.11.6",
+    "tsx": "^4.22.4",
+    "typescript": "^5.3.0",
+    "vitest": "^1.2.0"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.12.0"
+  }
+}

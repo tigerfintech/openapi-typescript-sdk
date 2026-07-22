@@ -1,0 +1,20 @@
+# 源码（发布包只包含 dist）
+src/
+tests/
+examples/
+
+# 配置文件
+tsconfig.json
+tsconfig.cjs.json
+vitest.config.*
+.eslintrc*
+.prettierrc*
+
+# 开发文件
+*.properties
+.gitignore
+.DS_Store
+
+# IDE
+.idea/
+.vscode/

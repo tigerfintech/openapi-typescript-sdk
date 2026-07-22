@@ -1,0 +1,43 @@
+# 依赖
+node_modules/
+
+# 构建产物
+dist/
+*.tsbuildinfo
+
+# Source maps（构建产物，不提交）
+*.js.map
+*.d.ts.map
+
+# 包管理锁文件（库项目不提交，由使用者生成）
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# npm 缓存
+.npm/
+.yarn/
+
+# 测试覆盖率
+coverage/
+.nyc_output/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# 敏感文件
+*.properties
+*.pem
+*.key
+.env
+.env.*
+
+# 临时文件
+*.log
+*.tmp
