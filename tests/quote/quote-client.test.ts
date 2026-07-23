@@ -254,7 +254,7 @@ describe('QuoteClient', () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({
         META: [{ symbol: 'META', actionType: 'symbol_change', oldSymbol: 'FB', newSymbol: 'META', executeDate: '2022-06-09', market: 'US' }],
       }));
-      const rows = await qc.getCorporateSymbolChange({ symbols: ['META'], market: 'US', actionType: '' });
+      const rows = await qc.getCorporateSymbolChange({ symbols: ['META'], market: 'US' });
       expect(rows).toHaveLength(1);
       expect(rows[0].oldSymbol).toBe('FB');
       expect(rows[0].newSymbol).toBe('META');
@@ -265,7 +265,7 @@ describe('QuoteClient', () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({
         TWTR: [{ symbol: 'TWTR', actionType: 'delisting', announcedDate: '2022-10-27', reason: 'acquired', executeDate: '2022-10-28', market: 'US' }],
       }));
-      const rows = await qc.getCorporateDelisting({ symbols: ['TWTR'], market: 'US', actionType: '' });
+      const rows = await qc.getCorporateDelisting({ symbols: ['TWTR'], market: 'US' });
       expect(rows).toHaveLength(1);
       expect(rows[0].reason).toBe('acquired');
       expect(capturedBiz(mockHttpClient)).toMatchObject({ action_type: 'delisting' });
@@ -280,7 +280,7 @@ describe('QuoteClient', () => {
           currency: 'USD', minPurchaseQuantity: 1, leverageRatio: 1.0,
         }],
       }));
-      const rows = await qc.getCorporateIPO({ symbols: ['RIVN'], market: 'US', actionType: '' });
+      const rows = await qc.getCorporateIPO({ symbols: ['RIVN'], market: 'US' });
       expect(rows).toHaveLength(1);
       expect(rows[0].ipoName).toBe('Rivian Automotive');
       expect(rows[0].listingPrice).toBe(78.0);

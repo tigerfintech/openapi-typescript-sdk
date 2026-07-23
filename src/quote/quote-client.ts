@@ -733,7 +733,7 @@ export class QuoteClient {
   }
 
   /** Corporate symbol change (flattened). wire: corporate_action (action_type=symbol_change) */
-  async getCorporateSymbolChange(req: CorporateActionRequest): Promise<CorporateSymbolChange[]> {
+  async getCorporateSymbolChange(req: Omit<CorporateActionRequest, 'actionType'>): Promise<CorporateSymbolChange[]> {
     const body: CorporateActionRequest = { ...req, actionType: 'symbol_change' };
     const grouped = await this.callInto<Record<string, CorporateSymbolChange[]>>('corporate_action', body);
     if (!grouped || typeof grouped !== 'object') return [];
@@ -741,7 +741,7 @@ export class QuoteClient {
   }
 
   /** Corporate delisting (flattened). wire: corporate_action (action_type=delisting) */
-  async getCorporateDelisting(req: CorporateActionRequest): Promise<CorporateDelisting[]> {
+  async getCorporateDelisting(req: Omit<CorporateActionRequest, 'actionType'>): Promise<CorporateDelisting[]> {
     const body: CorporateActionRequest = { ...req, actionType: 'delisting' };
     const grouped = await this.callInto<Record<string, CorporateDelisting[]>>('corporate_action', body);
     if (!grouped || typeof grouped !== 'object') return [];
@@ -749,7 +749,7 @@ export class QuoteClient {
   }
 
   /** Corporate IPO (flattened). wire: corporate_action (action_type=ipo) */
-  async getCorporateIPO(req: CorporateActionRequest): Promise<CorporateIPO[]> {
+  async getCorporateIPO(req: Omit<CorporateActionRequest, 'actionType'>): Promise<CorporateIPO[]> {
     const body: CorporateActionRequest = { ...req, actionType: 'ipo' };
     const grouped = await this.callInto<Record<string, CorporateIPO[]>>('corporate_action', body);
     if (!grouped || typeof grouped !== 'object') return [];

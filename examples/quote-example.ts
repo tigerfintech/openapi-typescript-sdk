@@ -458,21 +458,21 @@ async function main() {
   skip('getCorporateEarningsCalendar', 'covered via getCorporateAction(earning) if needed');
   try {
     const rows = await qc.getCorporateSymbolChange({
-      symbols: ['META'], market: 'US', actionType: 'symbol_change',
+      symbols: ['META'], market: 'US',
       beginDate: '2022-01-01', endDate: '2023-01-01',
     });
     ok('getCorporateSymbolChange(META)', `rows=${rows.length}`);
   } catch (e) { fail('getCorporateSymbolChange(META)', e); }
   try {
     const rows = await qc.getCorporateDelisting({
-      symbols: ['TWTR'], market: 'US', actionType: 'delisting',
+      symbols: ['TWTR'], market: 'US',
       beginDate: '2022-01-01', endDate: '2023-01-01',
     });
     ok('getCorporateDelisting(TWTR)', `rows=${rows.length}`);
   } catch (e) { fail('getCorporateDelisting(TWTR)', e); }
   try {
     const rows = await qc.getCorporateIPO({
-      symbols: ['RIVN'], market: 'US', actionType: 'ipo',
+      symbols: ['RIVN'], market: 'US',
       beginDate: '2021-01-01', endDate: '2022-01-01',
     });
     ok('getCorporateIPO(RIVN)', `rows=${rows.length}`);
