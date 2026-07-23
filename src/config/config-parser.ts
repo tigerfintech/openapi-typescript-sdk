@@ -37,29 +37,28 @@ export function parsePropertiesString(content: string): Record<string, string> {
 
   for (const rawLine of lines) {
     if (continuation) {
-      // 续行：去除前导空格后拼接
       const trimmedLeft = rawLine.replace(/^[ \t]+/, '');
-      if (trimmedLeft.endsWith('\\')) {
+      if (trimmedLeft === '' || trimmedLeft.startsWith('#') || trimmedLeft.startsWith('!')) {
+        continuation = false;
+      } else if (endsWithContinuation(trimmedLeft)) {
         currentLine += trimmedLeft.slice(0, -1);
         continue;
+      } else {
+        currentLine += trimmedLeft;
+        continuation = false;
       }
-      currentLine += trimmedLeft;
-      continuation = false;
     } else {
       const trimmed = rawLine.trim();
 
-      // 跳过空行
       if (trimmed === '') {
         continue;
       }
 
-      // 跳过注释行
       if (trimmed.startsWith('#') || trimmed.startsWith('!')) {
         continue;
       }
 
-      // 检查续行
-      if (trimmed.endsWith('\\')) {
+      if (endsWithContinuation(trimmed)) {
         currentLine = trimmed.slice(0, -1);
         continuation = true;
         continue;
@@ -68,7 +67,6 @@ export function parsePropertiesString(content: string): Record<string, string> {
       currentLine = trimmed;
     }
 
-    // 解析键值对
     const result = parseKeyValue(currentLine);
     if (result) {
       props[result[0]] = result[1];
@@ -85,6 +83,17 @@ export function parsePropertiesString(content: string): Record<string, string> {
   }
 
   return props;
+}
+
+/**
+ * 判断一行是否以续行标记结尾（奇数个末尾反斜杠）。
+ */
+function endsWithContinuation(line: string): boolean {
+  let count = 0;
+  for (let i = line.length - 1; i >= 0 && line[i] === '\\'; i--) {
+    count++;
+  }
+  return count % 2 === 1;
 }
 
 /**

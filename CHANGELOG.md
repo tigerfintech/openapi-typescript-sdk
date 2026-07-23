@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-07-22
+### Fixed
+- 修复大整数订单 ID（int64）在 `parseApiResponse` 阶段精度丢失的问题，现在以字符串形式保留完整精度。
+- 修复 properties 配置文件续行（`\`）解析：注释行不再被拼入值，`\\` 不再触发续行。
+
 ## [0.5.1] - 2026-07-13
 
 ### Fixed

@@ -61,3 +61,43 @@ describe('Property 11: API 请求构造正确性', () => {
     expect(JSON.parse(request.bizContent)).toEqual(params);
   });
 });
+
+// --- parseApiResponse int64 precision + UnmarshalData 测试 ---
+import { parseApiResponse, unmarshalData } from '../../src/client/api-response';
+
+describe('fix/bug-fixes: parseApiResponse int64 precision', () => {
+  it('int64 订单 ID 在 parseApiResponse 后不丢失精度', () => {
+    // 28868646234578944 超出 Number.MAX_SAFE_INTEGER，裸 JSON.parse 会截断
+    const body = `{"code":0,"message":"success","data":{"orderId":28868646234578944},"timestamp":1700000000}`;
+    const resp = parseApiResponse(body);
+    // data.orderId 应作为字符串保留（被 patchLargeIntegers 处理）
+    const data = resp.data as { orderId: string };
+    expect(data.orderId).toBe('28868646234578944');
+  });
+
+  it('正常整数不受影响', () => {
+    const body = `{"code":0,"message":"success","data":{"code":200},"timestamp":1700000000}`;
+    const resp = parseApiResponse(body);
+    const data = resp.data as { code: number };
+    expect(data.code).toBe(200);
+  });
+
+  it('code != 0 时抛出 TigerError', () => {
+    const body = `{"code":1000,"message":"param error","data":null,"timestamp":1700000000}`;
+    expect(() => parseApiResponse(body)).toThrow('param error');
+  });
+});
+
+describe('fix/bug-fixes: unmarshalData 双重编码', () => {
+  it('双重编码场景正确解码', () => {
+    // 服务端将 data 编码为 JSON 字符串
+    const inner = JSON.stringify({ orderId: '123' });
+    const data = inner; // typeof data === 'string'
+    const result = unmarshalData<{ orderId: string }>(data);
+    expect(result?.orderId).toBe('123');
+  });
+
+  it('null data 返回 undefined', () => {
+    expect(unmarshalData(null)).toBeUndefined();
+  });
+});
