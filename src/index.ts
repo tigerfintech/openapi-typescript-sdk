@@ -73,7 +73,7 @@ export type {
   OptionChainFilter, OptionChainFilterGreeks, Range,
   FutureExchange, FutureContractInfo, FutureQuote, FutureKline, FutureKlineItem,
   FutureDepth, FutureTradeTickItem, FutureTradingTime,
-  FinancialDailyItem, FinancialReportItem, CorporateAction,
+  FinancialDailyItem, FinancialReportItem, CorporateAction, CorporateSymbolChange, CorporateDelisting, CorporateIPO,
   CapitalFlow, CapitalFlowItem, CapitalDistribution, ScannerResult, ScannerResultItem,
   QuotePermission, SymbolName, TradeMeta, StockDetail, StockBroker, StockBrokerItem,
   ShortInterest, StockIndustry, IndustryItem, IndustryStock,

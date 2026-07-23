@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2026-07-23
+
+### Added
+- `getCorporateSymbolChange` — 股票代码变更查询
+- `getCorporateDelisting` — 退市事件查询
+- `getCorporateIPO` — 新股上市查询
+- `CorporateActionType`：新增 `SymbolChange`、`Delisting`、`IPO`
+
 ## [0.5.2] - 2026-07-22
 ### Fixed
 - 修复大整数订单 ID（int64）在 `parseApiResponse` 阶段精度丢失的问题，现在以字符串形式保留完整精度。

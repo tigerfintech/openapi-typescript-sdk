@@ -170,6 +170,9 @@ export enum CorporateActionType {
   Split = 'split',
   Dividend = 'dividend',
   Earning = 'earning',
+  SymbolChange = 'symbol_change',
+  Delisting = 'delisting',
+  IPO = 'ipo',
 }
 
 /** 行业级别 (1~4 级) */
