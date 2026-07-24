@@ -27,6 +27,12 @@ const DEFAULT_SERVER_URL = 'https://openapi.tigerfintech.com/gateway';
 const TIGER_PUBLIC_KEY =
   'MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDNF3G8SoEcCZh2rshUbayDgLLrj6rKgzNMxDL2HSnKcB0+GPOsndqSv+a4IBu9+I3fyBp5hkyMMG2+AXugd9pMpy6VxJxlNjhX1MYbNTZJUT4nudki4uh+LMOkIBHOceGNXjgB+cXqmlUnjlqha/HgboeHSnSgpM3dKSJQlIOsDwIDAQAB';
 
+/** Sandbox / QA tiger public key for response signature verification */
+export const SANDBOX_TIGER_PUBLIC_KEY =
+  'MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCbm21i11hgAENGd3/f280PSe4g9YGkS3TEXBYMidihTvHHf' +
+  '+tJ0PYD0o3PruI0hl3qhEjHTAxb75T5YD3SGK4IBhHn/Rk6mhqlGgI+bBrBVYaXixmHfRo75RpUUuWACyeqQk' +
+  'ZckgR0McxuW9xRMIa2cXZOoL1E4SL4lXKGhKoWbwIDAQAB';
+
 /** Environment variable names */
 const ENV_TIGER_ID = 'TIGEROPEN_TIGER_ID';
 const ENV_PRIVATE_KEY = 'TIGEROPEN_PRIVATE_KEY';
@@ -34,6 +40,9 @@ const ENV_ACCOUNT = 'TIGEROPEN_ACCOUNT';
 const ENV_SECRET_KEY = 'TIGEROPEN_SECRET_KEY';
 const ENV_TOKEN = 'TIGEROPEN_TOKEN';
 const ENV_TOKEN_FILE = 'TIGEROPEN_TOKEN_FILE';
+const ENV_TIGER_PUBLIC_KEY = 'TIGEROPEN_TIGER_PUBLIC_KEY';
+const ENV_SERVER_URL = 'TIGEROPEN_SERVER_URL';
+const ENV_QUOTE_SERVER_URL = 'TIGEROPEN_QUOTE_SERVER_URL';
 
 /** Client configuration interface */
 export interface ClientConfig {
@@ -194,6 +203,8 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
   const license = opts.license || fileProps['license'];
   const language = opts.language || fileProps['language'] || DEFAULT_LANGUAGE;
   const timezone = opts.timezone || fileProps['timezone'];
+  // tiger_public_key from properties file (e.g. for QA/sandbox environments)
+  let tigerPublicKey = opts.tigerPublicKey || fileProps['tiger_public_key'] || TIGER_PUBLIC_KEY;
 
   // Environment variables override everything
   const envTigerId = process.env[ENV_TIGER_ID];
@@ -201,6 +212,7 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
   const envAccount = process.env[ENV_ACCOUNT];
   const envSecretKey = process.env[ENV_SECRET_KEY];
   const envToken = process.env[ENV_TOKEN];
+  const envTigerPublicKey = process.env[ENV_TIGER_PUBLIC_KEY];
 
   if (envTigerId) {
     tigerId = envTigerId;
@@ -216,6 +228,9 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
   }
   if (envToken) {
     token = envToken;
+  }
+  if (envTigerPublicKey) {
+    tigerPublicKey = envTigerPublicKey;
   }
 
   // Token loading priority: env TIGEROPEN_TOKEN > tokenLoader > token file (TIGEROPEN_TOKEN_FILE or default)
@@ -258,30 +273,49 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
     );
   }
 
-  // Resolve server URL: explicit > dynamic domain > default
+  // Resolve server URL: env var > explicit opts > file > dynamic domain > default
   const enableDynamicDomain = opts.enableDynamicDomain ?? true;
   let serverUrl: string;
   let quoteServerUrl: string;
 
   // Query dynamic domains once (may spawn a child process); reuse for both URLs.
   let domainConf: Record<string, unknown> = {};
-  if (enableDynamicDomain && (!opts.serverUrl || !opts.quoteServerUrl)) {
+  const envServerUrl = process.env[ENV_SERVER_URL];
+  const envQuoteServerUrl = process.env[ENV_QUOTE_SERVER_URL];
+  const needServerUrl = !envServerUrl && !opts.serverUrl && !fileProps['server_url'];
+  const needQuoteServerUrl = !envQuoteServerUrl && !opts.quoteServerUrl && !fileProps['quote_server_url'];
+  if (enableDynamicDomain && (needServerUrl || needQuoteServerUrl)) {
     domainConf = queryDomains(license);
   }
 
-  if (opts.serverUrl) {
+  if (envServerUrl) {
+    serverUrl = envServerUrl;
+  } else if (opts.serverUrl) {
     serverUrl = opts.serverUrl;
+  } else if (fileProps['server_url']) {
+    serverUrl = fileProps['server_url'];
   } else {
     const dynamicUrl = resolveDynamicServerUrl(domainConf, license);
     serverUrl = dynamicUrl || DEFAULT_SERVER_URL;
   }
 
-  // Resolve quote server URL: explicit > dynamic domain > serverUrl fallback
-  if (opts.quoteServerUrl) {
+  // Resolve quote server URL: env var > explicit opts > file > dynamic domain > serverUrl fallback
+  if (envQuoteServerUrl) {
+    quoteServerUrl = envQuoteServerUrl;
+  } else if (opts.quoteServerUrl) {
     quoteServerUrl = opts.quoteServerUrl;
+  } else if (fileProps['quote_server_url']) {
+    quoteServerUrl = fileProps['quote_server_url'];
   } else {
-    const dynamicQuoteUrl = resolveDynamicQuoteServerUrl(domainConf, license);
-    quoteServerUrl = dynamicQuoteUrl || serverUrl;
+    // Only use dynamic domain if serverUrl itself came from dynamic resolution (not pinned by env/opts/file).
+    // When serverUrl is pinned, prefer it as the quote fallback to avoid mixing environments.
+    const serverUrlPinned = !!(envServerUrl || opts.serverUrl || fileProps['server_url']);
+    if (!serverUrlPinned) {
+      const dynamicQuoteUrl = resolveDynamicQuoteServerUrl(domainConf, license);
+      quoteServerUrl = dynamicQuoteUrl || serverUrl;
+    } else {
+      quoteServerUrl = serverUrl;
+    }
   }
 
   return {
@@ -301,7 +335,7 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
     serverUrl,
     quoteServerUrl,
     deviceId: detectDeviceId(),
-    tigerPublicKey: opts.tigerPublicKey ?? TIGER_PUBLIC_KEY,
+    tigerPublicKey,
   };
 }
 

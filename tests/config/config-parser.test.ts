@@ -110,6 +110,29 @@ describe('parsePropertiesString', () => {
     expect(props['tiger_id']).toBe('test123');
     expect(props['account']).toBe('DU001');
   });
+
+  // fix/bug-fixes: 续行后遇到注释行不应将注释内容拼入值
+  it('续行后遇到注释行终止续行，不拼接注释内容', () => {
+    const content = 'key=value1\\\n# this is a comment\nkey2=value2\n';
+    const props = parsePropertiesString(content);
+    expect(props['key']).toBe('value1');
+    expect(props['key2']).toBe('value2');
+  });
+
+  // fix/bug-fixes: 双反斜杠（转义字面反斜杠）不触发续行
+  it('双反斜杠不触发续行', () => {
+    const content = 'path=C:\\\\Windows\\\\\nother=val\n';
+    const props = parsePropertiesString(content);
+    expect(props['path']).toBe('C:\\\\Windows\\\\');
+    expect(props['other']).toBe('val');
+  });
+
+  // fix/bug-fixes: 单反斜杠仍触发续行
+  it('单反斜杠续行正常拼接', () => {
+    const content = 'key=part1\\\npart2\n';
+    const props = parsePropertiesString(content);
+    expect(props['key']).toBe('part1part2');
+  });
 });
 
 // Feature: multi-language-sdks, Property 1: Properties 配置文件解析 round-trip
