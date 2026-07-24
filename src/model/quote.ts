@@ -266,6 +266,45 @@ export interface CorporateAction {
   toFactor?: number;
 }
 
+export interface CorporateSymbolChange {
+  symbol: string;
+  market?: string;
+  exchange?: string;
+  executeDate?: string;
+  actionType?: string;
+  oldSymbol?: string;
+  /** newSymbol is the ticker after the rename; same as symbol. */
+  newSymbol?: string;
+}
+
+export interface CorporateDelisting {
+  symbol: string;
+  market?: string;
+  exchange?: string;
+  executeDate?: string;
+  actionType?: string;
+  announcedDate?: string;
+  reason?: string;
+}
+
+export interface CorporateIPO {
+  symbol: string;
+  market?: string;
+  exchange?: string;
+  executeDate?: string;
+  actionType?: string;
+  ipoName?: string;
+  listingDate?: string;
+  listingPrice?: number;
+  sharesOutstanding?: number;
+  sharesFloat?: number;
+  offerAmount?: number;
+  priceRange?: string;
+  currency?: string;
+  minPurchaseQuantity?: number;
+  leverageRatio?: number;
+}
+
 export interface CapitalFlowItem {
   time: string;
   timestamp: number;

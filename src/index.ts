@@ -19,7 +19,7 @@
 export { SDK_VERSION as VERSION } from './version';
 
 // Config
-export { createClientConfig, loadPropertiesFile } from './config';
+export { createClientConfig, loadPropertiesFile, SANDBOX_TIGER_PUBLIC_KEY } from './config';
 export type { ClientConfig, ClientConfigOptions } from './config';
 export { TokenManager } from './config';
 export type { TokenManagerOptions, RefreshFn } from './config';
@@ -73,7 +73,7 @@ export type {
   OptionChainFilter, OptionChainFilterGreeks, Range,
   FutureExchange, FutureContractInfo, FutureQuote, FutureKline, FutureKlineItem,
   FutureDepth, FutureTradeTickItem, FutureTradingTime,
-  FinancialDailyItem, FinancialReportItem, CorporateAction,
+  FinancialDailyItem, FinancialReportItem, CorporateAction, CorporateSymbolChange, CorporateDelisting, CorporateIPO,
   CapitalFlow, CapitalFlowItem, CapitalDistribution, ScannerResult, ScannerResultItem,
   QuotePermission, SymbolName, TradeMeta, StockDetail, StockBroker, StockBrokerItem,
   ShortInterest, StockIndustry, IndustryItem, IndustryStock,

@@ -2,7 +2,7 @@
  * 配置层导出
  */
 export { parsePropertiesFile, parsePropertiesString } from './config-parser';
-export { createClientConfig, loadPropertiesFile } from './client-config';
+export { createClientConfig, loadPropertiesFile, SANDBOX_TIGER_PUBLIC_KEY } from './client-config';
 export type { ClientConfig, ClientConfigOptions } from './client-config';
 export { TokenManager } from './token-manager';
 export type { TokenManagerOptions, RefreshFn } from './token-manager';
