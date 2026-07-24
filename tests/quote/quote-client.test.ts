@@ -250,6 +250,43 @@ describe('QuoteClient', () => {
       });
     });
 
+    it('getCorporateSymbolChange 强制 action_type=symbol_change 并返回 oldSymbol/newSymbol', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({
+        META: [{ symbol: 'META', actionType: 'symbol_change', oldSymbol: 'FB', newSymbol: 'META', executeDate: '2022-06-09', market: 'US' }],
+      }));
+      const rows = await qc.getCorporateSymbolChange({ symbols: ['META'], market: 'US' });
+      expect(rows).toHaveLength(1);
+      expect(rows[0].oldSymbol).toBe('FB');
+      expect(rows[0].newSymbol).toBe('META');
+      expect(capturedBiz(mockHttpClient)).toMatchObject({ action_type: 'symbol_change' });
+    });
+
+    it('getCorporateDelisting 强制 action_type=delisting 并返回 reason', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({
+        TWTR: [{ symbol: 'TWTR', actionType: 'delisting', announcedDate: '2022-10-27', reason: 'acquired', executeDate: '2022-10-28', market: 'US' }],
+      }));
+      const rows = await qc.getCorporateDelisting({ symbols: ['TWTR'], market: 'US' });
+      expect(rows).toHaveLength(1);
+      expect(rows[0].reason).toBe('acquired');
+      expect(capturedBiz(mockHttpClient)).toMatchObject({ action_type: 'delisting' });
+    });
+
+    it('getCorporateIPO 强制 action_type=ipo 并返回 IPO 字段', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({
+        RIVN: [{
+          symbol: 'RIVN', actionType: 'ipo', ipoName: 'Rivian Automotive',
+          listingDate: '2021-11-10', listingPrice: 78.0, sharesOutstanding: 864000000,
+          sharesFloat: 153000000, offerAmount: 11932000000, priceRange: '72-74',
+          currency: 'USD', minPurchaseQuantity: 1, leverageRatio: 1.0,
+        }],
+      }));
+      const rows = await qc.getCorporateIPO({ symbols: ['RIVN'], market: 'US' });
+      expect(rows).toHaveLength(1);
+      expect(rows[0].ipoName).toBe('Rivian Automotive');
+      expect(rows[0].listingPrice).toBe(78.0);
+      expect(capturedBiz(mockHttpClient)).toMatchObject({ action_type: 'ipo' });
+    });
+
     it('getCapitalFlow 发送 symbol/market/period', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ symbol: 'AAPL', period: 'day', items: [] }));
       await qc.getCapitalFlow('AAPL', 'US', 'day');

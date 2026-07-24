@@ -43,7 +43,10 @@ async function main() {
   const cfg = createClientConfig({
     propertiesFilePath: process.env.TIGER_CONFIG_PATH,
   });
-  console.log(`tiger_id=${cfg.tigerId} account=${cfg.account}\n`);
+  const isProdKey = cfg.tigerPublicKey.startsWith('MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDNF3G8');
+  const isSandboxKey = cfg.tigerPublicKey.startsWith('MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCbm21i');
+  const keyLabel = isProdKey ? 'prod' : isSandboxKey ? 'sandbox/QA' : 'custom';
+  console.log(`tiger_id=${cfg.tigerId} account=${cfg.account} tigerPublicKey=[${keyLabel}]\n`);
 
   const tc = new TradeClient(new HttpClient(cfg), cfg.account, cfg.secretKey);
 

@@ -28,6 +28,9 @@ import type {
   FinancialDailyItem,
   FinancialReportItem,
   CorporateAction,
+  CorporateSymbolChange,
+  CorporateDelisting,
+  CorporateIPO,
   CapitalFlow,
   CapitalDistribution,
   ScannerResult,
@@ -725,6 +728,30 @@ export class QuoteClient {
   async getCorporateEarningsCalendar(req: CorporateActionRequest): Promise<CorporateAction[]> {
     const body: CorporateActionRequest = { ...req, actionType: 'earning' };
     const grouped = await this.callInto<Record<string, CorporateAction[]>>('corporate_action', body);
+    if (!grouped || typeof grouped !== 'object') return [];
+    return Object.values(grouped).flat();
+  }
+
+  /** Corporate symbol change (flattened). wire: corporate_action (action_type=symbol_change) */
+  async getCorporateSymbolChange(req: Omit<CorporateActionRequest, 'actionType'>): Promise<CorporateSymbolChange[]> {
+    const body: CorporateActionRequest = { ...req, actionType: 'symbol_change' };
+    const grouped = await this.callInto<Record<string, CorporateSymbolChange[]>>('corporate_action', body);
+    if (!grouped || typeof grouped !== 'object') return [];
+    return Object.values(grouped).flat();
+  }
+
+  /** Corporate delisting (flattened). wire: corporate_action (action_type=delisting) */
+  async getCorporateDelisting(req: Omit<CorporateActionRequest, 'actionType'>): Promise<CorporateDelisting[]> {
+    const body: CorporateActionRequest = { ...req, actionType: 'delisting' };
+    const grouped = await this.callInto<Record<string, CorporateDelisting[]>>('corporate_action', body);
+    if (!grouped || typeof grouped !== 'object') return [];
+    return Object.values(grouped).flat();
+  }
+
+  /** Corporate IPO (flattened). wire: corporate_action (action_type=ipo) */
+  async getCorporateIPO(req: Omit<CorporateActionRequest, 'actionType'>): Promise<CorporateIPO[]> {
+    const body: CorporateActionRequest = { ...req, actionType: 'ipo' };
+    const grouped = await this.callInto<Record<string, CorporateIPO[]>>('corporate_action', body);
     if (!grouped || typeof grouped !== 'object') return [];
     return Object.values(grouped).flat();
   }
