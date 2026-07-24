@@ -9,6 +9,8 @@ import { HttpClient } from '../client/http-client';
 import type { ClientConfig } from '../config/client-config';
 import { createApiRequest } from '../client/api-request';
 import { unmarshalData } from '../client/api-response';
+import * as tokenMethods from '../client/token-methods';
+import type { TokenManager } from '../config/token-manager';
 import type {
   MarketState,
   Brief,
@@ -209,6 +211,33 @@ export class QuoteClient {
   /** Create a QuoteClient directly from a ClientConfig — no need to construct HttpClient manually. */
   static fromConfig(config: ClientConfig): QuoteClient {
     return new QuoteClient(new HttpClient(config, undefined, { useQuoteServerUrl: true }));
+  }
+
+  // ── Token management ──────────────────────────────────────────────────────
+
+  /** Call the `user_token_refresh` API and return the new token. Read-only. */
+  async queryToken(): Promise<string> {
+    return tokenMethods.queryToken(this.httpClient);
+  }
+
+  /** Refresh the token and update the in-memory config token. */
+  async refreshToken(tokenManager?: TokenManager | null): Promise<void> {
+    return tokenMethods.refreshToken(this.httpClient, tokenManager);
+  }
+
+  /**
+   * Start background token auto-refresh. Returns a TokenManager to stop with `tm.stopAutoRefresh()`.
+   *
+   * @param refreshDurationSecs - Refresh threshold in seconds (minimum 30).
+   * @param checkIntervalMs - How often to check, in milliseconds (default 300 000 / 5 min).
+   * @param tokenWriter - Optional callback invoked after each successful refresh.
+   */
+  startTokenAutoRefresh(
+    refreshDurationSecs: number,
+    checkIntervalMs?: number,
+    tokenWriter?: (token: string) => void,
+  ): TokenManager {
+    return tokenMethods.startTokenAutoRefresh(this.httpClient, refreshDurationSecs, checkIntervalMs, tokenWriter);
   }
 
   private async callInto<T>(method: string, bizParams?: unknown, version?: string): Promise<T> {

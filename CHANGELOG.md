@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.4] - 2026-07-24
+
+### Added
+- `TradeClient` / `QuoteClient`：新增 `queryToken()` / `refreshToken()` / `startTokenAutoRefresh()` 方法，无需直接操作 `HttpClient`
+- 订单工具函数：新增 `marketOrderByAmount`、`limitOrderByAmount`、`trailOrderByPrice`、`limitOrderWithLegs`、`comboOrder`、`ocaOrder`、`contractLeg`
+- `icebergOrder` 合并可选参数（原 `icebergOrderFull` 废弃，参数后移为可选）
+- `OrderRequest` 新增 `cashAmount`、`comboType` 字段
+
+### Fixed
+- token 文件（`tiger_openapi_token.properties`）与 config 文件同目录自动加载，不再依赖当前工作目录
+
+### Changed
+- `SANDBOX_TIGER_PUBLIC_KEY` 导出，支持非生产环境公钥配置
+
 ## [0.5.3] - 2026-07-23
 
 ### Added
@@ -72,7 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.6] - 2026-06-24
 
 ### Added
-- 冰山单辅助函数 `icebergOrder()` / `icebergOrderFull()`
+- 冰山单辅助函数 `icebergOrder()`
 - `IcebergPriceType` 枚举
 - `Order` 类型补充冰山单字段
 

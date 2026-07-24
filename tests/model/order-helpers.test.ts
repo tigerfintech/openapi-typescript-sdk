@@ -13,7 +13,13 @@ import {
   algoOrder,
   orderLeg,
   icebergOrder,
-  icebergOrderFull,
+  marketOrderByAmount,
+  limitOrderByAmount,
+  trailOrderByPrice,
+  limitOrderWithLegs,
+  comboOrder,
+  ocaOrder,
+  contractLeg,
 } from '../../src/model/order-helpers';
 import { OrderType, TimeInForce, PriceType } from '../../src/model/enums';
 
@@ -130,11 +136,11 @@ describe('icebergOrder', () => {
   });
 });
 
-describe('icebergOrderFull', () => {
+describe('icebergOrder (full params)', () => {
   it('应构造冰山单（完整参数）', () => {
     const startTime = 1782293585902;
     const endTime = 1782297185902;
-    const o = icebergOrderFull('DU123', 'AAPL', 'STK', 'BUY', 1000, 180.0,
+    const o = icebergOrder('DU123', 'AAPL', 'STK', 'BUY', 1000, 180.0,
       100, 50, 30, PriceType.LIMIT_PRICE, startTime, endTime);
     expect(o.orderType).toBe('ICEBERG');
     expect(o.displaySize).toBe(100);
@@ -146,8 +152,106 @@ describe('icebergOrderFull', () => {
   });
 
   it('startTime/endTime 为 0 时不设置', () => {
-    const o = icebergOrderFull('DU123', 'AAPL', 'STK', 'BUY', 1000, 180.0, 100, 50, 30, 'ASK_PRICE', 0, 0);
+    const o = icebergOrder('DU123', 'AAPL', 'STK', 'BUY', 1000, 180.0, 100, 50, 30, 'ASK_PRICE', 0, 0);
     expect(o.startTime).toBeUndefined();
     expect(o.endTime).toBeUndefined();
+  });
+});
+
+describe('marketOrderByAmount', () => {
+  it('应构造按金额市价单', () => {
+    const o = marketOrderByAmount('ACC', 'AAPL', 'STK', 'BUY', 5000);
+    expect(o.orderType).toBe(OrderType.MKT);
+    expect(o.cashAmount).toBe(5000);
+    expect(o.totalQuantity).toBe(0);
+    expect(o.timeInForce).toBe(TimeInForce.DAY);
+  });
+});
+
+describe('limitOrderByAmount', () => {
+  it('应构造按金额限价单', () => {
+    const o = limitOrderByAmount('ACC', 'AAPL', 'STK', 'BUY', 5000, 150.0);
+    expect(o.orderType).toBe(OrderType.LMT);
+    expect(o.cashAmount).toBe(5000);
+    expect(o.limitPrice).toBe(150.0);
+    expect(o.totalQuantity).toBe(0);
+  });
+});
+
+describe('trailOrderByPrice', () => {
+  it('应构造按价差跟踪止损单', () => {
+    const o = trailOrderByPrice('ACC', 'AAPL', 'STK', 'SELL', 100, 5.0);
+    expect(o.orderType).toBe(OrderType.TRAIL);
+    expect(o.auxPrice).toBe(5.0);
+    expect(o.trailingPercent).toBeUndefined();
+    expect(o.totalQuantity).toBe(100);
+  });
+});
+
+describe('limitOrderWithLegs', () => {
+  it('应构造带止盈腿的限价单', () => {
+    const legs = [orderLeg('PROFIT', 200.0, 'GTC')];
+    const o = limitOrderWithLegs('ACC', 'AAPL', 'STK', 'BUY', 100, 150.0, legs);
+    expect(o.orderType).toBe(OrderType.LMT);
+    expect(o.limitPrice).toBe(150.0);
+    expect(o.orderLegs).toHaveLength(1);
+    expect(o.orderLegs![0].legType).toBe('PROFIT');
+  });
+
+  it('空腿数组应抛错', () => {
+    expect(() => limitOrderWithLegs('ACC', 'AAPL', 'STK', 'BUY', 100, 150.0, []))
+      .toThrow('At least 1 order leg');
+  });
+
+  it('超过 2 腿应抛错', () => {
+    const legs = [orderLeg('PROFIT', 200.0, 'GTC'), orderLeg('LOSS', 100.0, 'GTC'), orderLeg('LOSS', 90.0, 'GTC')];
+    expect(() => limitOrderWithLegs('ACC', 'AAPL', 'STK', 'BUY', 100, 150.0, legs))
+      .toThrow('At most 2');
+  });
+});
+
+describe('comboOrder', () => {
+  it('应构造多腿组合单，默认 comboType=MLEG', () => {
+    const legs = [contractLeg('AAPL', 'OPT', 'BUY', 1, '20261218', '200', 'CALL')];
+    const o = comboOrder('ACC', 'BUY', 1, 'LMT', legs, undefined, 5.0);
+    expect(o.secType).toBe('MLEG');
+    expect(o.contractLegs).toHaveLength(1);
+    expect(o.comboType).toBe('MLEG');
+    expect(o.limitPrice).toBe(5.0);
+  });
+
+  it('可自定义 comboType', () => {
+    const legs = [contractLeg('TSLA', 'OPT', 'SELL', 1)];
+    const o = comboOrder('ACC', 'SELL', 1, 'MKT', legs, 'CUSTOM');
+    expect(o.comboType).toBe('CUSTOM');
+  });
+});
+
+describe('ocaOrder', () => {
+  it('应构造 OCA 单', () => {
+    const sub = limitOrder('ACC', 'AAPL', 'STK', 'BUY', 100, 150.0);
+    const o = ocaOrder('ACC', 'AAPL', 'STK', 'BUY', 100, [sub]);
+    expect(o.orderType).toBe(OrderType.OCA);
+    expect(o.ocaOrders).toHaveLength(1);
+  });
+});
+
+describe('contractLeg', () => {
+  it('应构造多腿期权子腿', () => {
+    const leg = contractLeg('AAPL', 'OPT', 'BUY', 2, '20261218', '200', 'CALL');
+    expect(leg.symbol).toBe('AAPL');
+    expect(leg.secType).toBe('OPT');
+    expect(leg.action).toBe('BUY');
+    expect(leg.ratio).toBe(2);
+    expect(leg.expiry).toBe('20261218');
+    expect(leg.strike).toBe('200');
+    expect(leg.right).toBe('CALL');
+  });
+
+  it('可选字段留空', () => {
+    const leg = contractLeg('TSLA', 'STK', 'SELL', 1);
+    expect(leg.expiry).toBeUndefined();
+    expect(leg.strike).toBeUndefined();
+    expect(leg.right).toBeUndefined();
   });
 });
