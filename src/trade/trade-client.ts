@@ -103,7 +103,16 @@ export class TradeClient {
   }
 
   private async callInto<T>(method: string, bizParams: unknown): Promise<T> {
-    const request = createApiRequest(method, bizParams);
+    // Inject secretKey into every request when available (institution accounts require it).
+    // Individual methods that already set secretKey will not be overwritten (|| not &&).
+    let params = bizParams;
+    if (this.secretKey && params !== null && typeof params === 'object' && !Array.isArray(params)) {
+      const p = params as Record<string, unknown>;
+      if (!p['secretKey'] && !p['secret_key']) {
+        params = { ...p, secretKey: this.secretKey };
+      }
+    }
+    const request = createApiRequest(method, params);
     const response = await this.httpClient.executeRequest(request);
     return unmarshalData<T>(response.data) as T;
   }
@@ -142,9 +151,7 @@ export class TradeClient {
   // === Order operations ===
 
   async placeOrder(order: OrderRequest): Promise<PlaceOrderResult | undefined> {
-    const params: Record<string, unknown> = { ...order, account: this.account };
-    if (!params.secretKey && this.secretKey) params.secretKey = this.secretKey;
-    return this.callInto<PlaceOrderResult>('place_order', params);
+    return this.callInto<PlaceOrderResult>('place_order', { ...order, account: this.account });
   }
 
   async previewOrder(order: OrderRequest): Promise<PreviewResult | undefined> {
@@ -152,15 +159,12 @@ export class TradeClient {
   }
 
   async modifyOrder(id: number | string, order: OrderRequest): Promise<OrderIdResult | undefined> {
-    const params: Record<string, unknown> = { ...order, account: this.account, id };
-    if (!params.secretKey && this.secretKey) params.secretKey = this.secretKey;
-    return this.callInto<OrderIdResult>('modify_order', params);
+    return this.callInto<OrderIdResult>('modify_order', { ...order, account: this.account, id });
   }
 
   async cancelOrder(id: number | string, secretKey?: string): Promise<OrderIdResult | undefined> {
-    const sk = secretKey ?? this.secretKey;
     const params: Record<string, unknown> = { account: this.account, id };
-    if (sk) params.secretKey = sk;
+    if (secretKey !== undefined) params.secretKey = secretKey; // per-call override takes precedence; undefined means use config default
     return this.callInto<OrderIdResult>('cancel_order', params);
   }
 
