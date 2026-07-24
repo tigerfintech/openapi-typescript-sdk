@@ -9,7 +9,7 @@
  * Priority: environment variables > code options (incl. config file) > defaults
  */
 import { readFileSync, existsSync, statSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { homedir, networkInterfaces } from 'os';
 import { parsePropertiesString } from './config-parser';
 import { queryDomains, resolveDynamicServerUrl, resolveDynamicQuoteServerUrl } from './domain';
@@ -176,20 +176,29 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
 
   // Load properties: explicit path > auto-discovery
   let fileProps: Record<string, string> = {};
+  let configFileDir: string | undefined;
   if (opts.propertiesFilePath) {
     // Support both directory path and full file path
     let filePath = opts.propertiesFilePath;
     if (existsSync(filePath) && statSync(filePath).isDirectory()) {
+      configFileDir = filePath;
       filePath = join(filePath, CONFIG_FILE_NAME);
     } else if (!existsSync(filePath) && !filePath.endsWith('.properties')) {
       // Path doesn't exist as-is; try treating it as a directory
       const asDir = join(filePath, CONFIG_FILE_NAME);
-      if (existsSync(asDir)) filePath = asDir;
+      if (existsSync(asDir)) {
+        configFileDir = filePath;
+        filePath = asDir;
+      }
+    } else {
+      // It's a file path: derive directory from it
+      configFileDir = dirname(filePath);
     }
     fileProps = loadPropertiesFile(filePath);
   } else {
     const discovered = discoverConfigFile();
     if (discovered) {
+      configFileDir = dirname(discovered);
       fileProps = loadPropertiesFile(discovered);
     }
   }
@@ -250,8 +259,9 @@ export function createClientConfig(options?: ClientConfigOptions): ClientConfig 
         // loader failed; leave token undefined
       }
     } else {
-      // Load from token file: TIGEROPEN_TOKEN_FILE env var > default file
-      const tokenFilePath = process.env[ENV_TOKEN_FILE] || 'tiger_openapi_token.properties';
+      // Load from token file: TIGEROPEN_TOKEN_FILE env var > config dir > default
+      const tokenFilePath = process.env[ENV_TOKEN_FILE]
+        || (configFileDir ? join(configFileDir, 'tiger_openapi_token.properties') : 'tiger_openapi_token.properties');
       const tm = new TokenManager({ filePath: tokenFilePath });
       try {
         token = tm.loadTokenSync();

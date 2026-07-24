@@ -153,7 +153,12 @@ export interface OrderRequest {
   segType?: string;
   /** 按金额下单：委托金额 */
   amount?: number;
-  /** 是否按金额下单 */
+  /** 按金额下单：现金金额（wire: cash_amount，与 amount 二选一） */
+  cashAmount?: number;
+  /**
+   * @deprecated 服务端不再需要此字段，by-amount 订单直接设置 `cashAmount`。
+   * 保留仅为向前兼容，新代码勿使用。
+   */
   isQuantityByAmount?: boolean;
   /** 账户分配列表（机构账户） */
   allocAccounts?: string[];
@@ -177,6 +182,8 @@ export interface OrderRequest {
   ocaOrders?: OrderRequest[];
   /** 多腿期权各腿（MLEG） */
   contractLegs?: ContractLegRequest[];
+  /** 组合单类型（如 MLEG） */
+  comboType?: string;
 }
 
 /** Single leg of a multi-leg option order (MLEG) */
