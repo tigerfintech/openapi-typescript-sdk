@@ -108,7 +108,7 @@ export class TradeClient {
     let params = bizParams;
     if (this.secretKey && params !== null && typeof params === 'object' && !Array.isArray(params)) {
       const p = params as Record<string, unknown>;
-      if (!p['secretKey'] && !p['secret_key']) {
+      if (p['secretKey'] == null && p['secret_key'] == null) {
         params = { ...p, secretKey: this.secretKey };
       }
     }

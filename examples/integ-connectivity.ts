@@ -1,8 +1,8 @@
 /**
  * Integration test: real API connectivity + int64 precision
  *
- * Run: npx tsx examples/integ-token-refresh.ts
- * Override server: TIGER_SERVER_URL=<url> npx tsx examples/integ-token-refresh.ts
+ * Run: npx tsx examples/integ-connectivity.ts
+ * Override server: TIGER_SERVER_URL=<url> npx tsx examples/integ-connectivity.ts
  */
 import { createClientConfig } from '../src/config/client-config';
 import { HttpClient } from '../src/client/http-client';
