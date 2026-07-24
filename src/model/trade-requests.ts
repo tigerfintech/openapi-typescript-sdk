@@ -12,6 +12,8 @@
 
 export interface OrdersRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
+  secretKey?: string;
   secType?: string;
   market?: string;
   symbol?: string;
@@ -34,6 +36,8 @@ export interface OrdersRequest {
 
 export interface GetOrderRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
+  secretKey?: string;
   id?: number;
   orderId?: number;
   isBrief?: boolean;
@@ -43,6 +47,8 @@ export interface GetOrderRequest {
 
 export interface OrderTransactionsRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
+  secretKey?: string;
   orderId?: number;
   symbol?: string;
   secType?: string;
@@ -60,6 +66,8 @@ export interface OrderTransactionsRequest {
 
 export interface PositionsRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
+  secretKey?: string;
   secType?: string;
   currency?: string;
   market?: string;
@@ -74,6 +82,8 @@ export interface PositionsRequest {
 
 export interface AssetsRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
+  secretKey?: string;
   subAccounts?: string[];
   segment?: boolean;
   marketValue?: boolean;
@@ -82,11 +92,15 @@ export interface AssetsRequest {
 
 export interface ManagedAccountsRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
+  secretKey?: string;
   lang?: string;
 }
 
 export interface DerivativeContractsRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
+  secretKey?: string;
   symbols: string[];
   secType: string;
   expiry?: string;
@@ -95,6 +109,8 @@ export interface DerivativeContractsRequest {
 
 export interface AnalyticsAssetRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
+  secretKey?: string;
   segType?: string;
   /** 格式 "YYYY-MM-DD" */
   startDate?: string;
@@ -104,6 +120,8 @@ export interface AnalyticsAssetRequest {
 
 export interface AggregateAssetsRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
+  secretKey?: string;
   baseCurrency?: string;
   segType?: string;
   lang?: string;
@@ -111,6 +129,8 @@ export interface AggregateAssetsRequest {
 
 export interface EstimateTradableQuantityRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
+  secretKey?: string;
   symbol: string;
   secType: string;
   action: string;
@@ -126,6 +146,8 @@ export interface EstimateTradableQuantityRequest {
 
 export interface ForexOrderRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
+  secretKey?: string;
   segType?: string;
   sourceCurrency: string;
   targetCurrency: string;
@@ -137,6 +159,8 @@ export interface ForexOrderRequest {
 
 export interface SegmentFundRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
+  secretKey?: string;
   id?: string;
   fromSegment?: string;
   toSegment?: string;
@@ -148,6 +172,8 @@ export interface SegmentFundRequest {
 
 export interface FundDetailsRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
+  secretKey?: string;
   segTypes?: string[];
   fundType?: string;
   currency?: string;
@@ -162,6 +188,8 @@ export interface FundDetailsRequest {
 
 export interface FundingHistoryRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
+  secretKey?: string;
   segType?: string;
   currency?: string;
   /** 毫秒时间戳 */
@@ -174,6 +202,8 @@ export interface FundingHistoryRequest {
 
 export interface PositionTransferRequest {
   fromAccount?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
+  secretKey?: string;
   toAccount: string;
   market?: string;
   transfers: Array<{
@@ -190,6 +220,8 @@ export interface PositionTransferRequest {
 export interface PositionTransferRecordsRequest {
   /** wire: account_id */
   accountId?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
+  secretKey?: string;
   sinceDate?: string;
   toDate?: string;
   market?: string;
@@ -199,12 +231,16 @@ export interface PositionTransferRecordsRequest {
 
 export interface PositionTransferDetailRequest {
   accountId?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
+  secretKey?: string;
   id: string;
   lang?: string;
 }
 
 export interface PositionTransferExternalRecordsRequest {
   accountId?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
+  secretKey?: string;
   sinceDate?: string;
   toDate?: string;
   market?: string;
@@ -215,6 +251,7 @@ export interface PositionTransferExternalRecordsRequest {
 /** 行权检验请求 (wire: option_exercise_check) */
 export interface OptionExerciseCheckRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
   secretKey?: string;
   /** 期权合约 ID */
   contractId: number;
@@ -233,6 +270,7 @@ export interface OptionExerciseCheckRequest {
 /** 查询可行权持仓请求 (wire: option_exercise_position) */
 export interface OptionExercisePositionRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
   secretKey?: string;
   /** Exercise | Expire */
   type: string;
@@ -242,6 +280,7 @@ export interface OptionExercisePositionRequest {
 /** 提交行权申请请求 (wire: option_exercise_submit) */
 export interface OptionExerciseSubmitRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
   secretKey?: string;
   contractId: number;
   /** Exercise | Expire */
@@ -259,6 +298,7 @@ export interface OptionExerciseSubmitRequest {
 /** 分页查询行权记录请求 (wire: option_exercise_record) */
 export interface OptionExerciseRecordsRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
   secretKey?: string;
   /** 从 1 开始，默认 1 */
   page?: number;
@@ -277,6 +317,7 @@ export interface OptionExerciseRecordsRequest {
 /** 撤销行权申请请求 (wire: option_exercise_cancel) */
 export interface OptionExerciseCancelRequest {
   account?: string;
+  /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
   secretKey?: string;
   id: number;
   lang?: string;
