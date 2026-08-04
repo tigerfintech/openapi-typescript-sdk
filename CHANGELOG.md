@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.5] - 2026-08-04
+
+### Fixed
+- `SDK_VERSION` 与 `package.json` 版本号不一致：此前停留在 `0.4.8`，导致 HTTP
+  `User-Agent` 与 push 握手的 `sdkVersion` 上报错误版本。现由 `npm run build`
+  自动同步（`scripts/sync-version.mjs`），并新增单测防止再次漂移。
+
 ## [0.5.4] - 2026-07-24
 
 ### Added
