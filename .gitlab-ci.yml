@@ -1,0 +1,100 @@
+# Two-stage pipeline: unit (no credentials) / integration (real API).
+# Mirrors the Go, Python, and Java SDK pipelines.
+#
+# Integration credentials: TIGEROPEN_TIGER_ID, TIGEROPEN_PRIVATE_KEY,
+# TIGEROPEN_ACCOUNT env vars set in GitLab CI Variables (Protected + Masked).
+
+stages:
+  - unit
+  - integration
+
+unit:node:
+  stage: unit
+  before_script:
+    - node --version
+    - npm --version
+    - npm ci
+  script:
+    - npm run test:unit
+  artifacts:
+    when: always
+    paths:
+      - test-results/
+    expire_in: 1 week
+
+integration:node:
+  stage: integration
+  allow_failure: true
+  variables:
+    TIGER_RUN_INTEG: "true"
+  before_script:
+    - node --version
+    - npm --version
+    - npm ci
+  script:
+    - npm run test:integ
+  artifacts:
+    when: always
+    expire_in: 1 week
+
+# Pipeline result notification via chat incoming webhook.
+# WEBHOOK_URL is a masked CI Variable — runs without it simply skip.
+notify:webhook:
+  stage: .post
+  when: always
+  allow_failure: true
+  dependencies: []
+  script:
+    - |
+      if [ -z "$WEBHOOK_URL" ]; then
+        echo "WEBHOOK_URL not configured, skipping notification"
+        exit 0
+      fi
+      API="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}"
+      JOBS_JSON=$(curl -sS --header "JOB-TOKEN: ${CI_JOB_TOKEN}" "${API}/pipelines/${CI_PIPELINE_ID}/jobs" 2>/dev/null || echo "[]")
+      HAS_FAILED="no"
+      FAILED_JOBS=""
+      if command -v python3 >/dev/null 2>&1; then
+        OUT=$(printf '%s' "$JOBS_JSON" | python3 -c "
+import sys,json
+try:
+  js=json.load(sys.stdin)
+  failed=[j['name'] for j in js if j.get('status')=='failed' and not j.get('allow_failure')]
+  print('yes' if failed else 'no')
+  print(', '.join(failed))
+except Exception:
+  print('no'); print('')
+" 2>/dev/null)
+        HAS_FAILED=$(printf '%s\n' "$OUT" | sed -n '1p')
+        FAILED_JOBS=$(printf '%s\n' "$OUT" | sed -n '2p')
+      fi
+      TITLE="✅ Pipeline passed"
+      COLOR="green"
+      if [ "$HAS_FAILED" = "yes" ]; then
+        TITLE="❌ Pipeline failed"
+        COLOR="red"
+      fi
+      CONTENT="**Repo:** ${CI_PROJECT_NAME}\n**Branch:** ${CI_COMMIT_REF_NAME}\n**Commit:** ${CI_COMMIT_SHORT_SHA}\n"
+      if [ -n "$FAILED_JOBS" ]; then
+        CONTENT="${CONTENT}\n**Failed jobs:** ${FAILED_JOBS}\n"
+      fi
+      CONTENT="${CONTENT}[View pipeline](${CI_PROJECT_URL}/-/pipelines/${CI_PIPELINE_ID})"
+      PAYLOAD=$(python3 -c "
+import json, sys
+data = {
+  'msg_type': 'interactive',
+  'card': {
+    'header': {
+      'title': {'tag': 'plain_text', 'content': '$TITLE #${CI_PIPELINE_IID} — ${CI_PROJECT_NAME}'},
+      'template': '$COLOR'
+    },
+    'elements': [
+      {'tag': 'div', 'text': {'tag': 'chat_md', 'content': '$CONTENT'}}
+    ]
+  }
+}
+print(json.dumps(data))
+")
+      curl --fail -sS -X POST "$WEBHOOK_URL" \
+        -H 'Content-Type: application/json' \
+        -d "$PAYLOAD"
