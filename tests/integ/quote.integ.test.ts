@@ -142,6 +142,11 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       expect(Array.isArray(data)).toBe(true);
     });
 
+    it('getStockDelayBriefs — AAPL (deprecated alias)', async () => {
+      const data = await qc.getStockDelayBriefs({ symbols: ['AAPL'] });
+      expect(Array.isArray(data)).toBe(true);
+    });
+
     it('getQuoteOvernight — AAPL', async () => {
       const data = await qc.getQuoteOvernight({ symbols: ['AAPL'] });
       expect(Array.isArray(data)).toBe(true);
@@ -607,9 +612,26 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       expect(Array.isArray(data)).toBe(true);
     });
 
+    it('getWarrantBriefs — HK market (deprecated alias)', async () => {
+      const data = await qc.getWarrantBriefs({ symbols: [] });
+      expect(Array.isArray(data)).toBe(true);
+    });
+
     it('getWarrantFilter — HK market', async () => {
       const data = await qc.getWarrantFilter({ page: 0, pageSize: 5 });
       expect(data === undefined || data === null || typeof data === 'object').toBe(true);
+    });
+  });
+
+  // =========================================================================
+  // Token management
+  // =========================================================================
+
+  describe('Token management', () => {
+    it('queryToken — returns token string', async () => {
+      const token = await qc.queryToken();
+      expect(typeof token).toBe('string');
+      expect(token.length).toBeGreaterThan(0);
     });
   });
 });

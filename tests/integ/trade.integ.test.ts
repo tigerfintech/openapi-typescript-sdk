@@ -19,6 +19,8 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
   // Shared dynamic data resolved in beforeAll
   let filledOrderId: number | undefined;
   let positionSymbol: string | undefined;
+  let positionTransferRecordId: string | undefined;
+  let optionContractId: number | undefined;
 
   beforeAll(async () => {
     tc = buildTradeClient();
@@ -36,6 +38,23 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     try {
       const positions = await tc.getPositions();
       if (positions.length) positionSymbol = positions[0].symbol;
+    } catch { /* best-effort */ }
+
+    // 3. Get a position transfer record id for detail query
+    try {
+      const records = await tc.getPositionTransferRecords({});
+      if (records.length) {
+        const id = (records[0] as any).id ?? (records[0] as any).recordId;
+        if (id) positionTransferRecordId = String(id);
+      }
+    } catch { /* best-effort */ }
+
+    // 4. Get an option contractId from positions (for option exercise check)
+    try {
+      const positions = await tc.getPositions({ secType: 'OPT' });
+      if (positions.length && positions[0].contractId) {
+        optionContractId = positions[0].contractId;
+      }
     } catch { /* best-effort */ }
   });
 
@@ -329,6 +348,17 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         throw err;
       }
     });
+
+    it.skipIf(!positionTransferRecordId)('getPositionTransferDetail — by record id', async () => {
+      try {
+        const data = await tc.getPositionTransferDetail({ id: positionTransferRecordId! });
+        expect(data === undefined || data === null || typeof data === 'object').toBe(true);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/permission|unauthorized|not support|account type|forbidden/i.test(msg)) return;
+        throw err;
+      }
+    });
   });
 
   // =========================================================================
@@ -356,6 +386,80 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         if (/permission|unauthorized|not support|account type|forbidden/i.test(msg)) return;
         throw err;
       }
+    });
+
+    it.skipIf(!optionContractId)('checkOptionExercise — predict exercise outcome', async () => {
+      try {
+        const data = await tc.checkOptionExercise({
+          contractId: optionContractId!,
+          type: 'Exercise',
+        });
+        expect(data === undefined || data === null || typeof data === 'object').toBe(true);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/permission|unauthorized|not support|account type|forbidden/i.test(msg)) return;
+        throw err;
+      }
+    });
+  });
+
+  // =========================================================================
+  // Token management
+  // =========================================================================
+
+  describe('Token management', () => {
+    it('queryToken — returns token string', async () => {
+      const token = await tc.queryToken();
+      expect(typeof token).toBe('string');
+      expect(token.length).toBeGreaterThan(0);
+    });
+  });
+
+  // =========================================================================
+  // Write operations (skipped — mutating, never run against real gateway)
+  // =========================================================================
+
+  describe('Write operations (skipped)', () => {
+    it.skip('placeOrder — skipped (mutating op)', async () => {
+      await tc.placeOrder({
+        symbol: 'AAPL', secType: 'STK', action: 'BUY',
+        orderType: 'LMT', limitPrice: 1, quantity: 1,
+      });
+    });
+
+    it.skip('modifyOrder — skipped (mutating op)', async () => {
+      await tc.modifyOrder(0, {
+        symbol: 'AAPL', secType: 'STK', action: 'BUY',
+        orderType: 'LMT', limitPrice: 1, quantity: 1,
+      });
+    });
+
+    it.skip('cancelOrder — skipped (mutating op)', async () => {
+      await tc.cancelOrder(0);
+    });
+
+    it.skip('placeForexOrder — skipped (mutating op)', async () => {
+      await tc.placeForexOrder({ sourceCurrency: 'USD', targetCurrency: 'HKD' });
+    });
+
+    it.skip('transferSegmentFund — skipped (mutating op)', async () => {
+      await tc.transferSegmentFund({});
+    });
+
+    it.skip('cancelSegmentFund — skipped (mutating op)', async () => {
+      await tc.cancelSegmentFund({});
+    });
+
+    it.skip('transferPosition — skipped (mutating op)', async () => {
+      await tc.transferPosition({ toAccount: '', transfers: [] });
+    });
+
+    it.skip('submitOptionExercise — skipped (mutating op)', async () => {
+      await tc.submitOptionExercise({ contractId: 0, type: 'Exercise', quantity: 1 });
+    });
+
+    it.skip('cancelOptionExercise — skipped (mutating op)', async () => {
+      await tc.cancelOptionExercise({ id: 0 });
     });
   });
 });
