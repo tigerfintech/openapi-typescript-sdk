@@ -317,7 +317,10 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       expect(Array.isArray(data)).toBe(true);
     });
 
-    it('grabQuotePermission', async () => {
+    // grabQuotePermission is a mutating operation (activates/claims quote
+    // permissions) and must not run against the real gateway in integration
+    // tests. It is covered by unit tests with mocked transport instead.
+    it.skip('grabQuotePermission — skipped (mutating op)', async () => {
       const data = await qc.grabQuotePermission();
       expect(Array.isArray(data)).toBe(true);
     });
