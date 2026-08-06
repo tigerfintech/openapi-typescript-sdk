@@ -1,11 +1,8 @@
 # Two-stage pipeline: unit (no credentials) / integration (real API).
-# Mirrors the Go, Python, and Java SDK pipelines.
 #
-# Note: the default runner is a shell executor
-# that ignores the `image:` directive and has no Node.js toolchain
-# preinstalled, so we download a self-contained Node.js tarball in
-# before_script. Java pipelines succeed on the same runner because
-# jdk/maven are preinstalled there.
+# Uses a Docker executor (node:20) tagged 'openapi' for a modern Node.js
+# toolchain and glibc. The previous shell runner had CentOS glibc 2.17,
+# incompatible with Node.js 20 (requires glibc 2.28+).
 #
 # Integration credentials: TIGEROPEN_TIGER_ID, TIGEROPEN_PRIVATE_KEY,
 # TIGEROPEN_ACCOUNT env vars set in GitLab CI Variables (Protected + Masked).
@@ -14,33 +11,17 @@ stages:
   - unit
   - integration
 
-.node_setup: &node_setup
-  - |
-    NODE_VERSION=20.18.0
-    ARCH=$(uname -m | sed 's/x86_64/x64/; s/aarch64/arm64/')
-    if command -v node >/dev/null 2>&1; then
-      echo "Using preinstalled node: $(node --version)"
-    else
-      echo "Installing node ${NODE_VERSION} linux/${ARCH}"
-      TARBALL="node-v${NODE_VERSION}-linux-${ARCH}.tar.gz"
-      # npmmirror.com (public mirror, reliable from domestic runner),
-      # fallback to nodejs.org official dist.
-      # --fail so a soft-404 / HTML error page triggers the fallback instead of
-      # leaving a bogus tarball for `tar` to choke on.
-      curl --fail -sSL --retry 3 "https://npmmirror.com/mirrors/node/v${NODE_VERSION}/${TARBALL}" -o /tmp/node.tar.gz \
-        || curl --fail -sSL --retry 3 "https://nodejs.org/dist/v${NODE_VERSION}/${TARBALL}" -o /tmp/node.tar.gz
-      tar -C /tmp -xzf /tmp/node.tar.gz
-      export PATH="/tmp/node-v${NODE_VERSION}-linux-${ARCH}/bin:${PATH}"
-    fi
-  - node --version
-  - npm --version
-  - npm config set registry https://registry.npmmirror.com
-  - npm ci
+.node_base:
+  image: node:20
+  tags:
+    - openapi
+  before_script:
+    - npm config set registry https://registry.npmmirror.com
+    - npm ci
 
 unit:node:
+  extends: .node_base
   stage: unit
-  before_script:
-    - *node_setup
   script:
     - npm run test:unit
   artifacts:
@@ -50,12 +31,11 @@ unit:node:
     expire_in: 1 week
 
 integration:node:
+  extends: .node_base
   stage: integration
   allow_failure: true
   variables:
     TIGER_RUN_INTEG: "true"
-  before_script:
-    - *node_setup
   script:
     - npm run test:integ
   artifacts:
@@ -79,22 +59,14 @@ notify:webhook:
       fi
       API="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}"
       JOBS_JSON=$(curl -sS --header "JOB-TOKEN: ${CI_JOB_TOKEN}" "${API}/pipelines/${CI_PIPELINE_ID}/jobs" 2>/dev/null || echo "[]")
-      # Decide pass/fail from job statuses rather than CI_PIPELINE_STATUS, which
-      # may still read "running" in a .post when:always job (GitLab known
-      # behaviour). jobs API returns name+status only — no trace, no secrets.
+      # Decide pass/fail from job statuses rather than CI_PIPELINE_STATUS,
+      # which may still read "running" in a .post when:always job (GitLab
+      # known behaviour). jobs API returns name+status only — no trace/secrets.
       # allow_failure soft-fails don't block the pipeline, so don't list them.
       HAS_FAILED="no"
       FAILED_JOBS=""
       if command -v python3 >/dev/null 2>&1; then
-        OUT=$(printf '%s' "$JOBS_JSON" | python3 -c "import sys,json
-      try:
-        js=json.load(sys.stdin)
-        failed=[j['name'] for j in js if j.get('status')=='failed' and not j.get('allow_failure')]
-        print('yes' if failed else 'no')
-        print(', '.join(failed))
-      except Exception:
-        print('no'); print('')
-      " 2>/dev/null)
+        OUT=$(printf '%s' "$JOBS_JSON" | python3 -c "import sys,json; js=json.load(sys.stdin); failed=[j['name'] for j in js if j.get('status')=='failed' and not j.get('allow_failure')]; print('yes' if failed else 'no'); print(', '.join(failed))" 2>/dev/null || printf 'no\n')
         HAS_FAILED=$(printf '%s\n' "$OUT" | sed -n '1p')
         FAILED_JOBS=$(printf '%s\n' "$OUT" | sed -n '2p')
       else
