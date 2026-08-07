@@ -47,6 +47,11 @@ integration:node:
 # that do not configure it simply skip this job, so it is safe to ship in an
 # open-source repo.
 notify:webhook:
+  image: python:3.11-slim
+  tags:
+    - openapi
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq curl
   stage: .post
   when: always
   allow_failure: true
