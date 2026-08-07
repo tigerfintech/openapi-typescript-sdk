@@ -40,7 +40,10 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       if (positions.length) positionSymbol = positions[0].symbol;
     } catch { /* best-effort */ }
 
-    // 3. Get a position transfer record id for detail query
+    // 3. Get a position transfer record id for detail query.
+    // NOTE: The response field name is assumed/unverified — we try both
+    // `id` and `recordId` but neither is confirmed against the actual API
+    // response schema. If both are undefined, the detail test is skipped.
     try {
       const records = await tc.getPositionTransferRecords({});
       if (records.length) {
