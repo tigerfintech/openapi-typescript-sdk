@@ -727,4 +727,148 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       }
     });
   });
+
+  // =========================================================================
+  // Kline time range + OHLC
+  // =========================================================================
+
+  describe('Kline time range + OHLC', () => {
+    it('getKline — 30-day daily AAPL: count>=15, ascending timestamps, OHLC valid', async () => {
+      const now = Date.now();
+      const begin = now - 30 * 24 * 60 * 60 * 1000;
+      const data = await qc.getKline({ symbols: ['AAPL'], period: 'day', beginTime: begin, endTime: now, limit: 60 });
+      expect(Array.isArray(data)).toBe(true);
+      if (!data.length || !(data[0] as any).items?.length) return; // skip if empty
+      const items: any[] = (data[0] as any).items;
+      expect(items.length).toBeGreaterThanOrEqualTo(15);
+      // Timestamps ascending
+      for (let i = 1; i < items.length; i++) {
+        expect(items[i].time).toBeGreaterThan(items[i - 1].time);
+      }
+      // OHLC constraints
+      for (const pt of items) {
+        if (pt.high > 0 && pt.low > 0) expect(pt.high).toBeGreaterThanOrEqualTo(pt.low);
+        if (pt.high > 0 && pt.open > 0) expect(pt.high).toBeGreaterThanOrEqualTo(pt.open);
+        if (pt.high > 0 && pt.close > 0) expect(pt.high).toBeGreaterThanOrEqualTo(pt.close);
+        if (pt.low > 0 && pt.open > 0) expect(pt.open).toBeGreaterThanOrEqualTo(pt.low);
+        if (pt.low > 0 && pt.close > 0) expect(pt.close).toBeGreaterThanOrEqualTo(pt.low);
+        if (pt.volume !== undefined) expect(pt.volume).toBeGreaterThanOrEqualTo(0);
+      }
+    });
+
+    it('getKline — 30-day daily 00700: count>=15, ascending timestamps, OHLC valid', async () => {
+      const now = Date.now();
+      const begin = now - 30 * 24 * 60 * 60 * 1000;
+      const data = await qc.getKline({ symbols: ['00700'], period: 'day', beginTime: begin, endTime: now, limit: 60 });
+      expect(Array.isArray(data)).toBe(true);
+      if (!data.length || !(data[0] as any).items?.length) return; // skip if empty
+      const items: any[] = (data[0] as any).items;
+      expect(items.length).toBeGreaterThanOrEqualTo(15);
+      for (let i = 1; i < items.length; i++) {
+        expect(items[i].time).toBeGreaterThan(items[i - 1].time);
+      }
+      for (const pt of items) {
+        if (pt.high > 0 && pt.low > 0) expect(pt.high).toBeGreaterThanOrEqualTo(pt.low);
+        if (pt.high > 0 && pt.open > 0) expect(pt.high).toBeGreaterThanOrEqualTo(pt.open);
+        if (pt.high > 0 && pt.close > 0) expect(pt.high).toBeGreaterThanOrEqualTo(pt.close);
+        if (pt.low > 0 && pt.open > 0) expect(pt.open).toBeGreaterThanOrEqualTo(pt.low);
+        if (pt.low > 0 && pt.close > 0) expect(pt.close).toBeGreaterThanOrEqualTo(pt.low);
+        if (pt.volume !== undefined) expect(pt.volume).toBeGreaterThanOrEqualTo(0);
+      }
+    });
+
+    it('getKline — 60min intraday AAPL 5 days: count>=5, ascending, OHLC valid', async () => {
+      const now = Date.now();
+      const begin = now - 5 * 24 * 60 * 60 * 1000;
+      // Non-trading periods may return empty — only assert when data present
+      const data = await qc.getKline({ symbols: ['AAPL'], period: '60min', beginTime: begin, endTime: now });
+      expect(Array.isArray(data)).toBe(true);
+      if (!data.length || !(data[0] as any).items?.length) return;
+      const items: any[] = (data[0] as any).items;
+      expect(items.length).toBeGreaterThanOrEqualTo(5);
+      for (let i = 1; i < items.length; i++) {
+        expect(items[i].time).toBeGreaterThan(items[i - 1].time);
+      }
+      for (const pt of items) {
+        if (pt.high > 0 && pt.low > 0) expect(pt.high).toBeGreaterThanOrEqualTo(pt.low);
+        if (pt.volume !== undefined) expect(pt.volume).toBeGreaterThanOrEqualTo(0);
+      }
+    });
+  });
+
+  // =========================================================================
+  // Quote depth ordering
+  // =========================================================================
+
+  describe('Quote depth ordering', () => {
+    it('getQuoteDepth — AAPL US: asks ascending, bids descending, spread>=0, prices>0', async () => {
+      const data = await qc.getQuoteDepth({ symbols: ['AAPL'], market: 'US' });
+      expect(Array.isArray(data)).toBe(true);
+      if (!data.length) return; // non-trading hours
+      const item = data[0] as any;
+      const asks: any[] = item.asks ?? [];
+      const bids: any[] = item.bids ?? [];
+      if (asks.length >= 2) {
+        for (let i = 1; i < asks.length; i++) {
+          expect(asks[i].price).toBeGreaterThanOrEqualTo(asks[i - 1].price);
+        }
+        for (const a of asks) expect(a.price).toBeGreaterThan(0);
+      }
+      if (bids.length >= 2) {
+        for (let i = 1; i < bids.length; i++) {
+          expect(bids[i].price).toBeLessThanOrEqualTo(bids[i - 1].price);
+        }
+        for (const b of bids) expect(b.price).toBeGreaterThan(0);
+      }
+      if (asks.length > 0 && bids.length > 0) {
+        expect(asks[0].price - bids[0].price).toBeGreaterThanOrEqualTo(0);
+      }
+    });
+
+    it('getQuoteDepth — 00700 HK: asks ascending, bids descending, spread>=0, prices>0', async () => {
+      const data = await qc.getQuoteDepth({ symbols: ['00700'], market: 'HK' });
+      expect(Array.isArray(data)).toBe(true);
+      if (!data.length) return; // non-trading hours
+      const item = data[0] as any;
+      const asks: any[] = item.asks ?? [];
+      const bids: any[] = item.bids ?? [];
+      if (asks.length >= 2) {
+        for (let i = 1; i < asks.length; i++) {
+          expect(asks[i].price).toBeGreaterThanOrEqualTo(asks[i - 1].price);
+        }
+        for (const a of asks) expect(a.price).toBeGreaterThan(0);
+      }
+      if (bids.length >= 2) {
+        for (let i = 1; i < bids.length; i++) {
+          expect(bids[i].price).toBeLessThanOrEqualTo(bids[i - 1].price);
+        }
+        for (const b of bids) expect(b.price).toBeGreaterThan(0);
+      }
+      if (asks.length > 0 && bids.length > 0) {
+        expect(asks[0].price - bids[0].price).toBeGreaterThanOrEqualTo(0);
+      }
+    });
+  });
+
+  // =========================================================================
+  // Brief multi-market
+  // =========================================================================
+
+  describe('Brief multi-market', () => {
+    it('getBrief — AAPL+00700+09988: latestPrice>0, High>=Low, AskPrice>=BidPrice', async () => {
+      const data = await qc.getBrief({ symbols: ['AAPL', '00700', '09988'] });
+      expect(Array.isArray(data)).toBe(true);
+      if (!data.length) return; // non-trading hours
+      for (const q of data as any[]) {
+        expect(q.symbol).toBeTruthy();
+        expect(q.latestPrice).toBeGreaterThan(0);
+        if (q.high > 0 && q.low > 0) {
+          expect(q.high).toBeGreaterThanOrEqualTo(q.low);
+        }
+        if (q.askPrice > 0 && q.bidPrice > 0) {
+          expect(q.askPrice).toBeGreaterThanOrEqualTo(q.bidPrice);
+        }
+      }
+    });
+  });
 });

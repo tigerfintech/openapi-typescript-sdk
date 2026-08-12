@@ -160,7 +160,7 @@ export interface KlineQuotaRequest {
   lang?: string;
 }
 
-/** Quote permission detail. wire: get_quote_permission */
+/** Market data permission entry request. wire: get_quote_permission */
 export interface QuotePermissionRequest {
   beginDate?: string;
   endDate?: string;
