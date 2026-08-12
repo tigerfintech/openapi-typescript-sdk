@@ -5,7 +5,7 @@
  * Batch 3-5 methods (stock details, symbols, trade metas, delayed quotes,
  * kline pagination, timeline history, trade rank, short interest,
  * broker queue, stock fundamentals, stock industry, kline quota,
- * quote permission, option methods, futures, funds, warrants,
+ * market data permission entries, option methods, futures, funds, warrants,
  * industries, corporate actions, financial, calendar, etc.)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -149,7 +149,7 @@ describe('QuoteClient additional methods', () => {
     });
   });
 
-  describe('Batch 3: Kline quota and quote permission', () => {
+  describe('Batch 3: Kline quota and market data permission entries', () => {
     it('getKlineQuota sends kline_quota', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ method: 'kline', used: 10, quota: 100 }));
       const result = await qc.getKlineQuota({});

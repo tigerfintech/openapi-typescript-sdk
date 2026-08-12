@@ -553,7 +553,7 @@ export class QuoteClient {
     return this.callInto<StockIndustry[]>('stock_industry', req);
   }
 
-  /** Quote permission detail. wire: get_quote_permission */
+  /** Market data permission entries. wire: get_quote_permission */
   async getQuotePermission(req: QuotePermissionRequest): Promise<QuotePermission[]> {
     return this.callInto<QuotePermission[]>('get_quote_permission', req);
   }
