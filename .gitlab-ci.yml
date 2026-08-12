@@ -22,11 +22,14 @@ stages:
 unit:node:
   extends: .node_base
   stage: unit
+  timeout: 10 minutes
   script:
     - mkdir -p test-results
     # JUnit XML for notify job + GitLab test report widget.
     # --reporter=default keeps console output; --reporter=junit writes XML.
-    - npx vitest run --config vitest.config.ts --reporter=default --reporter=junit --outputFile=test-results/unit.xml
+    # --testTimeout=30000: kill any single test that hangs >30s (prevents
+    # the job from silently timing out against the runner's global limit).
+    - npx vitest run --config vitest.config.ts --reporter=default --reporter=junit --outputFile=test-results/unit.xml --testTimeout=30000
   artifacts:
     when: always
     paths:
