@@ -836,7 +836,7 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       }
       if (bids.length >= 2) {
         for (let i = 1; i < bids.length; i++) {
-          expect(bids[i].price).toBeLessThanOrEqualTo(bids[i - 1].price);
+          expect(bids[i].price).toBeLessThanOrEqual(bids[i - 1].price);
         }
         for (const b of bids) expect(b.price).toBeGreaterThan(0);
       }
@@ -860,7 +860,7 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       }
       if (bids.length >= 2) {
         for (let i = 1; i < bids.length; i++) {
-          expect(bids[i].price).toBeLessThanOrEqualTo(bids[i - 1].price);
+          expect(bids[i].price).toBeLessThanOrEqual(bids[i - 1].price);
         }
         for (const b of bids) expect(b.price).toBeGreaterThan(0);
       }

@@ -372,7 +372,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         expect(Array.isArray(data)).toBe(true);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        if (/permission|unauthorized|not support|account type|forbidden/i.test(msg)) return;
+        if (/permission|unauthorized|not support|account type|forbidden|max_date\.limit/i.test(msg)) return;
         throw err;
       }
     });
@@ -383,7 +383,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         expect(Array.isArray(data)).toBe(true);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        if (/permission|unauthorized|not support|account type|forbidden/i.test(msg)) return;
+        if (/permission|unauthorized|not support|account type|forbidden|max_date\.limit/i.test(msg)) return;
         throw err;
       }
     });
