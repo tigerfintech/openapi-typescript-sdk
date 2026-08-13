@@ -205,10 +205,25 @@ export interface OrderLegRequest {
   quantity?: number;
 }
 
-/** Algo parameters for request side */
+/**
+ * Algo parameters for request side (TWAP / VWAP).
+ *
+ * Fields match the Python SDK's AlgoParams. On the wire, the SDK marshals
+ * this object into the `[{tag, value}, ...]` array shape the gateway
+ * expects — callers should just pass the natural object.
+ *
+ * `algoStrategy` is intentionally not here: it lives on the parent
+ * `OrderRequest`, not inside `algoParams`.
+ */
 export interface AlgoParamsRequest {
-  algoStrategy?: string;
-  startTime?: string;
-  endTime?: string;
+  /** Epoch-ms start time (TWAP / VWAP only) */
+  startTime?: number;
+  /** Epoch-ms end time (TWAP / VWAP only) */
+  endTime?: number;
+  /** Try to minimize trade count (VWAP only) */
+  noTakeLiq?: boolean;
+  /** Allow completing after end_time (TWAP / VWAP only) */
+  allowPastEndTime?: boolean;
+  /** Participation rate 0.01–0.5 (VWAP only) */
   participationRate?: number;
 }
