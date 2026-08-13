@@ -640,6 +640,10 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       /already (canc|cancell)ed/i,
       /already filled/i,
       /invalid order status/i,
+      // HK auction window rejects cancels during specific pre-open phases;
+      // the order was accepted, we just can't cancel it right now.
+      /cancellation is not allowed/i,
+      /cancel is not allowed/i,
     ];
 
     const RATE_LIMIT_PATTERNS = [
