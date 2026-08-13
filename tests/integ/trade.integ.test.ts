@@ -627,6 +627,11 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       /does not support stock (long|short)/i,
       /only trade cash order by market order/i,
       /cash order by market order/i,
+      // Generic system error thrown by the gateway for specific instrument
+      // states (e.g. an HK IOPT contract that's expired or in a special
+      // trading state); treat as a boundary condition.
+      /^System error$/,
+      /bad_request:System error/,
     ];
 
     const TERMINAL_ORDER_PATTERNS = [
