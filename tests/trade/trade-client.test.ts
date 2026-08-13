@@ -131,6 +131,60 @@ describe('TradeClient', () => {
       expect(legs[0].sec_type).toBe('OPT');
       expect(legs[0].ratio).toBe(1);
     });
+
+    it('placeOrder 把 algoParams 对象序列化成 [{tag,value}] 数组', async () => {
+      // Gateway 期望 algo_params 是 tag/value 数组(见 Python SDK 的
+      // AlgoParams.to_dict),而不是直接的 object。TradeClient 内部要做这层转换,
+      // 用户传自然的 object 就行。
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ id: 1 }));
+      const now = 1700000000000;
+      await tc.placeOrder({
+        symbol: 'AAPL', secType: 'STK', action: 'BUY',
+        orderType: 'TWAP', totalQuantity: 100,
+        algoStrategy: 'TWAP',
+        algoParams: {
+          startTime: now,
+          endTime: now + 3_600_000,
+          allowPastEndTime: true,
+        },
+      });
+      const biz = capturedBiz(mockHttpClient);
+      const algo = biz.algo_params as Array<{ tag: string; value: unknown }>;
+      expect(Array.isArray(algo)).toBe(true);
+      expect(algo).toContainEqual({ tag: 'start_time', value: now });
+      expect(algo).toContainEqual({ tag: 'end_time', value: now + 3_600_000 });
+      expect(algo).toContainEqual({ tag: 'allow_past_end_time', value: true });
+      // algoStrategy 保持在顶层
+      expect(biz.algo_strategy).toBe('TWAP');
+    });
+
+    it('placeOrder 保留已经是数组形式的 algoParams(高级用法)', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ id: 1 }));
+      const raw = [{ tag: 'start_time', value: 123 }];
+      await tc.placeOrder({
+        symbol: 'AAPL', secType: 'STK', action: 'BUY',
+        orderType: 'TWAP', totalQuantity: 100,
+        algoParams: raw as unknown as OrderRequest['algoParams'],
+      });
+      const biz = capturedBiz(mockHttpClient);
+      expect(biz.algo_params).toEqual(raw);
+    });
+
+    it('placeOrder 过滤 algoParams 里的 undefined/null 值', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ id: 1 }));
+      await tc.placeOrder({
+        symbol: 'AAPL', secType: 'STK', action: 'BUY',
+        orderType: 'VWAP', totalQuantity: 100,
+        algoParams: {
+          startTime: 123,
+          endTime: undefined,
+          participationRate: 0.1,
+        },
+      });
+      const algo = capturedBiz(mockHttpClient).algo_params as Array<{ tag: string; value: unknown }>;
+      expect(algo).toHaveLength(2);
+      expect(algo.map(e => e.tag).sort()).toEqual(['participation_rate', 'start_time']);
+    });
   });
 
   describe('订单查询方法', () => {

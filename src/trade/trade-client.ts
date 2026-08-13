@@ -185,16 +185,57 @@ export class TradeClient {
 
   // === Order operations ===
 
+  /**
+   * Prepare an order request for the wire.
+   *
+   * The gateway expects `algo_params` as a `[{tag, value}, ...]` array
+   * (matching the Python SDK's AlgoParams.to_dict serialization), not the
+   * plain object shape that reads naturally in TypeScript. This helper
+   * normalizes the object form into the array form on outbound payloads
+   * so callers can pass the natural object and TWAP/VWAP orders work end
+   * to end without wire-format workarounds.
+   *
+   * Fields with undefined/null values are dropped; empty algoParams
+   * becomes an empty array rather than being stripped, matching the
+   * Python SDK behavior when the user passes an empty AlgoParams().
+   */
+  private marshalOrderForWire(order: OrderRequest): Record<string, unknown> {
+    const { algoParams, ...rest } = order;
+    const withAccount: Record<string, unknown> = { ...rest, account: this.account };
+    if (algoParams === undefined) return withAccount;
+
+    // Already a tag/value array (advanced callers who want raw control)
+    if (Array.isArray(algoParams)) {
+      withAccount.algoParams = algoParams;
+      return withAccount;
+    }
+
+    // Object shape → tag/value array. Note: keys stay camelCase; the
+    // outer `keysToSnakeCase` pass converts `tag` inside each entry
+    // AS-IS (already lowercase) and the object still round-trips because
+    // the `tag` field holds the snake_case key literally.
+    const tagValues: Array<{ tag: string; value: unknown }> = [];
+    for (const [key, value] of Object.entries(algoParams)) {
+      if (value === undefined || value === null) continue;
+      // Convert key to snake_case here so it lands in `tag` correctly —
+      // keysToSnakeCase won't rewrite string *values*, only keys.
+      const snakeKey = key.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+      tagValues.push({ tag: snakeKey, value });
+    }
+    withAccount.algoParams = tagValues;
+    return withAccount;
+  }
+
   async placeOrder(order: OrderRequest): Promise<PlaceOrderResult | undefined> {
-    return this.callInto<PlaceOrderResult>('place_order', { ...order, account: this.account });
+    return this.callInto<PlaceOrderResult>('place_order', this.marshalOrderForWire(order));
   }
 
   async previewOrder(order: OrderRequest): Promise<PreviewResult | undefined> {
-    return this.callInto<PreviewResult>('preview_order', { ...order, account: this.account });
+    return this.callInto<PreviewResult>('preview_order', this.marshalOrderForWire(order));
   }
 
   async modifyOrder(id: number | string, order: OrderRequest): Promise<OrderIdResult | undefined> {
-    return this.callInto<OrderIdResult>('modify_order', { ...order, account: this.account, id });
+    return this.callInto<OrderIdResult>('modify_order', { ...this.marshalOrderForWire(order), id });
   }
 
   async cancelOrder(id: number | string, secretKey?: string): Promise<OrderIdResult | undefined> {
