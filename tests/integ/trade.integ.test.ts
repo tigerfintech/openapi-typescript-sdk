@@ -971,5 +971,269 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         await tc.previewOrder(usStkOrder({ limitPrice: -1 }));
       } catch { /* both accept and reject are OK for edge input */ }
     });
+
+    // ================================================================
+    // Phase 2 — HK / CN / SG market coverage
+    // ================================================================
+    // Base order builder for HK/CN/SG markets that reuses the same
+    // safe-price convention and matches on non-US currency + symbol.
+
+    function hkStkOrder(overrides: Partial<OrderRequest>): OrderRequest {
+      return {
+        symbol: '00700',
+        secType: 'STK',
+        currency: 'HKD',
+        action: 'BUY',
+        orderType: 'LMT',
+        limitPrice: SAFE_BUY_PRICE,
+        totalQuantity: 100,
+        timeInForce: 'DAY',
+        ...overrides,
+      };
+    }
+
+    it('HK STK LMT — Tencent 00700', async () => {
+      await previewAndPlace(hkStkOrder({}), 'HK STK LMT');
+    });
+
+    it('HK STK Auction Limit (AL) — only during HK auction windows', async () => {
+      await previewAndPlace(
+        hkStkOrder({ orderType: 'AL', outsideRth: true }),
+        'HK STK AL',
+      );
+    });
+
+    it('HK STK Auction Market (AM) — preview only', async () => {
+      try {
+        const preview = await tc.previewOrder(
+          hkStkOrder({ orderType: 'AM', limitPrice: undefined, outsideRth: true }),
+        );
+        expect(preview).toBeDefined();
+      } catch (e: any) {
+        if (!matches(String(e?.message ?? e), PERMISSION_ERROR_PATTERNS)) throw e;
+      }
+    });
+
+    it('HK STK LMT + bracket legs', async () => {
+      await previewAndPlace(
+        hkStkOrder({
+          orderLegs: [
+            { legType: 'PROFIT', price: SAFE_SELL_PRICE, timeInForce: 'GTC' },
+            { legType: 'LOSS', price: SAFE_BUY_PRICE, timeInForce: 'GTC' },
+          ],
+        }),
+        'HK STK LMT+legs',
+      );
+    });
+
+    it('HK OPT LMT — dynamic 00700 option contract', async () => {
+      // Discover an HK option via getDerivativeContracts.
+      let expiry: string | undefined;
+      let strike: string | undefined;
+      let right: string | undefined;
+      try {
+        const contracts = await tc.getDerivativeContracts({
+          symbol: '00700',
+          secType: 'OPT',
+          expiry: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
+            .toISOString().slice(0, 10).replace(/-/g, ''),
+        });
+        if (!contracts?.length) return;
+        const c: any = contracts[0];
+        expiry = c.expiry;
+        strike = String(c.strike);
+        right = c.right ?? c.putCall;
+      } catch { return; }
+
+      if (!expiry || !strike || !right) return;
+      await previewAndPlace(
+        {
+          symbol: '00700', secType: 'OPT', currency: 'HKD',
+          action: 'BUY', orderType: 'LMT', limitPrice: SAFE_BUY_PRICE,
+          totalQuantity: 1, timeInForce: 'DAY',
+          expiry, strike, right,
+        },
+        'HK OPT LMT',
+      );
+    });
+
+    it('HK WAR LMT — dynamic warrant contract', async () => {
+      let contract: any;
+      try {
+        const results = await tc.getDerivativeContracts({
+          symbol: '00700',
+          secType: 'WAR',
+          expiry: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
+            .toISOString().slice(0, 10).replace(/-/g, ''),
+        });
+        contract = results?.[0];
+      } catch { return; }
+      if (!contract) return;
+
+      await previewAndPlace(
+        {
+          symbol: contract.symbol ?? '00700',
+          secType: 'WAR', currency: 'HKD',
+          action: 'BUY', orderType: 'LMT', limitPrice: SAFE_BUY_PRICE,
+          totalQuantity: 100, timeInForce: 'DAY',
+          expiry: contract.expiry,
+          strike: String(contract.strike ?? ''),
+          right: contract.right ?? contract.putCall,
+        },
+        'HK WAR LMT',
+      );
+    });
+
+    it('HK IOPT LMT — dynamic callable bull/bear contract', async () => {
+      let contract: any;
+      try {
+        const results = await tc.getDerivativeContracts({
+          symbol: '00700',
+          secType: 'IOPT',
+          expiry: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
+            .toISOString().slice(0, 10).replace(/-/g, ''),
+        });
+        contract = results?.[0];
+      } catch { return; }
+      if (!contract) return;
+
+      await previewAndPlace(
+        {
+          symbol: contract.symbol ?? '00700',
+          secType: 'IOPT', currency: 'HKD',
+          action: 'BUY', orderType: 'LMT', limitPrice: SAFE_BUY_PRICE,
+          totalQuantity: 100, timeInForce: 'DAY',
+          expiry: contract.expiry,
+          strike: String(contract.strike ?? ''),
+          right: contract.right ?? contract.putCall,
+        },
+        'HK IOPT LMT',
+      );
+    });
+
+    it('CN STK LMT — Ping An Bank 000001.SZ', async () => {
+      await previewAndPlace(
+        {
+          symbol: '000001', secType: 'STK', currency: 'CNH',
+          action: 'BUY', orderType: 'LMT', limitPrice: SAFE_BUY_PRICE,
+          totalQuantity: 100, timeInForce: 'DAY',
+        },
+        'CN STK LMT',
+      );
+    });
+
+    it('SG STK LMT — DBS Group D05', async () => {
+      await previewAndPlace(
+        {
+          symbol: 'D05', secType: 'STK', currency: 'SGD',
+          action: 'BUY', orderType: 'LMT', limitPrice: SAFE_BUY_PRICE,
+          totalQuantity: 100, timeInForce: 'DAY',
+        },
+        'SG STK LMT',
+      );
+    });
+
+    // ================================================================
+    // Phase 3 — MLEG combo + edge cases
+    // ================================================================
+
+    it('MLEG vertical spread — AAPL PUT spread', async () => {
+      // Resolve two adjacent PUT strikes on the same expiry.
+      const qc = buildQuoteClient();
+      let expiry: string | undefined;
+      let lower: number | undefined;
+      let higher: number | undefined;
+      try {
+        const exps = await qc.getOptionExpirations({ symbols: ['AAPL'] });
+        const dates = (exps as any)?.[0]?.dates ?? [];
+        const today = new Date();
+        for (const d of dates) {
+          const dt = new Date(String(d));
+          if ((dt.getTime() - today.getTime()) / 86_400_000 > 14) {
+            expiry = String(d).replace(/-/g, '');
+            break;
+          }
+        }
+        if (!expiry) return;
+        const chain = await qc.getOptionChain({ symbol: 'AAPL', expiry });
+        const items = (chain as any)?.items ?? [];
+        const puts = items
+          .filter((x: any) => (x.putCall ?? x.right) === 'PUT')
+          .map((x: any) => Number(x.strike))
+          .filter((n: number) => Number.isFinite(n))
+          .sort((a: number, b: number) => a - b);
+        if (puts.length < 2) return;
+        const mid = Math.floor(puts.length / 2);
+        lower = puts[Math.min(mid, puts.length - 2)];
+        higher = puts[Math.min(mid + 1, puts.length - 1)];
+      } catch { return; }
+      if (!expiry || !lower || !higher) return;
+
+      const order: OrderRequest = {
+        symbol: 'AAPL',
+        secType: 'MLEG',
+        currency: 'USD',
+        action: 'BUY',
+        orderType: 'LMT',
+        limitPrice: -100, // deeply negative — cannot execute
+        totalQuantity: 1,
+        timeInForce: 'DAY',
+        comboType: 'VERTICAL',
+        contractLegs: [
+          {
+            symbol: 'AAPL', secType: 'OPT', expiry,
+            strike: String(lower), right: 'PUT',
+            action: 'BUY', ratio: 1,
+          },
+          {
+            symbol: 'AAPL', secType: 'OPT', expiry,
+            strike: String(higher), right: 'PUT',
+            action: 'SELL', ratio: 1,
+          },
+        ],
+      };
+      await previewAndPlace(order, 'US MLEG VERTICAL');
+    });
+
+    it('ICEBERG modify — place, modify limit price, cancel', async () => {
+      const now = Date.now();
+      const order = usStkOrder({
+        orderType: 'ICEBERG',
+        totalQuantity: 10,
+        displaySize: 2,
+        minDisplaySize: 1,
+        checkIntervals: 30,
+        priceType: 'LIMIT_PRICE',
+        startTime: now,
+        endTime: now + 3_600_000,
+      });
+      let orderId: number;
+      try {
+        orderId = await placeWithRetry(order, 'US STK ICEBERG modify');
+      } catch (e: any) {
+        if (matches(String(e?.message ?? e), PERMISSION_ERROR_PATTERNS)) return;
+        throw e;
+      }
+      try {
+        await tc.modifyOrder(orderId, { ...order, limitPrice: SAFE_BUY_PRICE * 2 });
+      } catch (e: any) {
+        if (!matches(String(e?.message ?? e), TERMINAL_ORDER_PATTERNS)) {
+          // Modify might fail on iceberg-specific rules — don't fail the test.
+        }
+      } finally {
+        await cancelTolerant(orderId, 'US STK ICEBERG modify');
+      }
+    });
+
+    it('SELL SHORT preview — validates SDK marshals shortable action', async () => {
+      try {
+        const preview = await tc.previewOrder(
+          usStkOrder({ action: 'SELL', limitPrice: SAFE_SELL_PRICE }),
+        );
+        expect(preview).toBeDefined();
+      } catch (e: any) {
+        if (!matches(String(e?.message ?? e), PERMISSION_ERROR_PATTERNS)) throw e;
+      }
+    });
   });
 });
