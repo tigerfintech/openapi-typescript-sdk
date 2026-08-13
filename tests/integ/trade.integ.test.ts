@@ -632,6 +632,11 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       // trading state); treat as a boundary condition.
       /^System error$/,
       /bad_request:System error/,
+      // Algo orders (TWAP / VWAP): start_time must be inside the market's
+      // regular trading window. CI runs outside RTH — treat as skip.
+      /time range for the order/i,
+      // Fractional-share (cashAmount) orders require RTH — same reason.
+      /Only regular trading hours supported when trading fractional shares/i,
     ];
 
     const TERMINAL_ORDER_PATTERNS = [
