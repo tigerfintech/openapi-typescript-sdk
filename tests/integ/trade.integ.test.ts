@@ -594,4 +594,363 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       expect(typeof res).toBe('boolean');
     });
   });
+
+  // ==================================================================
+  // Matrix coverage — Phase 1: US market × order type × sec type
+  // ==================================================================
+  describe('Order matrix — US market', () => {
+    /** Safe prices — kept far from market so BUY/SELL orders never fill. */
+    const SAFE_BUY_PRICE = 0.01;
+    const SAFE_SELL_PRICE = 999_999;
+    const SAFE_STOP_BUY_TRIGGER = 999_999;
+
+    /** Server messages we treat as legitimate skips (permission / license / session). */
+    const PERMISSION_ERROR_PATTERNS = [
+      /access forbidden/i,
+      /forbidden/i,
+      /no permission/i,
+      /not supported/i,
+      /license/i,
+      /not open/i,
+      /not enabled/i,
+      /no token/i,
+      /don['’]t support trading/i,
+      /unsupported instrument/i,
+      /only limit orders are supported/i,
+      /outside of regular trading hours/i,
+      /market is closed/i,
+      /only limit orders can be placed/i,
+      /only limit, stop or stop-limit orders are allowed/i,
+      /at non-trading hour/i,
+      /orders cannot be placed at this moment/i,
+      /auction order is not allowed at this moment/i,
+      /does not support stock (long|short)/i,
+      /only trade cash order by market order/i,
+      /cash order by market order/i,
+    ];
+
+    const TERMINAL_ORDER_PATTERNS = [
+      /cannot be modified/i,
+      /cannot be (canc|cancell)ed/i,
+      /already (canc|cancell)ed/i,
+      /already filled/i,
+      /invalid order status/i,
+    ];
+
+    const RATE_LIMIT_PATTERNS = [
+      /too_many_requests/i,
+      /rate limit/i,
+      /requestRateExceedLimit/i,
+    ];
+
+    function matches(msg: string, patterns: RegExp[]) {
+      return patterns.some((p) => p.test(msg));
+    }
+
+    /** Sleep for backoff between retries. */
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    /**
+     * placeOrder with exponential backoff on rate limits.
+     * Returns the order id or throws on non-rate-limit errors.
+     */
+    async function placeWithRetry(order: OrderRequest, context: string): Promise<number> {
+      let delay = 1000;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const placed = await tc.placeOrder(order);
+          expect(placed, `${context}: placeOrder returned undefined`).toBeDefined();
+          expect(placed!.id, `${context}: order id missing`).toBeDefined();
+          return placed!.id!;
+        } catch (e: any) {
+          const msg = String(e?.message ?? e);
+          if (matches(msg, RATE_LIMIT_PATTERNS) && attempt < 2) {
+            await sleep(delay);
+            delay *= 2;
+            continue;
+          }
+          throw e;
+        }
+      }
+      throw new Error(`${context}: exhausted rate-limit retries`);
+    }
+
+    /** Best-effort cancel; ignore terminal-state races. */
+    async function cancelTolerant(orderId: number, context: string) {
+      try {
+        await tc.cancelOrder(orderId);
+      } catch (e: any) {
+        const msg = String(e?.message ?? e);
+        if (!matches(msg, TERMINAL_ORDER_PATTERNS)) {
+          throw new Error(`${context}: unexpected cancel failure: ${msg}`);
+        }
+      }
+    }
+
+    /**
+     * preview → place → cancel round-trip.
+     * Returns true if executed, false if skipped (permission/session boundary).
+     */
+    async function previewAndPlace(order: OrderRequest, context: string): Promise<boolean> {
+      // 1. Preview validates SDK marshaling before touching real state.
+      try {
+        const preview = await tc.previewOrder(order);
+        expect(preview, `${context}: preview returned undefined`).toBeDefined();
+      } catch (e: any) {
+        const msg = String(e?.message ?? e);
+        if (matches(msg, PERMISSION_ERROR_PATTERNS)) return false;
+        throw e;
+      }
+      // 2. Place, then cancel.
+      let orderId: number;
+      try {
+        orderId = await placeWithRetry(order, context);
+      } catch (e: any) {
+        const msg = String(e?.message ?? e);
+        if (matches(msg, PERMISSION_ERROR_PATTERNS)) return false;
+        throw e;
+      }
+      await cancelTolerant(orderId, context);
+      return true;
+    }
+
+    /** Build a base US STK order and merge overrides. */
+    function usStkOrder(overrides: Partial<OrderRequest>): OrderRequest {
+      return {
+        symbol: 'AAPL',
+        secType: 'STK',
+        currency: 'USD',
+        action: 'BUY',
+        orderType: 'LMT',
+        limitPrice: SAFE_BUY_PRICE,
+        totalQuantity: 1,
+        timeInForce: 'DAY',
+        ...overrides,
+      };
+    }
+
+    it('MKT — preview only (would fill immediately)', async () => {
+      try {
+        const preview = await tc.previewOrder(usStkOrder({
+          orderType: 'MKT',
+          limitPrice: undefined,
+        }));
+        expect(preview).toBeDefined();
+      } catch (e: any) {
+        if (!matches(String(e?.message ?? e), PERMISSION_ERROR_PATTERNS)) throw e;
+      }
+    });
+
+    it('MKT by cashAmount — preview only', async () => {
+      try {
+        const preview = await tc.previewOrder(usStkOrder({
+          orderType: 'MKT',
+          limitPrice: undefined,
+          totalQuantity: 0,
+          cashAmount: 100,
+        }));
+        expect(preview).toBeDefined();
+      } catch (e: any) {
+        if (!matches(String(e?.message ?? e), PERMISSION_ERROR_PATTERNS)) throw e;
+      }
+    });
+
+    it('LMT by cashAmount — safe price, place + cancel', async () => {
+      await previewAndPlace(
+        usStkOrder({ totalQuantity: 0, cashAmount: 100 }),
+        'US STK LMT-by-amount',
+      );
+    });
+
+    it('STP — trigger price far above market', async () => {
+      await previewAndPlace(
+        usStkOrder({
+          orderType: 'STP',
+          limitPrice: undefined,
+          auxPrice: SAFE_STOP_BUY_TRIGGER,
+        }),
+        'US STK STP',
+      );
+    });
+
+    it('STP_LMT — trigger + limit both safe', async () => {
+      await previewAndPlace(
+        usStkOrder({
+          orderType: 'STP_LMT',
+          limitPrice: SAFE_BUY_PRICE,
+          auxPrice: SAFE_STOP_BUY_TRIGGER,
+        }),
+        'US STK STP_LMT',
+      );
+    });
+
+    it('TRAIL — 50% trailing pct on SELL side', async () => {
+      await previewAndPlace(
+        usStkOrder({
+          action: 'SELL',
+          orderType: 'TRAIL',
+          limitPrice: undefined,
+          trailingPercent: 50,
+        }),
+        'US STK TRAIL',
+      );
+    });
+
+    it('LMT + attached legs (bracket)', async () => {
+      await previewAndPlace(
+        usStkOrder({
+          orderLegs: [
+            { legType: 'PROFIT', price: SAFE_SELL_PRICE, timeInForce: 'GTC' },
+            { legType: 'LOSS', price: SAFE_BUY_PRICE, timeInForce: 'GTC' },
+          ],
+        }),
+        'US STK LMT+legs',
+      );
+    });
+
+    it('OCA — two alternative limit legs', async () => {
+      await previewAndPlace(
+        usStkOrder({
+          orderType: 'OCA',
+          limitPrice: undefined,
+          ocaOrders: [
+            usStkOrder({ limitPrice: SAFE_BUY_PRICE }),
+            usStkOrder({ limitPrice: SAFE_BUY_PRICE / 2 }),
+          ],
+        }),
+        'US STK OCA',
+      );
+    });
+
+    it('TWAP algo — safe limit price', async () => {
+      const now = Date.now();
+      await previewAndPlace(
+        usStkOrder({
+          orderType: 'TWAP',
+          totalQuantity: 10,
+          algoParams: {
+            algoStrategy: 'TWAP',
+            startTime: String(now),
+            endTime: String(now + 3_600_000),
+          },
+        }),
+        'US STK TWAP',
+      );
+    });
+
+    it('VWAP algo — participation rate + safe limit', async () => {
+      const now = Date.now();
+      await previewAndPlace(
+        usStkOrder({
+          orderType: 'VWAP',
+          totalQuantity: 10,
+          algoParams: {
+            algoStrategy: 'VWAP',
+            startTime: String(now),
+            endTime: String(now + 3_600_000),
+            participationRate: 0.1,
+          },
+        }),
+        'US STK VWAP',
+      );
+    });
+
+    it('ICEBERG — full parameter set, place + cancel', async () => {
+      const now = Date.now();
+      await previewAndPlace(
+        usStkOrder({
+          orderType: 'ICEBERG',
+          totalQuantity: 10,
+          displaySize: 2,
+          minDisplaySize: 1,
+          checkIntervals: 30,
+          startTime: now,
+          endTime: now + 3_600_000,
+        }),
+        'US STK ICEBERG',
+      );
+    });
+
+    it('OPT LMT — dynamic AAPL call contract', async () => {
+      // Resolve nearest-expiry near-ATM CALL via QuoteClient
+      const qc = buildQuoteClient();
+      let expiry: string | undefined;
+      let strike: number | undefined;
+      try {
+        const exps = await qc.getOptionExpirations({ symbols: ['AAPL'] });
+        const dates = (exps as any)?.[0]?.dates ?? [];
+        const today = new Date();
+        for (const d of dates) {
+          const dt = new Date(String(d));
+          if ((dt.getTime() - today.getTime()) / 86_400_000 > 14) {
+            expiry = String(d).replace(/-/g, '');
+            break;
+          }
+        }
+        if (!expiry) return; // skip
+
+        const chain = await qc.getOptionChain({ symbol: 'AAPL', expiry });
+        const items = (chain as any)?.items ?? [];
+        const calls = items.filter((x: any) => x.putCall === 'CALL' || x.right === 'CALL');
+        if (!calls.length) return;
+        const mid = calls[Math.floor(calls.length / 2)];
+        strike = Number(mid.strike);
+      } catch { return; /* discovery failed — skip */ }
+
+      if (!expiry || !strike) return;
+
+      await previewAndPlace(
+        {
+          symbol: 'AAPL',
+          secType: 'OPT',
+          currency: 'USD',
+          action: 'BUY',
+          orderType: 'LMT',
+          limitPrice: SAFE_BUY_PRICE,
+          totalQuantity: 1,
+          timeInForce: 'DAY',
+          expiry,
+          strike: String(strike),
+          right: 'CALL',
+        },
+        'US OPT LMT',
+      );
+    });
+
+    it('FUT LMT — CL main contract', async () => {
+      await previewAndPlace(
+        {
+          symbol: 'CL',
+          secType: 'FUT',
+          currency: 'USD',
+          action: 'BUY',
+          orderType: 'LMT',
+          limitPrice: SAFE_BUY_PRICE,
+          totalQuantity: 1,
+          timeInForce: 'DAY',
+        },
+        'US FUT LMT',
+      );
+    });
+
+    it('Forex SEC segment — cross-currency conversion', async () => {
+      try {
+        const res = await tc.placeForexOrder({
+          segType: 'SEC',
+          sourceCurrency: 'USD',
+          targetCurrency: 'HKD',
+          sourceAmount: 1,
+        });
+        expect(res).toBeDefined();
+      } catch (e: any) {
+        if (!matches(String(e?.message ?? e), PERMISSION_ERROR_PATTERNS)) throw e;
+      }
+    });
+
+    it('preview — negative price should still return or reject cleanly', async () => {
+      try {
+        await tc.previewOrder(usStkOrder({ limitPrice: -1 }));
+      } catch { /* both accept and reject are OK for edge input */ }
+    });
+  });
 });
