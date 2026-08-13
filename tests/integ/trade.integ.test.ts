@@ -822,20 +822,33 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       );
     });
 
+    /**
+     * Gateway expects algo_params as a [{tag, value}] array on the wire
+     * (matching the Python SDK's AlgoParams serialization), NOT the plain
+     * object shape the TS AlgoParamsRequest interface suggests.
+     *
+     * Building the array shape directly and casting bypasses the interface.
+     * TODO(sdk): patch keysToSnakeCase (or trade-client) to marshal
+     * algoParams into this array shape automatically, so callers can pass
+     * the natural object shape.
+     */
+    function algoParamsAsTagValueArray(entries: Record<string, unknown>): unknown {
+      return Object.entries(entries)
+        .filter(([, v]) => v !== undefined && v !== null)
+        .map(([tag, value]) => ({ tag, value }));
+    }
+
     it('TWAP algo — safe limit price', async () => {
       const now = Date.now();
-      // Server expects epoch-ms numbers, not strings. The interface types
-      // startTime/endTime as string but real gateway takes numbers — cast
-      // through unknown to bypass the outdated type.
       await previewAndPlace(
         usStkOrder({
           orderType: 'TWAP',
           totalQuantity: 10,
-          algoParams: {
-            algoStrategy: 'TWAP',
-            startTime: now as unknown as string,
-            endTime: (now + 3_600_000) as unknown as string,
-          },
+          algoParams: algoParamsAsTagValueArray({
+            start_time: now,
+            end_time: now + 3_600_000,
+            allow_past_end_time: true,
+          }) as unknown as OrderRequest['algoParams'],
         }),
         'US STK TWAP',
       );
@@ -847,12 +860,12 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         usStkOrder({
           orderType: 'VWAP',
           totalQuantity: 10,
-          algoParams: {
-            algoStrategy: 'VWAP',
-            startTime: now as unknown as string,
-            endTime: (now + 3_600_000) as unknown as string,
-            participationRate: 0.1,
-          },
+          algoParams: algoParamsAsTagValueArray({
+            start_time: now,
+            end_time: now + 3_600_000,
+            participation_rate: 0.1,
+            allow_past_end_time: true,
+          }) as unknown as OrderRequest['algoParams'],
         }),
         'US STK VWAP',
       );
