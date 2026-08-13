@@ -824,14 +824,17 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
 
     it('TWAP algo — safe limit price', async () => {
       const now = Date.now();
+      // Server expects epoch-ms numbers, not strings. The interface types
+      // startTime/endTime as string but real gateway takes numbers — cast
+      // through unknown to bypass the outdated type.
       await previewAndPlace(
         usStkOrder({
           orderType: 'TWAP',
           totalQuantity: 10,
           algoParams: {
             algoStrategy: 'TWAP',
-            startTime: String(now),
-            endTime: String(now + 3_600_000),
+            startTime: now as unknown as string,
+            endTime: (now + 3_600_000) as unknown as string,
           },
         }),
         'US STK TWAP',
@@ -846,8 +849,8 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
           totalQuantity: 10,
           algoParams: {
             algoStrategy: 'VWAP',
-            startTime: String(now),
-            endTime: String(now + 3_600_000),
+            startTime: now as unknown as string,
+            endTime: (now + 3_600_000) as unknown as string,
             participationRate: 0.1,
           },
         }),
@@ -864,6 +867,9 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
           displaySize: 2,
           minDisplaySize: 1,
           checkIntervals: 30,
+          // priceType required by the gateway even though the interface
+          // marks it optional — matches the icebergOrder() helper default.
+          priceType: 'LIMIT_PRICE',
           startTime: now,
           endTime: now + 3_600_000,
         }),
