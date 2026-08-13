@@ -14,11 +14,28 @@ export interface OrderLeg {
   quantity?: number;
 }
 
-/** Algo order parameters — response side */
+/**
+ * Algo order parameters — response side.
+ *
+ * The response shape flattens the [{tag, value}, ...] wire form into an
+ * object, and the server historically emits `startTime` / `endTime` as
+ * epoch-ms numbers (matching what the request side sends). Some legacy
+ * paths still return the raw string; accept both.
+ *
+ * Note: `algoStrategy` on the response side is server-echoed; on the
+ * request side it lives on `OrderRequest`, not `AlgoParamsRequest`.
+ */
 export interface AlgoParams {
   algoStrategy?: string;
-  startTime?: string;
-  endTime?: string;
+  /** Epoch-ms; server may echo as string on legacy paths */
+  startTime?: number | string;
+  /** Epoch-ms; server may echo as string on legacy paths */
+  endTime?: number | string;
+  /** Whether to minimize trade count (VWAP) */
+  noTakeLiq?: boolean;
+  /** Whether to allow completion after end_time (TWAP / VWAP) */
+  allowPastEndTime?: boolean;
+  /** Participation rate 0.01–0.5 (VWAP only) */
   participationRate?: number;
 }
 

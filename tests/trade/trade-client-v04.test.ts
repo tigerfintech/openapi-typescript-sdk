@@ -123,6 +123,32 @@ describe('TradeClient v0.4.0 additional methods', () => {
       expect(biz.source_currency).toBe('USD');
       expect(biz.target_currency).toBe('HKD');
     });
+
+    // Real gateway returns `id` as a JSON number (matches PlaceOrderResult.id).
+    // The Rust / Go SDKs confirmed this on live integ. Rust crashed with
+    // "invalid type: integer, expected a string" when the SDK typed id as
+    // string; TS silently accepted the mismatch. Type is now `number | string`.
+    it('placeForexOrder accepts numeric id from server (wire truth)', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({
+        id: 12345, status: 'Submitted',
+      }));
+      const result = await tc.placeForexOrder({
+        sourceCurrency: 'USD', targetCurrency: 'HKD', sourceAmount: 1000,
+      });
+      expect(result?.id).toBe(12345);
+      expect(typeof result?.id).toBe('number');
+    });
+
+    it('placeForexOrder accepts string id for backward compatibility', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({
+        id: '12345', status: 'Submitted',
+      }));
+      const result = await tc.placeForexOrder({
+        sourceCurrency: 'USD', targetCurrency: 'HKD', sourceAmount: 1000,
+      });
+      expect(result?.id).toBe('12345');
+      expect(typeof result?.id).toBe('string');
+    });
   });
 
   describe('Segment fund transfer', () => {
