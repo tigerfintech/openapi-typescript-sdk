@@ -426,7 +426,13 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
   // =========================================================================
 
   describe('Corporate actions', () => {
-    const corpReq = { symbols: ['AAPL'], market: 'US', beginDate: yearsAgo(3), endDate: todayStr() };
+    // beginDate/endDate are epoch-ms on the wire — Python's date_str_to_timestamp
+    // convention. Server rejects string dates for corporate_action.
+    const corpReq = {
+      symbols: ['AAPL'], market: 'US',
+      beginDate: Date.parse(yearsAgo(3)),
+      endDate: Date.parse(todayStr()),
+    };
 
     it('getCorporateAction', async () => {
       const data = await qc.getCorporateAction({ ...corpReq, actionType: 'split' });
@@ -448,7 +454,7 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       // Earnings calendar date interval cannot exceed 1 month.
       const data = await qc.getCorporateEarningsCalendar({
         symbols: ['AAPL'], market: 'US', actionType: 'earning',
-        beginDate: monthStart(), endDate: monthEnd(),
+        beginDate: Date.parse(monthStart()), endDate: Date.parse(monthEnd()),
       });
       expect(Array.isArray(data)).toBe(true);
     });
@@ -486,13 +492,14 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
     });
 
     it('getFinancialReport — AAPL quarterly', async () => {
+      // beginDate/endDate are epoch-ms on the wire.
       const data = await qc.getFinancialReport({
         symbols: ['AAPL'],
         market: 'US',
         fields: ['net_income'],
         periodType: 'LTM',
-        beginDate: yearStartAgo(1),
-        endDate: yearEndAgo(1),
+        beginDate: Date.parse(yearStartAgo(1)),
+        endDate: Date.parse(yearEndAgo(1)),
       });
       expect(Array.isArray(data)).toBe(true);
     });

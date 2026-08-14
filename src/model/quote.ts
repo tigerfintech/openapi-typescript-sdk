@@ -370,21 +370,40 @@ export interface FinancialDailyRequest {
   endDate: string;
 }
 
+/**
+ * Financial report request.
+ *
+ * **Wire types (breaking):** `beginDate` / `endDate` are epoch-ms integers,
+ * not date strings. Python SDK converts via `date_str_to_timestamp` before
+ * sending; sending raw strings makes the gateway reject with
+ * `biz param error(failed to parse parameters in 'biz_content')`.
+ */
 export interface FinancialReportRequest {
   symbols: string[];
   market: string;
   fields: string[];
   periodType: string;
-  beginDate?: string;
-  endDate?: string;
+  /** epoch-ms start time */
+  beginDate?: number;
+  /** epoch-ms end time */
+  endDate?: number;
 }
 
+/**
+ * Corporate action request.
+ *
+ * **Wire types (breaking):** `beginDate` / `endDate` are epoch-ms integers,
+ * matching `FinancialReportRequest`. Server rejects string dates with
+ * `biz param error(failed to parse parameters in 'biz_content')`.
+ */
 export interface CorporateActionRequest {
   symbols: string[];
   market: string;
   actionType: string;
-  beginDate?: string;
-  endDate?: string;
+  /** epoch-ms start time */
+  beginDate?: number;
+  /** epoch-ms end time */
+  endDate?: number;
 }
 
 export interface FutureKlineRequest {
@@ -624,10 +643,32 @@ export interface WarrantFilterResult {
   page?: number;
 }
 
-/** Industry list row (industry_list). */
+/**
+ * Industry list row (industry_list).
+ *
+ * **Wire fields (breaking):** the server returns `nameCN` / `nameEN` /
+ * `industryLevel`, not `name` / `level` (matches Python SDK's
+ * `IndustryListResponse` which reads `ind.get('nameCN')`,
+ * `ind.get('nameEN')`, `ind.get('industryLevel')`).
+ * Since responses come back already-camelCase (no snake→camel step) and the
+ * server keeps `nameCN` / `nameEN` in mixed case, the fields are exposed
+ * exactly as sent.
+ *
+ * `name` and `level` are backwards-compat aliases populated by
+ * `getIndustryList` after the raw response is decoded — `name` mirrors
+ * `nameEN || nameCN`, `level` mirrors `industryLevel`.
+ */
 export interface IndustryItem {
   id?: string;
+  /** Chinese name. Wire: `nameCN`. */
+  nameCN?: string;
+  /** English name. Wire: `nameEN`. */
+  nameEN?: string;
+  /** Industry level. Wire: `industryLevel`. */
+  industryLevel?: string;
+  /** Convenience alias: `nameEN || nameCN`. Populated by `getIndustryList`. */
   name?: string;
+  /** @deprecated Use `industryLevel`. Mirrored by `getIndustryList` for back-compat. */
   level?: string;
 }
 

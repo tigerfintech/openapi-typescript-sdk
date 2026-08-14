@@ -186,9 +186,21 @@ export interface OptionQueryItem {
   pageToken?: string;
 }
 
-/** Option tick trades. wire: option_trade_tick */
+/** Option tick trades. wire: option_trade_tick
+ *
+ * **Wire contract:** the server expects `biz_content` to be a **top-level
+ * JSON array** (`[{symbol, expiry, ...}, ...]`), not `{"contracts": [...]}`.
+ * This matches Java (`BatchApiModel.items` serialized directly) and Python
+ * (`MultipleContractParams.to_openapi_dict` returns a list).
+ *
+ * The client unwraps `contracts` before serialization; sending it as an
+ * object caused `biz param error(failed to parse parameters in 'biz_content')`.
+ * `lang` is retained for API symmetry but is not sent on the wire — the
+ * gateway has no `lang` input for this method.
+ */
 export interface OptionTradeTicksRequest {
   contracts?: OptionQueryItem[];
+  /** Retained for API symmetry; wire is a top-level array, so `lang` is not sent. */
   lang?: string;
 }
 

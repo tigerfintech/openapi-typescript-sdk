@@ -167,12 +167,25 @@ describe('QuoteClient additional methods', () => {
   });
 
   describe('Batch 4: Options', () => {
-    it('getOptionTradeTicks sends option_trade_tick method', async () => {
+    it('getOptionTradeTicks sends option_trade_tick with top-level array biz_content', async () => {
+      // Server expects a top-level array, not {"contracts": [...]}.
+      // Matches Java BatchApiModel + Python MultipleContractParams.to_openapi_dict.
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
       await qc.getOptionTradeTicks({ contracts: [{ symbol: 'AAPL', expiry: 1705640400000, strike: '150', right: 'CALL' }] });
       expect(capturedMethod(mockHttpClient)).toBe('option_trade_tick');
       const biz = capturedBiz(mockHttpClient);
-      expect(biz.contracts).toBeDefined();
+      expect(Array.isArray(biz)).toBe(true);
+      expect(biz).toHaveLength(1);
+      expect((biz as any)[0].symbol).toBe('AAPL');
+      expect((biz as any)[0].expiry).toBe(1705640400000);
+    });
+
+    it('getOptionTradeTicks with no contracts sends empty array', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
+      await qc.getOptionTradeTicks({});
+      const biz = capturedBiz(mockHttpClient);
+      expect(Array.isArray(biz)).toBe(true);
+      expect(biz).toHaveLength(0);
     });
 
     it('getOptionTimeline sends option_timeline method', async () => {
@@ -317,6 +330,38 @@ describe('QuoteClient additional methods', () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([{ id: '1', name: 'Tech' }]));
       const result = await qc.getIndustryList({ industryLevel: '1' });
       expect(result[0].id).toBe('1');
+    });
+
+    it('getIndustryList defaults industryLevel to GGROUP', async () => {
+      // Server rejects the request when industry_level is absent.
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
+      await qc.getIndustryList();
+      const biz = capturedBiz(mockHttpClient);
+      expect(biz.industry_level).toBe('GGROUP');
+    });
+
+    it('getIndustryList caller-supplied industryLevel wins over default', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
+      await qc.getIndustryList({ industryLevel: 'GSECTOR' });
+      const biz = capturedBiz(mockHttpClient);
+      expect(biz.industry_level).toBe('GSECTOR');
+    });
+
+    it('getIndustryList hydrates name / level back-compat fields', async () => {
+      // Server sends nameCN / nameEN / industryLevel; older callers still
+      // read `name` and `level`.
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([
+        { id: '1', nameCN: '科技', nameEN: 'Technology', industryLevel: 'GSECTOR' },
+        { id: '2', nameCN: '金融', industryLevel: 'GSECTOR' }, // no nameEN → fall back to nameCN
+      ]));
+      const result = await qc.getIndustryList();
+      expect(result[0].name).toBe('Technology');
+      expect(result[0].level).toBe('GSECTOR');
+      expect(result[0].nameCN).toBe('科技');
+      expect(result[0].nameEN).toBe('Technology');
+      expect(result[0].industryLevel).toBe('GSECTOR');
+      expect(result[1].name).toBe('金融');
+      expect(result[1].level).toBe('GSECTOR');
     });
 
     it('getIndustryStocks sends industry_stock_list', async () => {
