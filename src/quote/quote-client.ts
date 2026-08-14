@@ -567,9 +567,16 @@ export class QuoteClient {
   // Batch 4: option / future extensions
   // ==========================================================================
 
-  /** Option tick trades. wire: option_trade_tick */
+  /** Option tick trades. wire: option_trade_tick
+   *
+   * Server expects `biz_content` as a top-level JSON array (matches Java's
+   * `BatchApiModel` and Python's `MultipleContractParams.to_openapi_dict`).
+   * We unwrap the request here so the array is emitted directly instead of
+   * `{"contracts": [...]}`. Sending it as an object triggers
+   * `biz param error(failed to parse parameters in 'biz_content')`.
+   */
   async getOptionTradeTicks(req: OptionTradeTicksRequest): Promise<TradeTick[]> {
-    return this.callInto<TradeTick[]>('option_trade_tick', req);
+    return this.callInto<TradeTick[]>('option_trade_tick', req.contracts ?? []);
   }
 
   /** Option intraday timeline. wire: option_timeline */
@@ -727,9 +734,27 @@ export class QuoteClient {
     return this.callInto<WarrantFilterResult>('warrant_filter', req);
   }
 
-  /** Industry list. wire: industry_list */
-  async getIndustryList(req: IndustryListRequest): Promise<IndustryItem[]> {
-    return this.callInto<IndustryItem[]>('industry_list', req);
+  /** Industry list. wire: industry_list
+   *
+   * `industryLevel` is required by the server — omitting it returns
+   * `industry level error, all supported is: [GSECTOR, GGROUP, GIND, GSUBIND]`.
+   * Defaults to `GGROUP` when unset, matching Python SDK's
+   * `IndustryLevel.GGROUP` default.
+   *
+   * Wire fields differ from other endpoints (see `IndustryItem`): server sends
+   * `nameCN` / `nameEN` / `industryLevel`. This method hydrates the
+   * backwards-compat `name` (from `nameEN || nameCN`) and mirrors
+   * `industryLevel` to `level` so existing callers keep working.
+   */
+  async getIndustryList(req: IndustryListRequest = {}): Promise<IndustryItem[]> {
+    const payload = { industryLevel: 'GGROUP', ...req };
+    const items = await this.callInto<IndustryItem[]>('industry_list', payload);
+    if (!Array.isArray(items)) return [];
+    for (const it of items) {
+      if (it.name === undefined) it.name = it.nameEN || it.nameCN;
+      if (it.level === undefined) it.level = it.industryLevel;
+    }
+    return items;
   }
 
   /** Stocks inside an industry. wire: industry_stock_list */
