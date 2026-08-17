@@ -68,6 +68,7 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
   let optionIdentifier: string | undefined;
   let futureExchangeCode: string | undefined;
   let futureContractCode: string | undefined;
+  let futureType: string | undefined;
   let industryId: string | undefined;
 
   beforeAll(async () => {
@@ -85,23 +86,63 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       }
     } catch { /* best-effort */ }
 
-    // 2. Get futures exchange and contract
+    // 2. Get futures exchange and contract.
+    //
+    // The seed used to pick `getFutureExchange()[0]` unconditionally, so if
+    // that exchange had no active contracts the whole Futures section
+    // cascade-skipped. Iterate until we find an exchange with at least one
+    // contract; also try the known-good `CME` / `NYMEX` fallbacks if all
+    // returned exchanges are empty (or the seed threw for one exchange).
     try {
       const excs = await qc.getFutureExchange();
-      if (excs.length) {
-        futureExchangeCode = (excs[0] as any).code ?? (excs[0] as any).exchangeCode;
-        const contracts = await qc.getFutureContracts(futureExchangeCode!);
-        if (contracts.length) futureContractCode = (contracts[0] as any).contractCode;
+      const seenCodes = new Set<string>();
+      const candidates: string[] = [];
+      for (const e of excs as any[]) {
+        const code = e?.code ?? e?.exchangeCode;
+        if (code && !seenCodes.has(code)) {
+          seenCodes.add(code);
+          candidates.push(code);
+        }
+      }
+      for (const code of ['CME', 'NYMEX', 'COMEX', 'GLOBEX']) {
+        if (!seenCodes.has(code)) {
+          seenCodes.add(code);
+          candidates.push(code);
+        }
+      }
+      for (const code of candidates) {
+        try {
+          const contracts = await qc.getFutureContracts(code);
+          if (contracts.length) {
+            futureExchangeCode = code;
+            const first = contracts[0] as any;
+            futureContractCode = first.contractCode;
+            futureType = first.type;
+            break;
+          }
+        } catch { /* try next exchange */ }
+      }
+      // Fall back to the first exchange code even if empty so exchange-only
+      // tests still run.
+      if (!futureExchangeCode && candidates.length) {
+        futureExchangeCode = candidates[0];
       }
     } catch { /* best-effort */ }
 
-    // 3. Get industry ID
-    try {
-      const industries = await qc.getIndustryList({ industryLevel: 'GSECTOR' });
-      if (industries.length) {
-        industryId = (industries[0] as any).id ?? (industries[0] as any).industryId;
-      }
-    } catch { /* best-effort */ }
+    // 3. Get industry ID. Try multiple levels so at least one non-empty
+    //    response yields a seed.
+    for (const level of ['GSECTOR', 'GGROUP', 'GIND', 'GSUBIND']) {
+      try {
+        const industries = await qc.getIndustryList({ industryLevel: level });
+        if (industries.length) {
+          const id = (industries[0] as any).id ?? (industries[0] as any).industryId;
+          if (id) {
+            industryId = String(id);
+            break;
+          }
+        }
+      } catch { /* try next level */ }
+    }
   });
 
   // =========================================================================
@@ -601,8 +642,11 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       expect(Array.isArray(data)).toBe(true);
     });
 
-    it.skipIf(!futureExchangeCode)('getAllFutureContracts', async () => {
-      const data = await qc.getAllFutureContracts({ exchange: futureExchangeCode! });
+    it.skipIf(!futureType)('getAllFutureContracts', async () => {
+      // Python `get_all_future_contracts(future_type)` sends `type`
+      // (like "CL"). `exchange` is server-side optional but `type` is the
+      // canonical query field.
+      const data = await qc.getAllFutureContracts({ type: futureType! });
       expect(Array.isArray(data)).toBe(true);
     });
 
@@ -611,8 +655,9 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       expect(data === undefined || data === null || typeof data === 'object').toBe(true);
     });
 
-    it.skipIf(!futureContractCode)('getFutureContinuousContracts', async () => {
-      const data = await qc.getFutureContinuousContracts({ type: futureContractCode! });
+    it.skipIf(!futureType)('getFutureContinuousContracts', async () => {
+      // Wire param is `type` (future type, e.g. "CL"), not a contract code.
+      const data = await qc.getFutureContinuousContracts({ type: futureType! });
       expect(Array.isArray(data)).toBe(true);
     });
 
@@ -646,10 +691,12 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       expect(data === undefined || data === null || typeof data === 'object').toBe(true);
     });
 
-    it.skipIf(!futureExchangeCode)('getFutureHistoryMainContract', async () => {
+    it.skipIf(!futureType)('getFutureHistoryMainContract', async () => {
+      // Wire param `contract_codes` accepts main-contract identifiers like
+      // "CLmain" (future type + "main"), not exchange codes.
       const now = Date.now();
       const data = await qc.getFutureHistoryMainContract({
-        contractCodes: [futureExchangeCode!],
+        contractCodes: [`${futureType!}main`],
         beginTime: now - 90 * 24 * 60 * 60 * 1000,
         endTime: now,
       });

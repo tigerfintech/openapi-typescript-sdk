@@ -31,7 +31,9 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
   let tc: TradeClient;
 
   // Shared dynamic data resolved in beforeAll
-  let filledOrderId: number | undefined;
+  // Order id widened to string | number — server returns int64 which
+  // patchLargeIntegers preserves as a string for ≥17-digit values.
+  let filledOrderId: number | string | undefined;
   let positionSymbol: string | undefined;
   let positionTransferRecordId: string | undefined;
   let optionContractId: number | undefined;
@@ -39,6 +41,10 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
   beforeAll(async () => {
     tc = buildTradeClient();
 
+    // Fallback chain: filled orders (last 90d) → any orders → any inactive
+    // orders. Rust's integ test uses get_orders as the seed source; we widen
+    // it further so a paper account with just an old cancelled order still
+    // exercises the get_order endpoint.
     try {
       const now = Date.now();
       const orders = await tc.getFilledOrders({
@@ -48,6 +54,20 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       });
       if (orders.length) filledOrderId = orders[0].id;
     } catch { /* best-effort */ }
+
+    if (!filledOrderId) {
+      try {
+        const orders = await tc.getOrders({ limit: 5 });
+        if (orders.length) filledOrderId = orders[0].id;
+      } catch { /* best-effort */ }
+    }
+
+    if (!filledOrderId) {
+      try {
+        const orders = await tc.getInactiveOrders({ limit: 5 });
+        if (orders.length) filledOrderId = orders[0].id;
+      } catch { /* best-effort */ }
+    }
 
     try {
       const positions = await tc.getPositions();
@@ -162,10 +182,12 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     });
 
     it.skipIf(!filledOrderId)('getOrder — by filled order id', async () => {
-      const data = await tc.getOrder({ id: filledOrderId! });
+      // Coerce to Number for the request (SDK type is `number`). Response
+      // id may be number or string — compare loosely.
+      const data = await tc.getOrder({ id: Number(filledOrderId) });
       expect(data).toBeDefined();
       if (data) {
-        expect(data.id).toBe(filledOrderId);
+        expect(String(data.id)).toBe(String(filledOrderId));
       }
     });
 
