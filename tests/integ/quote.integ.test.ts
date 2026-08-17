@@ -880,8 +880,20 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
     });
 
     it('getWarrantFilter — HK 00700', async () => {
+      // Wire shape: server returns a bare array of warrant items with no
+      // {total, page, pageSize} wrapper — SDK model keeps those fields at
+      // their zero defaults. So only `items` carries the answer. The
+      // previous `typeof data === 'object'` assertion was trivially true and
+      // caught nothing. During HK trading 00700 must yield at least one
+      // warrant; otherwise (market closed) empty is legitimate.
       const data = await qc.getWarrantFilter({ symbol: '00700', page: 0, pageSize: 5 });
-      expect(data === undefined || data === null || typeof data === 'object').toBe(true);
+      expect(data).toBeDefined();
+      const items = (data as any)?.items;
+      expect(Array.isArray(items)).toBe(true);
+      if (isMarketTradingCached('HK')) {
+        expect(items.length).toBeGreaterThan(0);
+        expect(items[0]?.symbol).toBeTruthy();
+      }
     });
 
     it('getWarrantQuote — HK warrant symbol', async (ctx) => {
