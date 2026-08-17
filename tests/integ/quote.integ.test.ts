@@ -177,6 +177,19 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       if (data.length) {
         expect((data[0] as any).market).toBe('US');
         expect((data[0] as any).marketStatus).toBeTruthy();
+        // Assert status field
+        expect((data[0] as any).status !== undefined || (data[0] as any).marketStatus !== undefined).toBe(true);
+      }
+    });
+
+    it('getMarketState — HK market', async () => {
+      const data = await qc.getMarketState('HK');
+      expect(Array.isArray(data)).toBe(true);
+      if (data.length) {
+        expect((data[0] as any).market).toBe('HK');
+        // Assert status field
+        const item = data[0] as any;
+        expect(item.status !== undefined || item.marketStatus !== undefined).toBe(true);
       }
     });
 
@@ -186,6 +199,15 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       expect(data.length).toBeGreaterThan(0);
       expect((data[0] as any).latestPrice).toBeGreaterThan(0);
       expect((data[0] as any).latestTime).toBeGreaterThan(0);
+    });
+
+    it('getRealTimeQuote — 00700 HK', async () => {
+      const data = await qc.getRealTimeQuote({ symbols: ['00700'], market: 'HK' });
+      expect(Array.isArray(data)).toBe(true);
+      if (data.length) {
+        // Assert latestPrice field when data is present
+        expect((data[0] as any).latestPrice).toBeGreaterThan(0);
+      }
     });
 
     it('getBrief — AAPL (alias)', async () => {
@@ -203,6 +225,35 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       if (items.length) {
         expect(items[0].high).toBeGreaterThanOrEqual(items[0].low);
         expect(items[0].close).toBeGreaterThan(0);
+        // Assert volume and open fields
+        expect(items[0].volume).toBeGreaterThanOrEqual(0);
+        expect(items[0].open).toBeGreaterThan(0);
+      }
+    });
+
+    it('getKline — AAPL week', async () => {
+      const data = await qc.getKline({ symbols: ['AAPL'], period: 'week', limit: 5 });
+      expect(Array.isArray(data)).toBe(true);
+      if (data.length) {
+        const items = (data[0] as any).items ?? [];
+        if (items.length) {
+          expect(items[0].close).toBeGreaterThan(0);
+          expect(items[0].volume).toBeGreaterThanOrEqual(0);
+          expect(items[0].open).toBeGreaterThan(0);
+        }
+      }
+    });
+
+    it('getKline — 00700 HK day', async () => {
+      const data = await qc.getKline({ symbols: ['00700'], period: 'day', market: 'HK', limit: 5 });
+      expect(Array.isArray(data)).toBe(true);
+      if (data.length) {
+        const items = (data[0] as any).items ?? [];
+        if (items.length) {
+          expect(items[0].close).toBeGreaterThan(0);
+          expect(items[0].volume).toBeGreaterThanOrEqual(0);
+          expect(items[0].open).toBeGreaterThan(0);
+        }
       }
     });
 
@@ -215,12 +266,23 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       }
     });
 
+    it('getTimeline — 00700 HK', async () => {
+      // Non-trading hours: data may be empty — only assert fields when non-empty
+      const data = await qc.getTimeline(['00700'], 'HK');
+      expect(Array.isArray(data)).toBe(true);
+      if (data.length && (data[0] as any).items?.length) {
+        expect((data[0] as any).items[0].time).toBeDefined();
+      }
+    });
+
     it('getTradeTick — AAPL', async () => {
       // Non-trading hours: data may be empty — only assert fields when non-empty
       const data = await qc.getTradeTick({ symbols: ['AAPL'], limit: 5 });
       expect(Array.isArray(data)).toBe(true);
       if (data.length && (data[0] as any).items?.length) {
         expect((data[0] as any).items[0].time).toBeDefined();
+        // Assert price field
+        expect((data[0] as any).items[0].price).toBeGreaterThan(0);
       }
     });
 
@@ -286,6 +348,12 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
         const row = chain[0].items[0];
         const id = (row as any).call?.identifier ?? (row as any).put?.identifier;
         expect(id).toBeTruthy();
+        // Assert strike and expiry fields
+        const strike = (row as any).strike ?? (row as any).call?.strike ?? (row as any).put?.strike;
+        expect(strike !== undefined && strike !== null).toBe(true);
+        const expiry = (row as any).expiry ?? (row as any).call?.expiry ?? (row as any).put?.expiry
+          ?? (exps[0] as any).dates[0];
+        expect(expiry).toBeTruthy();
       }
     });
 
@@ -438,6 +506,8 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       expect(Array.isArray(data)).toBe(true);
       expect(data.length).toBeGreaterThan(0);
       expect((data[0] as any).symbol).toBeTruthy();
+      // Assert latestPrice field
+      expect((data[0] as any).latestPrice).toBeGreaterThan(0);
     });
 
     it('getStockBroker — HK 00700', async () => {
@@ -610,7 +680,7 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       expect(Array.isArray(data)).toBe(true);
     });
 
-    it('getFinancialReport — AAPL quarterly', async () => {
+    it('getFinancialReport — AAPL LTM', async () => {
       // beginDate/endDate are epoch-ms on the wire.
       const data = await qc.getFinancialReport({
         symbols: ['AAPL'],
@@ -618,6 +688,20 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
         fields: ['net_income'],
         periodType: 'LTM',
         beginDate: Date.parse(yearStartAgo(1)),
+        endDate: Date.parse(yearEndAgo(1)),
+      });
+      expect(Array.isArray(data)).toBe(true);
+    });
+
+    it('getFinancialReport — AAPL quarterly', async () => {
+      // periodType=quarterly variant — server may return 0 rows outside a quarter end
+      // but the call itself must succeed.
+      const data = await qc.getFinancialReport({
+        symbols: ['AAPL'],
+        market: 'US',
+        fields: ['net_income'],
+        periodType: 'quarterly',
+        beginDate: Date.parse(yearStartAgo(2)),
         endDate: Date.parse(yearEndAgo(1)),
       });
       expect(Array.isArray(data)).toBe(true);
@@ -716,6 +800,10 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
     it('getFutureRealTimeQuote', async () => {
       const data = await qc.getFutureRealTimeQuote({ contractCodes: [futureContractCode!] });
       expect(Array.isArray(data)).toBe(true);
+      // Assert latestPrice field when data is present
+      if (data.length) {
+        expect((data[0] as any).latestPrice).toBeGreaterThan(0);
+      }
     });
 
     it('getFutureContract — single', async () => {

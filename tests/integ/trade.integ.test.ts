@@ -125,6 +125,20 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         // id may be number or string depending on serialization
         expect(String(o.id)).toMatch(/^[1-9]\d*$/);
         expect(o.symbol).toBeTruthy();
+        // Assert orderType field
+        expect((o as any).orderType).toBeTruthy();
+      }
+    });
+
+    it('getOrders — status=FILLED filter', async () => {
+      // Filter by filled status; may be empty on fresh accounts.
+      const data = await tc.getOrders({ status: 'FILLED' });
+      expect(Array.isArray(data)).toBe(true);
+      for (const o of data) {
+        expect(String(o.id)).toMatch(/^[1-9]\d*$/);
+        expect(o.symbol).toBeTruthy();
+        // Every returned order should be filled
+        expect((o as any).status).toBe('FILLED');
       }
     });
 
@@ -207,6 +221,8 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         expect(p.symbol).toBeTruthy();
         expect(p.account).toBeTruthy();
         expect(p.secType).toBeTruthy();
+        // Assert averageCost field
+        expect((p as any).averageCost !== undefined).toBe(true);
       }
     });
 
@@ -691,7 +707,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       /not open/i,
       /not enabled/i,
       /no token/i,
-      /don['’]t support trading/i,
+      /don['']t support trading/i,
       /unsupported instrument/i,
       /only limit orders are supported/i,
       /outside of regular trading hours/i,
@@ -1077,6 +1093,14 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
 
     it('HK STK LMT — Tencent 00700', async () => {
       await previewAndPlace(hkStkOrder({}), 'HK STK LMT');
+    });
+
+    it('HK STK LMT — place + cancel round-trip (market=HK variant)', async () => {
+      // Explicit market=HK variant to confirm the SDK routes to the HK gateway.
+      await previewAndPlace(
+        hkStkOrder({ symbol: '00700' }),
+        'HK STK LMT market=HK',
+      );
     });
 
     it('HK STK Auction Limit (AL) — only during HK auction windows', async () => {
