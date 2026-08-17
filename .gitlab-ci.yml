@@ -17,7 +17,7 @@ stages:
     - openapi
   before_script:
     - npm config set registry https://registry.npmmirror.com
-    - npm install --no-audit --no-fund
+    - npm ci --no-audit --no-fund
 
 unit:node:
   extends: .node_base
@@ -61,7 +61,7 @@ integration:node:
 # Parses JUnit XML artifacts directly (no GitLab API dependency).
 # Mirrors the Python SDK notify job structure.
 notify:webhook:
-  image: python:3.11-slim
+  image: python:3.11-alpine
   tags:
     - openapi
   stage: .post
@@ -75,7 +75,7 @@ notify:webhook:
   script:
     - |
       python3 << 'PYEOF'
-      import os, json, urllib.request, glob
+      import os, json, urllib.request
       import xml.etree.ElementTree as ET
 
       webhook_url = os.environ.get("WEBHOOK_URL", "")

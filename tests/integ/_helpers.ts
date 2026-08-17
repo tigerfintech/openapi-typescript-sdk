@@ -18,6 +18,23 @@ import type { QuoteClient } from '../../src/quote/quote-client';
 import type { TradeClient } from '../../src/trade/trade-client';
 
 // -----------------------------------------------------------------------
+// Date helpers — shared between quote and trade integ tests
+// -----------------------------------------------------------------------
+
+/** Date N years ago (same month/day) in 'YYYY-MM-DD' format. */
+export function yearsAgo(n: number): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Current date in 'YYYY-MM-DD' format. */
+export function todayStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// -----------------------------------------------------------------------
 // Market-state cache
 // -----------------------------------------------------------------------
 

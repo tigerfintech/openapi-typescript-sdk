@@ -17,6 +17,8 @@ import {
   primeMarketStatuses,
   resolveHkWarrantSymbol,
   resolveUsOptionIdentifier,
+  yearsAgo,
+  todayStr,
 } from './_helpers';
 
 /** Nearest past weekday (Mon-Fri) in 'YYYY-MM-DD' format. */
@@ -44,13 +46,6 @@ function monthEnd(): string {
   return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`;
 }
 
-/** Date N years ago (same month/day) in 'YYYY-MM-DD' format. */
-function yearsAgo(n: number): string {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() - n);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
 /** First day (Jan 1) of the year N years ago, in 'YYYY-MM-DD' format. */
 function yearStartAgo(n: number): string {
   const d = new Date();
@@ -61,12 +56,6 @@ function yearStartAgo(n: number): string {
 function yearEndAgo(n: number): string {
   const d = new Date();
   return `${d.getFullYear() - n}-12-31`;
-}
-
-/** Current date in 'YYYY-MM-DD' format. */
-function todayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
@@ -284,7 +273,7 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       const data = await qc.getOptionExpiration(['AAPL']);
       expect(Array.isArray(data)).toBe(true);
       expect(data.length).toBeGreaterThan(0);
-      expect((data[0] as any).dates.length).toBeGreaterThan(0);
+      expect((data[0] as any).dates?.length).toBeGreaterThan(0);
     });
 
     it('getOptionChain — AAPL first expiry', async () => {
@@ -650,7 +639,7 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
         const first = data[0] as any;
         // rate field may be nested or named differently depending on server version
         const hasRate = first.rate !== undefined || first.exchangeRate !== undefined
-          || first.close !== undefined || Object.keys(first).length > 0;
+          || first.close !== undefined;
         expect(hasRate).toBe(true);
       }
     });
@@ -1084,7 +1073,8 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
     it('getBrief — AAPL+00700+09988: latestPrice>0, High>=Low, AskPrice>=BidPrice', async () => {
       const data = await qc.getBrief({ symbols: ['AAPL', '00700', '09988'] });
       expect(Array.isArray(data)).toBe(true);
-      if (!data.length) return; // non-trading hours
+      // Each symbol is checked independently — a multi-market query can return
+      // partial results when some markets are closed while others are open.
       for (const q of data as any[]) {
         expect(q.symbol).toBeTruthy();
         expect(q.latestPrice).toBeGreaterThan(0);
