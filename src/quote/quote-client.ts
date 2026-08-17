@@ -625,10 +625,16 @@ export class QuoteClient {
   }
 
   /** Futures K-line. wire: future_kline
-   * beginTime / endTime default to -1 when unset (server requires them present). */
+   * beginTime / endTime default to -1 when unset (server requires them present).
+   * Server expects `contract_codes` (plural) — normalize singular `contractCode`
+   * to the plural form so callers can pass either shape. */
   async getFutureKline(req: FutureKlineRequest): Promise<FutureKline[]> {
+    const contractCodes = req.contractCodes
+      ?? (req.contractCode ? [req.contractCode] : undefined);
+    const { contractCode: _drop, ...rest } = req;
     const body: FutureKlineRequest = {
-      ...req,
+      ...rest,
+      ...(contractCodes ? { contractCodes } : {}),
       beginTime: req.beginTime ?? -1,
       endTime: req.endTime ?? -1,
     };
@@ -646,8 +652,9 @@ export class QuoteClient {
 
     const acc: FutureKlineItem[] = [];
     while (acc.length < totalSize) {
+      // Server rejects singular `contract_code` — send the plural form.
       const sub: FutureKlineRequest = {
-        contractCode: req.contractCode,
+        contractCodes: req.contractCode ? [req.contractCode] : undefined,
         period: req.period,
         beginTime,
         endTime,
