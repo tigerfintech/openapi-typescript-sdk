@@ -1,7 +1,12 @@
 /**
- * Integration tests — TradeClient (full coverage, read-only endpoints).
+ * Integration tests — TradeClient (read-only and write endpoints).
  *
- * NO order placement, modification, or cancellation.
+ * Write operations (placeOrder, cancelOrder, modifyOrder, placeForexOrder,
+ * transferSegmentFund, submitOptionExercise, cancelOptionExercise) are in
+ * the "Write operations" describe block. Each mutating call is immediately
+ * cancelled / guarded by an env-var to avoid persistent side-effects.
+ *
+ * Irreversible FX conversions: set TIGER_ALLOW_FOREX=true to enable.
  *
  * Guarded by `describe.skipIf(!shouldRun())`: skipped automatically in CI
  * when credentials or TIGER_RUN_INTEG=true are missing.
@@ -13,20 +18,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { shouldRun, buildTradeClient, buildQuoteClient } from './integ-setup';
 import type { TradeClient } from '../../src/trade/trade-client';
 import type { OrderRequest } from '../../src/model/order';
-import { resolveFilledOrderId } from './_helpers';
-
-/** Date N years ago (same month/day) in 'YYYY-MM-DD' format. */
-function yearsAgo(n: number): string {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() - n);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-/** Current date in 'YYYY-MM-DD' format. */
-function todayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+import { resolveFilledOrderId, yearsAgo, todayStr } from './_helpers';
 
 describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
   let tc: TradeClient;
@@ -59,8 +51,8 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     try {
       const records = await tc.getPositionTransferRecords({ sinceDate: yearsAgo(1), toDate: todayStr() });
       if (records.length) {
-        const id = (records[0] as any).id ?? (records[0] as any).recordId;
-        if (id) positionTransferRecordId = String(id);
+        const id = records[0].id;
+        if (id) positionTransferRecordId = id;
       }
     } catch { /* best-effort */ }
 
@@ -389,6 +381,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         expect(Array.isArray(data)).toBe(true);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
+        // max_date.limit: server rejects date ranges exceeding its configured limit — expected boundary.
         if (/permission|unauthorized|not support|account type|forbidden|max_date\.limit/i.test(msg)) return;
         throw err;
       }
@@ -400,6 +393,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         expect(Array.isArray(data)).toBe(true);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
+        // max_date.limit: server rejects date ranges exceeding its configured limit — expected boundary.
         if (/permission|unauthorized|not support|account type|forbidden|max_date\.limit/i.test(msg)) return;
         throw err;
       }
@@ -541,7 +535,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         expect(modified).toBeDefined();
       } catch (e: any) {
         const msg = String(e?.message ?? '');
-        if (!/cannot be modified|order.*status/i.test(msg)) throw e;
+        if (!matches(msg, TERMINAL_ORDER_PATTERNS)) throw e;
       } finally {
         // Best-effort cleanup — cancel may also fail if already terminal.
         try { await tc.cancelOrder(orderId); } catch { /* ignore */ }
@@ -557,7 +551,13 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       expect(canceled).toBeDefined();
     });
 
-    it('placeForexOrder — USD → HKD conversion', async () => {
+    // placeForexOrder is an IRREVERSIBLE real FX conversion — set
+    // TIGER_ALLOW_FOREX=true explicitly to enable this test.
+    it('placeForexOrder — USD → HKD conversion', async (ctx) => {
+      if (!process.env.TIGER_ALLOW_FOREX) {
+        ctx.skip();
+        return;
+      }
       const res = await tc.placeForexOrder({
         sourceCurrency: 'USD',
         targetCurrency: 'HKD',
@@ -567,7 +567,13 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       expect(res).toBeDefined();
     });
 
-    it('transferSegmentFund — cross-segment fund move', async () => {
+    // transferSegmentFund is an IRREVERSIBLE cross-segment fund move — set
+    // TIGER_ALLOW_FOREX=true explicitly to enable this test.
+    it('transferSegmentFund — cross-segment fund move', async (ctx) => {
+      if (!process.env.TIGER_ALLOW_FOREX) {
+        ctx.skip();
+        return;
+      }
       // Sandbox only accepts FUT / SEC segment identifiers.
       const res = await tc.transferSegmentFund({
         fromSegment: 'SEC',
@@ -579,15 +585,26 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     });
 
     it('cancelSegmentFund — cancel prior transfer', async (ctx) => {
-      // Requires an existing segment fund transfer id — no way to cancel
-      // something that doesn't exist. This is user-driven state, so skip
-      // regardless of trading hours when unseeded.
-      if (!positionTransferRecordId) {
+      // cancelSegmentFund requires a segment fund transfer id from
+      // getSegmentFundHistory, NOT a position transfer record id.
+      // We query the history here; skip when no pending transfer is found
+      // because this is user-driven state.
+      let segmentFundTransferId: string | undefined;
+      try {
+        const history = await tc.getSegmentFundHistory({});
+        const items: any[] = Array.isArray(history) ? history : (history as any)?.items ?? [];
+        if (items.length) {
+          const id = items[0]?.id ?? items[0]?.transferId;
+          if (id != null) segmentFundTransferId = String(id);
+        }
+      } catch { /* best-effort */ }
+
+      if (!segmentFundTransferId) {
         ctx.skip();
         return;
       }
       const res = await tc.cancelSegmentFund({
-        id: positionTransferRecordId,
+        id: segmentFundTransferId,
         currency: 'USD',
         amount: 1,
       });
@@ -599,17 +616,29 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       // sub-account provisioned in the environment; the sandbox rejects
       // synthetic toAccount values with `account.notFound`. Request
       // marshaling is covered by unit tests instead.
-      const res = await tc.transferPosition({
-        toAccount: '1002',
-        market: 'US',
-        transfers: [{ symbol: positionSymbol ?? 'AAPL', quantity: 1, secType: 'STK' }],
-      });
-      expect(res).toBeDefined();
+      try {
+        const res = await tc.transferPosition({
+          toAccount: '1002',
+          market: 'US',
+          transfers: [{ symbol: positionSymbol ?? 'AAPL', quantity: 1, secType: 'STK' }],
+        });
+        expect(res).toBeDefined();
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/account\.notFound|not found|permission|unauthorized|forbidden/i.test(msg)) return;
+        throw err;
+      }
     });
 
+    // submitOptionExercise is an IRREVERSIBLE early exercise submission.
+    // Set TIGER_ALLOW_FOREX=true to enable (reuses the same irreversible-op gate).
     it('submitOptionExercise — early exercise submission', async (ctx) => {
       // Needs an existing option contract in the account.
       if (!optionContractId) {
+        ctx.skip();
+        return;
+      }
+      if (!process.env.TIGER_ALLOW_FOREX) {
         ctx.skip();
         return;
       }
@@ -627,8 +656,8 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     });
 
     it('cancelOptionExercise — cancel by record id', async (ctx) => {
-      // Same precondition as submitOptionExercise — needs an option
-      // holding to be exercised in the first place.
+      // Requires an option holding in the account to have been exercised first.
+      // Skip when no option contract is available.
       if (!optionContractId) {
         ctx.skip();
         return;
@@ -675,11 +704,6 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       /does not support stock (long|short)/i,
       /only trade cash order by market order/i,
       /cash order by market order/i,
-      // Generic system error thrown by the gateway for specific instrument
-      // states (e.g. an HK IOPT contract that's expired or in a special
-      // trading state); treat as a boundary condition.
-      /^System error$/,
-      /bad_request:System error/,
       // Algo orders (TWAP / VWAP): start_time must be inside the market's
       // regular trading window. CI runs outside RTH — treat as skip.
       /time range for the order/i,
@@ -734,6 +758,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
           throw e;
         }
       }
+      // All 3 attempts exhausted rate-limit retries — surface as failure.
       throw new Error(`${context}: exhausted rate-limit retries`);
     }
 
@@ -751,16 +776,17 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
 
     /**
      * preview → place → cancel round-trip.
-     * Returns true if executed, false if skipped (permission/session boundary).
+     * Skips silently (returns early) when the server returns a permission or
+     * session-boundary error; throws for unexpected errors.
      */
-    async function previewAndPlace(order: OrderRequest, context: string): Promise<boolean> {
+    async function previewAndPlace(order: OrderRequest, context: string): Promise<void> {
       // 1. Preview validates SDK marshaling before touching real state.
       try {
         const preview = await tc.previewOrder(order);
         expect(preview, `${context}: preview returned undefined`).toBeDefined();
       } catch (e: any) {
         const msg = String(e?.message ?? e);
-        if (matches(msg, PERMISSION_ERROR_PATTERNS)) return false;
+        if (matches(msg, PERMISSION_ERROR_PATTERNS)) return;
         throw e;
       }
       // 2. Place, then cancel.
@@ -769,11 +795,10 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         orderId = await placeWithRetry(order, context);
       } catch (e: any) {
         const msg = String(e?.message ?? e);
-        if (matches(msg, PERMISSION_ERROR_PATTERNS)) return false;
+        if (matches(msg, PERMISSION_ERROR_PATTERNS)) return;
         throw e;
       }
       await cancelTolerant(orderId, context);
-      return true;
     }
 
     /** Build a base US STK order and merge overrides. */
@@ -935,8 +960,8 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
           // priceType required by the gateway even though the interface
           // marks it optional — matches the icebergOrder() helper default.
           priceType: 'LIMIT_PRICE',
-          startTime: now,
-          endTime: now + 3_600_000,
+          startTime: String(now),
+          endTime: String(now + 3_600_000),
         }),
         'US STK ICEBERG',
       );
@@ -1004,7 +1029,13 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       );
     });
 
-    it('Forex SEC segment — cross-currency conversion', async () => {
+    // placeForexOrder is an IRREVERSIBLE real FX conversion — set
+    // TIGER_ALLOW_FOREX=true explicitly to enable this test.
+    it('Forex SEC segment — cross-currency conversion', async (ctx) => {
+      if (!process.env.TIGER_ALLOW_FOREX) {
+        ctx.skip();
+        return;
+      }
       try {
         const res = await tc.placeForexOrder({
           segType: 'SEC',
@@ -1093,7 +1124,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         if (!contracts?.length) return;
         const c: any = contracts[0];
         expiry = c.expiry;
-        strike = String(c.strike);
+        strike = c.strike != null ? String(c.strike) : undefined;
         right = c.right ?? c.putCall;
       } catch { return; }
 
@@ -1256,8 +1287,8 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         minDisplaySize: 1,
         checkIntervals: 30,
         priceType: 'LIMIT_PRICE',
-        startTime: now,
-        endTime: now + 3_600_000,
+        startTime: String(now),
+        endTime: String(now + 3_600_000),
       });
       let orderId: number;
       try {
@@ -1270,7 +1301,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         await tc.modifyOrder(orderId, { ...order, limitPrice: SAFE_BUY_PRICE * 2 });
       } catch (e: any) {
         if (!matches(String(e?.message ?? e), TERMINAL_ORDER_PATTERNS)) {
-          // Modify might fail on iceberg-specific rules — don't fail the test.
+          throw e; // Unexpected error — rethrow to surface it
         }
       } finally {
         await cancelTolerant(orderId, 'US STK ICEBERG modify');
