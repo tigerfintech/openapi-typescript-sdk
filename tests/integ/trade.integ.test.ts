@@ -13,6 +13,11 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { shouldRun, buildTradeClient, buildQuoteClient } from './integ-setup';
 import type { TradeClient } from '../../src/trade/trade-client';
 import type { OrderRequest } from '../../src/model/order';
+import {
+  isMarketTradingCached,
+  primeMarketStatuses,
+  resolveFilledOrderId,
+} from './_helpers';
 
 /** Date N years ago (same month/day) in 'YYYY-MM-DD' format. */
 function yearsAgo(n: number): string {
@@ -41,33 +46,18 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
   beforeAll(async () => {
     tc = buildTradeClient();
 
-    // Fallback chain: filled orders (last 90d) → any orders → any inactive
-    // orders. Rust's integ test uses get_orders as the seed source; we widen
-    // it further so a paper account with just an old cancelled order still
-    // exercises the get_order endpoint.
-    try {
-      const now = Date.now();
-      const orders = await tc.getFilledOrders({
-        startDate: now - 90 * 24 * 60 * 60 * 1000,
-        endDate: now,
-        limit: 5,
-      });
-      if (orders.length) filledOrderId = orders[0].id;
-    } catch { /* best-effort */ }
+    // Prime the market-state cache once so the `getOrder` fallback can
+    // decide whether to fail or skip when no order history is present.
+    // Failure to reach `market_state` is treated as "not trading" so we
+    // err on the side of skipping.
+    const qc = buildQuoteClient();
+    await primeMarketStatuses(qc, ['US']);
 
-    if (!filledOrderId) {
-      try {
-        const orders = await tc.getOrders({ limit: 5 });
-        if (orders.length) filledOrderId = orders[0].id;
-      } catch { /* best-effort */ }
-    }
-
-    if (!filledOrderId) {
-      try {
-        const orders = await tc.getInactiveOrders({ limit: 5 });
-        if (orders.length) filledOrderId = orders[0].id;
-      } catch { /* best-effort */ }
-    }
+    // Fallback chain across filled → active → inactive orders. During
+    // trading hours a paper account should always have at least one order
+    // to work with (the earlier order-matrix tests seed some); off-hours
+    // the account may be genuinely empty in which case `getOrder` skips.
+    filledOrderId = await resolveFilledOrderId(tc);
 
     try {
       const positions = await tc.getPositions();
@@ -181,7 +171,21 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       expect(Array.isArray(data)).toBe(true);
     });
 
-    it.skipIf(!filledOrderId)('getOrder — by filled order id', async () => {
+    it('getOrder — by filled order id', async (ctx) => {
+      // The seed chain in `beforeAll` (filled → active → inactive) should
+      // always yield an id during US trading hours because the order
+      // matrix tests below place safe resting orders. If we're in RTH and
+      // still empty, that's a real regression — fail rather than skip.
+      if (!filledOrderId) {
+        if (isMarketTradingCached('US')) {
+          throw new Error(
+            'resolveFilledOrderId returned undefined while US market is TRADING — ' +
+            'paper account should always have at least one order in the last 90 days.',
+          );
+        }
+        ctx.skip();
+        return;
+      }
       // Coerce to Number for the request (SDK type is `number`). Response
       // id may be number or string — compare loosely.
       const data = await tc.getOrder({ id: Number(filledOrderId) });
@@ -411,9 +415,16 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       }
     });
 
-    it.skipIf(!positionTransferRecordId)('getPositionTransferDetail — by record id', async () => {
+    it('getPositionTransferDetail — by record id', async (ctx) => {
+      // Real accounts may not have any transfer records — skip when the
+      // seed is empty (this is a legitimate skip regardless of trading
+      // hours because transfers are user-initiated, not market-driven).
+      if (!positionTransferRecordId) {
+        ctx.skip();
+        return;
+      }
       try {
-        const data = await tc.getPositionTransferDetail({ id: positionTransferRecordId! });
+        const data = await tc.getPositionTransferDetail({ id: positionTransferRecordId });
         expect(data === undefined || data === null || typeof data === 'object').toBe(true);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -450,10 +461,17 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       }
     });
 
-    it.skipIf(!optionContractId)('checkOptionExercise — predict exercise outcome', async () => {
+    it('checkOptionExercise — predict exercise outcome', async (ctx) => {
+      // Requires a live option contract in the account. Paper accounts
+      // rarely hold options, so this is a legitimate skip regardless of
+      // trading hours.
+      if (!optionContractId) {
+        ctx.skip();
+        return;
+      }
       try {
         const data = await tc.checkOptionExercise({
-          contractId: optionContractId!,
+          contractId: optionContractId,
           type: 'Exercise',
         });
         expect(data === undefined || data === null || typeof data === 'object').toBe(true);
@@ -570,9 +588,14 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       expect(res).toBeDefined();
     });
 
-    it.skipIf(!positionTransferRecordId)('cancelSegmentFund — cancel prior transfer', async () => {
-      // Requires an existing segment fund transfer id; falls back to a smoke
-      // call with just the currency/amount signature if none is available.
+    it('cancelSegmentFund — cancel prior transfer', async (ctx) => {
+      // Requires an existing segment fund transfer id — no way to cancel
+      // something that doesn't exist. This is user-driven state, so skip
+      // regardless of trading hours when unseeded.
+      if (!positionTransferRecordId) {
+        ctx.skip();
+        return;
+      }
       const res = await tc.cancelSegmentFund({
         id: positionTransferRecordId,
         currency: 'USD',
@@ -581,23 +604,34 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       expect(res).toBeDefined();
     });
 
-    it.skipIf(!positionSymbol)('transferPosition — internal move (dry run)', async () => {
+    it('transferPosition — internal move (dry run)', async (ctx) => {
+      // Depends on an existing position. Paper accounts often have none —
+      // skip when empty rather than fabricating a position.
+      if (!positionSymbol) {
+        ctx.skip();
+        return;
+      }
       // Uses a placeholder toAccount that the sandbox will refuse; we only
       // assert the client marshals the request and surfaces the error path.
       const res = await tc.transferPosition({
         toAccount: '1002',
         market: 'US',
-        transfers: [{ symbol: positionSymbol!, quantity: 1, secType: 'STK' }],
+        transfers: [{ symbol: positionSymbol, quantity: 1, secType: 'STK' }],
       });
       expect(res).toBeDefined();
     });
 
-    it.skipIf(!optionContractId)('submitOptionExercise — early exercise submission', async () => {
+    it('submitOptionExercise — early exercise submission', async (ctx) => {
+      // Needs an existing option contract in the account.
+      if (!optionContractId) {
+        ctx.skip();
+        return;
+      }
       const executingDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         .toISOString()
         .slice(0, 10);
       const res = await tc.submitOptionExercise({
-        contractId: optionContractId!,
+        contractId: optionContractId,
         type: 'Exercise',
         quantity: 1,
         executingDate,
@@ -606,7 +640,13 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       expect(typeof res).toBe('boolean');
     });
 
-    it.skipIf(!optionContractId)('cancelOptionExercise — cancel by record id', async () => {
+    it('cancelOptionExercise — cancel by record id', async (ctx) => {
+      // Same precondition as submitOptionExercise — needs an option
+      // holding to be exercised in the first place.
+      if (!optionContractId) {
+        ctx.skip();
+        return;
+      }
       // Find a cancellable exercise record; skip if the account has none.
       const records = await tc.getOptionExerciseRecords({ status: 'New', size: 5 });
       const items = (records as any)?.items ?? [];

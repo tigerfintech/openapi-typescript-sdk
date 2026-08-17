@@ -10,6 +10,14 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { shouldRun, buildQuoteClient } from './integ-setup';
 import { QuoteClient, parseOptionIdentifier } from '../../src/quote/quote-client';
+import {
+  FUTURES_FALLBACK,
+  isMarketOpenExtendedCached,
+  isMarketTradingCached,
+  primeMarketStatuses,
+  resolveHkWarrantSymbol,
+  resolveUsOptionIdentifier,
+} from './_helpers';
 
 /** Nearest past weekday (Mon-Fri) in 'YYYY-MM-DD' format. */
 function recentWeekday(): string {
@@ -74,25 +82,32 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
   beforeAll(async () => {
     qc = buildQuoteClient();
 
-    // 1. Get AAPL nearest option identifier
-    try {
-      const exps = await qc.getOptionExpiration(['AAPL']);
-      if (exps.length && exps[0].dates && exps[0].dates.length) {
-        const chain = await qc.getOptionChain([['AAPL', exps[0].dates[0]]]);
-        if (chain.length && chain[0].items && chain[0].items.length) {
-          const row = chain[0].items[0];
-          optionIdentifier = (row as any).call?.identifier ?? (row as any).put?.identifier;
-        }
-      }
-    } catch { /* best-effort */ }
+    // Prime the market-state cache once so every `.skipIf(...)` and inline
+    // trading-hours check reads without an extra RPC. We cover the
+    // per-market checks used by the suite: US for stocks/options, HK for
+    // warrants, and — via extended checks — CN/SG when needed.
+    await primeMarketStatuses(qc, ['US', 'HK']);
+
+    // 1. Get AAPL nearest option identifier.
+    //    If the resolver returns undefined AND the US market is trading,
+    //    that's a real bug (empty option chain during RTH should not
+    //    happen) — fail the whole suite via `beforeAll`. Otherwise leave
+    //    undefined and let each `it()` block decide whether to skip.
+    optionIdentifier = await resolveUsOptionIdentifier(qc);
+    if (!optionIdentifier && isMarketTradingCached('US')) {
+      throw new Error(
+        'resolveUsOptionIdentifier() returned undefined while US market is TRADING — ' +
+        'option chain endpoint should always yield data during RTH.',
+      );
+    }
 
     // 2. Get futures exchange and contract.
     //
-    // The seed used to pick `getFutureExchange()[0]` unconditionally, so if
-    // that exchange had no active contracts the whole Futures section
-    // cascade-skipped. Iterate until we find an exchange with at least one
-    // contract; also try the known-good `CME` / `NYMEX` fallbacks if all
-    // returned exchanges are empty (or the seed threw for one exchange).
+    // Iterate the exchanges returned by `future_exchange` and fall back to
+    // known-good codes (`CME` / `NYMEX` / `COMEX` / `GLOBEX`) if the list
+    // is empty. Paper accounts sometimes have restricted futures
+    // permissions; if every exchange returns empty, fall back to the
+    // hard-coded `MNQmain` contract so the Futures tests still execute.
     try {
       const excs = await qc.getFutureExchange();
       const seenCodes = new Set<string>();
@@ -129,8 +144,19 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       }
     } catch { /* best-effort */ }
 
+    // Ultimate fallback: hardcoded continuous-contract identifier. Futures
+    // trade nearly 24/6 so we don't gate on trading hours here — if the
+    // gateway simply doesn't grant futures data to the account, the
+    // individual tests will get a permission error and surface it.
+    if (!futureContractCode) {
+      futureExchangeCode = futureExchangeCode ?? FUTURES_FALLBACK.exchangeCode;
+      futureContractCode = FUTURES_FALLBACK.contractCode;
+      futureType = FUTURES_FALLBACK.futureType;
+    }
+
     // 3. Get industry ID. Try multiple levels so at least one non-empty
-    //    response yields a seed.
+    //    response yields a seed. `GSECTOR` is always populated for US — if
+    //    every level returns empty something is wrong with the account.
     for (const level of ['GSECTOR', 'GGROUP', 'GIND', 'GSUBIND']) {
       try {
         const industries = await qc.getIndustryList({ industryLevel: level });
@@ -142,6 +168,12 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
           }
         }
       } catch { /* try next level */ }
+    }
+    if (!industryId) {
+      throw new Error(
+        'getIndustryList returned empty for every level (GSECTOR/GGROUP/GIND/GSUBIND) — ' +
+        'expected at least one industry entry.',
+      );
     }
   });
 
@@ -268,18 +300,30 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       }
     });
 
-    it.skipIf(!optionIdentifier)('getOptionKline — option identifier', async () => {
-      const data = await qc.getOptionKline([optionIdentifier!], 'day', -1, -1, undefined, 3);
+    it('getOptionKline — option identifier', async (ctx) => {
+      if (!optionIdentifier) {
+        ctx.skip();
+        return;
+      }
+      const data = await qc.getOptionKline([optionIdentifier], 'day', -1, -1, undefined, 3);
       expect(Array.isArray(data)).toBe(true);
     });
 
-    it.skipIf(!optionIdentifier)('getOptionQuote — option identifier', async () => {
-      const data = await qc.getOptionQuote([optionIdentifier!]);
+    it('getOptionQuote — option identifier', async (ctx) => {
+      if (!optionIdentifier) {
+        ctx.skip();
+        return;
+      }
+      const data = await qc.getOptionQuote([optionIdentifier]);
       expect(Array.isArray(data)).toBe(true);
     });
 
-    it.skipIf(!optionIdentifier)('getOptionBrief — option identifier (alias)', async () => {
-      const data = await qc.getOptionBrief([optionIdentifier!]);
+    it('getOptionBrief — option identifier (alias)', async (ctx) => {
+      if (!optionIdentifier) {
+        ctx.skip();
+        return;
+      }
+      const data = await qc.getOptionBrief([optionIdentifier]);
       expect(Array.isArray(data)).toBe(true);
     });
 
@@ -301,9 +345,12 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       expect(Array.isArray(data)).toBe(true);
     });
 
-    it.skipIf(!optionIdentifier)('getOptionTradeTicks — option identifier', async () => {
-      // Non-trading hours: data may be empty — only assert fields when non-empty
-      const parsed = parseOptionIdentifier(optionIdentifier!);
+    it('getOptionTradeTicks — option identifier', async (ctx) => {
+      if (!optionIdentifier) {
+        ctx.skip();
+        return;
+      }
+      const parsed = parseOptionIdentifier(optionIdentifier);
       const data = await qc.getOptionTradeTicks({
         contracts: [{
           symbol: parsed.symbol,
@@ -313,14 +360,23 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
         }],
       });
       expect(Array.isArray(data)).toBe(true);
-      if (data.length && (data[0] as any).items?.length) {
+      // In-hours the endpoint should return trade ticks. Off-hours the
+      // server returns an empty envelope — that's expected.
+      if (isMarketTradingCached('US')) {
+        expect(data.length).toBeGreaterThan(0);
+        expect((data[0] as any).items?.length ?? 0).toBeGreaterThan(0);
+        expect((data[0] as any).items[0].time).toBeDefined();
+      } else if (data.length && (data[0] as any).items?.length) {
         expect((data[0] as any).items[0].time).toBeDefined();
       }
     });
 
-    it.skipIf(!optionIdentifier)('getOptionTimeline — option identifier', async () => {
-      // Non-trading hours: data may be empty — only assert fields when non-empty
-      const parsed = parseOptionIdentifier(optionIdentifier!);
+    it('getOptionTimeline — option identifier', async (ctx) => {
+      if (!optionIdentifier) {
+        ctx.skip();
+        return;
+      }
+      const parsed = parseOptionIdentifier(optionIdentifier);
       const data = await qc.getOptionTimeline({
         optionQuery: [{
           symbol: parsed.symbol,
@@ -330,13 +386,21 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
         }],
       });
       expect(Array.isArray(data)).toBe(true);
-      if (data.length && (data[0] as any).items?.length) {
+      if (isMarketTradingCached('US')) {
+        expect(data.length).toBeGreaterThan(0);
+        expect((data[0] as any).items?.length ?? 0).toBeGreaterThan(0);
+        expect((data[0] as any).items[0].time).toBeDefined();
+      } else if (data.length && (data[0] as any).items?.length) {
         expect((data[0] as any).items[0].time).toBeDefined();
       }
     });
 
-    it.skipIf(!optionIdentifier)('getOptionDepth — option identifier', async () => {
-      const parsed = parseOptionIdentifier(optionIdentifier!);
+    it('getOptionDepth — option identifier', async (ctx) => {
+      if (!optionIdentifier) {
+        ctx.skip();
+        return;
+      }
+      const parsed = parseOptionIdentifier(optionIdentifier);
       const data = await qc.getOptionDepth({
         optionBasic: [{
           symbol: parsed.symbol,
@@ -451,8 +515,15 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       expect(first.id ?? first.industryId).toBeTruthy();
     });
 
-    it.skipIf(!industryId)('getIndustryStocks', async () => {
-      const data = await qc.getIndustryStocks({ industryId: industryId! });
+    it('getIndustryStocks', async (ctx) => {
+      // `industryId` is asserted non-empty in `beforeAll` — the guard here
+      // is a defensive fallback that keeps this case skippable in case a
+      // future change loosens the beforeAll invariant.
+      if (!industryId) {
+        ctx.skip();
+        return;
+      }
+      const data = await qc.getIndustryStocks({ industryId });
       expect(Array.isArray(data)).toBe(true);
     });
 
@@ -627,22 +698,25 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       expect(first.code ?? first.exchangeCode).toBeTruthy();
     });
 
-    it.skipIf(!futureExchangeCode)('getFutureContracts', async () => {
+    // Futures seed is now guaranteed by beforeAll (falls back to hardcoded
+    // MNQmain if all exchanges return empty), so these tests execute
+    // unconditionally and surface real permission errors when they occur.
+    it('getFutureContracts', async () => {
       const data = await qc.getFutureContracts(futureExchangeCode!);
       expect(Array.isArray(data)).toBe(true);
     });
 
-    it.skipIf(!futureContractCode)('getFutureRealTimeQuote', async () => {
+    it('getFutureRealTimeQuote', async () => {
       const data = await qc.getFutureRealTimeQuote({ contractCodes: [futureContractCode!] });
       expect(Array.isArray(data)).toBe(true);
     });
 
-    it.skipIf(!futureContractCode)('getFutureContract — single', async () => {
+    it('getFutureContract — single', async () => {
       const data = await qc.getFutureContract({ contractCode: futureContractCode! });
       expect(Array.isArray(data)).toBe(true);
     });
 
-    it.skipIf(!futureType)('getAllFutureContracts', async () => {
+    it('getAllFutureContracts', async () => {
       // Python `get_all_future_contracts(future_type)` sends `type`
       // (like "CL"). `exchange` is server-side optional but `type` is the
       // canonical query field.
@@ -650,29 +724,31 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       expect(Array.isArray(data)).toBe(true);
     });
 
-    it.skipIf(!futureContractCode)('getCurrentFutureContract', async () => {
+    it('getCurrentFutureContract', async () => {
       const data = await qc.getCurrentFutureContract({ contractCode: futureContractCode! });
       expect(data === undefined || data === null || typeof data === 'object').toBe(true);
     });
 
-    it.skipIf(!futureType)('getFutureContinuousContracts', async () => {
+    it('getFutureContinuousContracts', async () => {
       // Wire param is `type` (future type, e.g. "CL"), not a contract code.
       const data = await qc.getFutureContinuousContracts({ type: futureType! });
       expect(Array.isArray(data)).toBe(true);
     });
 
-    it.skipIf(!futureContractCode)('getFutureKline', async () => {
+    it('getFutureKline', async () => {
       const data = await qc.getFutureKline({ contractCode: futureContractCode!, period: 'day', limit: 3 });
       expect(Array.isArray(data)).toBe(true);
     });
 
-    it.skipIf(!futureContractCode)('getFutureKlineByPage', async () => {
+    it('getFutureKlineByPage', async () => {
       const data = await qc.getFutureKlineByPage({ contractCode: futureContractCode!, period: 'day', totalSize: 5 });
       expect(Array.isArray(data)).toBe(true);
     });
 
-    it.skipIf(!futureContractCode)('getFutureTradeTicks', async () => {
-      // Non-trading hours: data may be empty — only assert fields when non-empty
+    it('getFutureTradeTicks', async () => {
+      // Futures trade nearly 24/6. Data may still be sparse during the
+      // daily settlement break — only assert content when items are
+      // present rather than gating on stock-market RTH.
       const data = await qc.getFutureTradeTicks({ contractCode: futureContractCode! });
       expect(Array.isArray(data)).toBe(true);
       if (data.length && (data[0] as any).items?.length) {
@@ -680,18 +756,17 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       }
     });
 
-    it.skipIf(!futureContractCode)('getFutureDepth', async () => {
+    it('getFutureDepth', async () => {
       const data = await qc.getFutureDepth({ contractCodes: [futureContractCode!] });
       expect(Array.isArray(data)).toBe(true);
     });
 
-    it.skipIf(!futureContractCode)('getFutureTradingTimes', async () => {
-      // Non-trading hours: data may be empty — only assert fields when non-empty
+    it('getFutureTradingTimes', async () => {
       const data = await qc.getFutureTradingTimes({ contractCode: futureContractCode! });
       expect(data === undefined || data === null || typeof data === 'object').toBe(true);
     });
 
-    it.skipIf(!futureType)('getFutureHistoryMainContract', async () => {
+    it('getFutureHistoryMainContract', async () => {
       // Wire param `contract_codes` accepts main-contract identifiers like
       // "CLmain" (future type + "main"), not exchange codes.
       const now = Date.now();
@@ -758,13 +833,16 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
     let warrantSymbol: string | undefined;
 
     beforeAll(async () => {
-      try {
-        const filter = await qc.getWarrantFilter({ symbol: '00700', page: 0, pageSize: 5 });
-        const items = (filter as any)?.items;
-        if (Array.isArray(items) && items.length) {
-          warrantSymbol = items[0]?.symbol;
-        }
-      } catch { /* best-effort */ }
+      warrantSymbol = await resolveHkWarrantSymbol(qc);
+      // HK warrants are only discoverable while the HK market is at least
+      // in an extended-hours session. If it's closed, empty is expected —
+      // otherwise resolveHkWarrantSymbol should have returned something.
+      if (!warrantSymbol && isMarketOpenExtendedCached('HK')) {
+        throw new Error(
+          'resolveHkWarrantSymbol() returned undefined while HK market is in trading hours — ' +
+          'warrant_filter should return at least one row for 00700 during the session.',
+        );
+      }
     });
 
     it('getWarrantFilter — HK 00700', async () => {
@@ -772,13 +850,21 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       expect(data === undefined || data === null || typeof data === 'object').toBe(true);
     });
 
-    it.skipIf(!warrantSymbol)('getWarrantQuote — HK warrant symbol', async () => {
-      const data = await qc.getWarrantQuote({ symbols: [warrantSymbol!] });
+    it('getWarrantQuote — HK warrant symbol', async (ctx) => {
+      if (!warrantSymbol) {
+        ctx.skip();
+        return;
+      }
+      const data = await qc.getWarrantQuote({ symbols: [warrantSymbol] });
       expect(Array.isArray(data)).toBe(true);
     });
 
-    it.skipIf(!warrantSymbol)('getWarrantBriefs — HK warrant (deprecated alias)', async () => {
-      const data = await qc.getWarrantBriefs({ symbols: [warrantSymbol!] });
+    it('getWarrantBriefs — HK warrant (deprecated alias)', async (ctx) => {
+      if (!warrantSymbol) {
+        ctx.skip();
+        return;
+      }
+      const data = await qc.getWarrantBriefs({ symbols: [warrantSymbol] });
       expect(Array.isArray(data)).toBe(true);
     });
   });
