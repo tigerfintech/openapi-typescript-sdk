@@ -176,17 +176,24 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       }
       // Order ids can exceed JavaScript's MAX_SAFE_INTEGER (2^53 - 1).
       // The SDK's GetOrderRequest.id is typed `number` — coercing a 17+ digit
-      // string via Number() loses precision. Skip when precision loss would
-      // corrupt the round-trip; the SDK typing needs widening to fix this
-      // properly (tracked separately).
+      // string via Number() loses precision and corrupts the round-trip.
+      // Known risk: when the account's filled order id is > MAX_SAFE_INTEGER,
+      // the SDK type must be widened to `string | number` to fix this properly.
+      // We still exercise the wire path here using the unsafe coercion so CI
+      // catches regressions in the response shape; id round-trip is only
+      // asserted when the value is safe.
       const asNum = Number(filledOrderId);
-      if (!Number.isSafeInteger(asNum) || String(asNum) !== String(filledOrderId)) {
-        ctx.skip();
-        return;
+      const isSafe = Number.isSafeInteger(asNum) && String(asNum) === String(filledOrderId);
+      if (!isSafe) {
+        console.warn(
+          `[known-risk] getOrder: filledOrderId=${filledOrderId} exceeds MAX_SAFE_INTEGER — ` +
+          `id round-trip will be skipped but wire path is still exercised. ` +
+          `Fix: widen GetOrderRequest.id to string | number.`
+        );
       }
       const data = await tc.getOrder({ id: asNum });
       expect(data).toBeDefined();
-      if (data) {
+      if (data && isSafe) {
         expect(String(data.id)).toBe(String(filledOrderId));
       }
     });
