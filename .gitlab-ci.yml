@@ -107,10 +107,9 @@ notify:webhook:
 
       # 2. Determine pass/fail: unit test failures = pipeline failed.
       #    Integration is allow_failure: true, so its failures don't block.
+      #    CI_PIPELINE_STATUS is unreliable in .post stage (may still read
+      #    "running"), so we rely exclusively on the parsed JUnit XML counts.
       has_failed = unit_f > 0
-      status = os.environ.get("CI_PIPELINE_STATUS", "")
-      if status == "failed":
-          has_failed = True
 
       # 3. Build notification card.
       title = "❌ Pipeline failed" if has_failed else "✅ Pipeline passed"
