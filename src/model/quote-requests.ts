@@ -34,6 +34,7 @@ export interface TradeTickRequest {
   beginIndex?: number;
   endIndex?: number;
   limit?: number;
+  tradeSession?: string;
   lang?: string;
 }
 

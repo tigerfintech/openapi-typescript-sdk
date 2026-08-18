@@ -19,6 +19,7 @@ import { SocketCommon_Command, SocketCommon_DataType } from '../../src/push/pb/S
 import { QuoteData } from '../../src/push/pb/QuoteData';
 import { QuoteDepthData } from '../../src/push/pb/QuoteDepthData';
 import { TradeTickData } from '../../src/push/pb/TradeTickData';
+import { TickData } from '../../src/push/pb/TickData';
 import { AssetData } from '../../src/push/pb/AssetData';
 import { PositionData } from '../../src/push/pb/PositionData';
 import { OrderStatusData } from '../../src/push/pb/OrderStatusData';
@@ -405,7 +406,8 @@ describe('PushClient (Protobuf, TCP + TLS)', () => {
 
     it('TradeTick push should trigger onTick callback', async () => {
       const onTick = vi.fn();
-      client.setCallbacks({ onTick });
+      const onFullTick = vi.fn();
+      client.setCallbacks({ onTick, onFullTick });
 
       await connectClient();
 
@@ -423,6 +425,38 @@ describe('PushClient (Protobuf, TCP + TLS)', () => {
 
       expect(onTick).toHaveBeenCalledTimes(1);
       expect(onTick.mock.calls[0][0].symbol).toBe('TSLA');
+      expect(onFullTick).not.toHaveBeenCalled();
+    });
+
+    it('full TradeTick push should trigger onFullTick callback', async () => {
+      const onTick = vi.fn();
+      const onFullTick = vi.fn();
+      client = new PushClient(testConfig(), {
+        autoReconnect: false,
+        heartbeatInterval: 10_000,
+        useFullTick: true,
+      });
+      client.socketFactory = () => mockSocket;
+      client.setCallbacks({ onTick, onFullTick });
+
+      await connectClient();
+
+      const tickData = TickData.fromPartial({ symbol: 'TSLA', ticks: [{ price: 150.25 }] });
+      const pushData = PushData.fromPartial({
+        dataType: SocketCommon_DataType.TradeTick,
+        tickData,
+      });
+      const response = Response.fromPartial({
+        command: SocketCommon_Command.MESSAGE,
+        body: pushData,
+      });
+
+      mockSocket.simulateResponse(response);
+
+      expect(onFullTick).toHaveBeenCalledTimes(1);
+      expect(onFullTick.mock.calls[0][0].symbol).toBe('TSLA');
+      expect(onFullTick.mock.calls[0][0].ticks[0].price).toBe(150.25);
+      expect(onTick).not.toHaveBeenCalled();
     });
 
     it('Asset push should trigger onAsset callback', async () => {

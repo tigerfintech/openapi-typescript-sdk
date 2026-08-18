@@ -425,9 +425,27 @@ describe('QuoteClient additional methods', () => {
     });
 
     it('getQuoteOvernight sends quote_overnight', async () => {
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([{ symbol: 'AAPL', preClose: 149 }]));
+      const overnight = {
+        symbol: 'AAPL',
+        latestPrice: 224.5,
+        askPrice: 224.6,
+        askSize: 12,
+        bidPrice: 224.4,
+        bidSize: 8,
+        preClose: 220,
+        volume: 1000,
+        amount: 224500,
+        timestamp: 1720000000000,
+        tradingStatus: 5,
+        change: 4.5,
+        changeRate: 0.02045,
+        amplitude: 0.03,
+      };
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([overnight]));
       const result = await qc.getQuoteOvernight({ symbols: ['AAPL'] });
-      expect(result[0].symbol).toBe('AAPL');
+      expect(capturedMethod(mockHttpClient)).toBe('quote_overnight');
+      expect(result[0]).toEqual(overnight);
+      expect(result[0].tradingStatus).toBe(5);
     });
   });
 });

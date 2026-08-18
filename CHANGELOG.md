@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `TradeTickRequest` supports the optional `tradeSession` field
+
+### Fixed
+- Corrected `QuoteOvernight` fields to match the service response
+- Routed full-tick push payloads to `onFullTick` without changing normal `onTick` dispatch
+
 ## [0.5.4] - 2026-07-24
 
 ### Added
