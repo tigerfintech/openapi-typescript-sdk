@@ -707,17 +707,19 @@ export interface FinancialCurrency {
 /** Overnight quote (quote_overnight). */
 export interface QuoteOvernight {
   symbol?: string;
+  latestPrice?: number;
+  askPrice?: number;
+  askSize?: number;
+  bidPrice?: number;
+  bidSize?: number;
   preClose?: number;
-  open?: number;
-  close?: number;
-  high?: number;
-  low?: number;
   volume?: number;
   amount?: number;
+  timestamp?: number;
+  tradingStatus?: number;
   change?: number;
   changeRate?: number;
-  beginTime?: number;
-  endTime?: number;
+  amplitude?: number;
 }
 
 /** Single market-scanner tag. */

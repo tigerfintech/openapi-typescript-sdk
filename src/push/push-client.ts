@@ -423,6 +423,7 @@ export class PushClient {
         if (pushData.quoteDepthData) cb.onDepth?.(pushData.quoteDepthData);
         break;
       case SocketCommon_DataType.TradeTick:
+        if (pushData.tickData) cb.onFullTick?.(pushData.tickData);
         if (pushData.tradeTickData) cb.onTick?.(pushData.tradeTickData);
         break;
       case SocketCommon_DataType.Asset:
@@ -451,8 +452,7 @@ export class PushClient {
         if (pushData.quoteData) cb.onQuote?.(pushData.quoteData);
         break;
       default:
-        // FullTick and QuoteBBO use TradeTick/Quote dataType
-        // TickData (fullTick) via tickData field
+        // QuoteBBO and some full-tick payloads reuse an existing dataType.
         if (pushData.tickData) cb.onFullTick?.(pushData.tickData);
         break;
     }

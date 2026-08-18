@@ -286,6 +286,55 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       }
     });
 
+    it('OverNight — AAPL 1min kline, US depth, and trade ticks', async () => {
+      const klines = await qc.getKline({
+        symbols: ['AAPL'],
+        period: '1min',
+        limit: 5,
+        tradeSession: 'OverNight',
+      });
+      expect(Array.isArray(klines)).toBe(true);
+      if (klines.length) {
+        expect(klines[0].symbol).toBe('AAPL');
+        expect(Array.isArray(klines[0].items)).toBe(true);
+        if (klines[0].items.length) {
+          expect(klines[0].items[0].time).toBeGreaterThan(0);
+          expect(klines[0].items[0].close).toBeGreaterThan(0);
+        }
+      }
+
+      const depths = await qc.getQuoteDepth({
+        symbols: ['AAPL'],
+        market: 'US',
+        tradeSession: 'OverNight',
+      });
+      expect(Array.isArray(depths)).toBe(true);
+      if (depths.length) {
+        expect(depths[0].symbol).toBe('AAPL');
+        expect(Array.isArray(depths[0].asks)).toBe(true);
+        expect(Array.isArray(depths[0].bids)).toBe(true);
+        if (depths[0].asks.length) {
+          expect(depths[0].asks[0].price).toBeGreaterThan(0);
+          expect(depths[0].asks[0].volume).toBeGreaterThanOrEqual(0);
+        }
+        if (depths[0].bids.length) {
+          expect(depths[0].bids[0].price).toBeGreaterThan(0);
+          expect(depths[0].bids[0].volume).toBeGreaterThanOrEqual(0);
+        }
+      }
+
+      const ticks = await qc.getTradeTick({ symbols: ['AAPL'], limit: 5, tradeSession: 'OverNight' });
+      expect(Array.isArray(ticks)).toBe(true);
+      if (ticks.length) {
+        expect(ticks[0].symbol).toBe('AAPL');
+        expect(Array.isArray(ticks[0].items)).toBe(true);
+        if (ticks[0].items.length) {
+          expect(ticks[0].items[0].time).toBeGreaterThan(0);
+          expect(ticks[0].items[0].price).toBeGreaterThan(0);
+        }
+      }
+    });
+
     it('getQuoteDepth — AAPL US', async () => {
       const data = await qc.getQuoteDepth({ symbols: ['AAPL'], market: 'US' });
       expect(Array.isArray(data)).toBe(true);

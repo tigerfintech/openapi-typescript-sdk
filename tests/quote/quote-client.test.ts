@@ -61,10 +61,10 @@ describe('QuoteClient', () => {
       expect(capturedBiz(mockHttpClient)).toEqual({ symbols: ['AAPL'] });
     });
 
-    it('getTradeTick 发送 symbols 数组', async () => {
+    it('getTradeTick serializes tradeSession as trade_session', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
-      await qc.getTradeTick({ symbols: ['AAPL'] });
-      expect(capturedBiz(mockHttpClient)).toEqual({ symbols: ['AAPL'] });
+      await qc.getTradeTick({ symbols: ['AAPL'], tradeSession: 'OverNight' });
+      expect(capturedBiz(mockHttpClient)).toEqual({ symbols: ['AAPL'], trade_session: 'OverNight' });
     });
 
     it('getQuoteDepth 发送 symbols 数组 + market(snake_case)', async () => {

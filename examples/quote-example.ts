@@ -65,7 +65,7 @@ async function main() {
   } catch (e) { fail('getTimeline', e); }
 
   try {
-    const tt = await qc.getTradeTick({ symbols: ['AAPL'] });
+    const tt = await qc.getTradeTick({ symbols: ['AAPL'], tradeSession: 'regular' });
     ok('getTradeTick', `ticks=${tt[0]?.items.length ?? 0}`);
   } catch (e) { fail('getTradeTick', e); }
 
@@ -525,7 +525,7 @@ async function main() {
 
   try {
     const rows = await qc.getQuoteOvernight({ symbols: ['AAPL'] });
-    ok('getQuoteOvernight(AAPL)', `count=${rows.length}`);
+    ok('getQuoteOvernight(AAPL)', `price=${rows[0]?.latestPrice} status=${rows[0]?.tradingStatus}`);
   } catch (e) { fail('getQuoteOvernight(AAPL)', e); }
 
   printSummary();
