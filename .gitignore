@@ -9,8 +9,7 @@ dist/
 *.js.map
 *.d.ts.map
 
-# 包管理锁文件（库项目不提交，由使用者生成）
-package-lock.json
+# 包管理锁文件（yarn/pnpm 不提交，npm lockfile 提交以保证 CI 可复现）
 yarn.lock
 pnpm-lock.yaml
 
