@@ -210,15 +210,15 @@ export class TradeClient {
       return withAccount;
     }
 
-    // Object shape → tag/value array. Note: keys stay camelCase; the
-    // outer `keysToSnakeCase` pass converts `tag` inside each entry
-    // AS-IS (already lowercase) and the object still round-trips because
-    // the `tag` field holds the snake_case key literally.
+    // Object shape → tag/value array.
+    // Keys are converted to snake_case explicitly here (e.g. `startTime` →
+    // `start_time`) so they land correctly in the `tag` string that the
+    // gateway reads. `keysToSnakeCase` only rewrites object *keys*, not
+    // string *values*, so `tag` would be left camelCase if we didn't do
+    // this conversion ourselves.
     const tagValues: Array<{ tag: string; value: unknown }> = [];
     for (const [key, value] of Object.entries(algoParams)) {
       if (value === undefined || value === null) continue;
-      // Convert key to snake_case here so it lands in `tag` correctly —
-      // keysToSnakeCase won't rewrite string *values*, only keys.
       const snakeKey = key.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
       tagValues.push({ tag: snakeKey, value });
     }

@@ -177,8 +177,8 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       if (data.length) {
         expect((data[0] as any).market).toBe('US');
         expect((data[0] as any).marketStatus).toBeTruthy();
-        // Assert status field
-        expect((data[0] as any).status !== undefined || (data[0] as any).marketStatus !== undefined).toBe(true);
+        // Assert the machine-readable status field is also present
+        expect((data[0] as any).status).toBeDefined();
       }
     });
 
@@ -187,9 +187,9 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       expect(Array.isArray(data)).toBe(true);
       if (data.length) {
         expect((data[0] as any).market).toBe('HK');
-        // Assert status field
+        // Assert the machine-readable status field is present
         const item = data[0] as any;
-        expect(item.status !== undefined || item.marketStatus !== undefined).toBe(true);
+        expect(item.status).toBeDefined();
       }
     });
 
@@ -1016,7 +1016,7 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       expect(data).toBeDefined();
       const items = (data as any)?.items;
       expect(Array.isArray(items)).toBe(true);
-      if (isMarketTradingCached('HK')) {
+      if (isMarketOpenExtendedCached('HK')) {
         expect(items.length).toBeGreaterThan(0);
         expect(items[0]?.symbol).toBeTruthy();
       }
