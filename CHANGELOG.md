@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Breaking
 
 - `Callbacks.onTick` parameter type changed from raw `TradeTickData` (protobuf) to decoded `PushTradeTick`; each tick is now a `PushTick` with `price`, `volume`, `cond`, `partCode`, `partName` fields
+- `FundDetailsRequest.startDate` / `endDate` type changed from `number` (epoch ms) to `string` (`yyyy-MM-dd`); callers passing a numeric timestamp will hit a gateway parse error
 
 ### Added
 - `OptionLeg` adds `markPrice`, `preMarkPrice`, `markTimestamp`, `midPrice`, `preMidPrice`, `midTimestamp` fields

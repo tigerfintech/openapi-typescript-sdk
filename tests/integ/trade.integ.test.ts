@@ -634,24 +634,11 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       expect(res).toBeDefined();
     });
 
-    it.skip('transferPosition — skipped (mutating write, sandbox rejects synthetic toAccount)', async () => {
-      // Mutating cross-account transfer. Requires a real destination
-      // sub-account provisioned in the environment; the sandbox rejects
-      // synthetic toAccount values with `account.notFound`. Request
-      // marshaling is covered by unit tests instead.
-      try {
-        const res = await tc.transferPosition({
-          toAccount: '1002',
-          market: 'US',
-          transfers: [{ symbol: positionSymbol ?? 'AAPL', quantity: 1, secType: 'STK' }],
-        });
-        expect(res).toBeDefined();
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (/account\.notFound|not found|permission|unauthorized|forbidden/i.test(msg)) return;
-        throw err;
-      }
-    });
+    // transferPosition is a mutating cross-account transfer. Requires a real
+    // destination sub-account provisioned in the environment; the sandbox
+    // rejects synthetic toAccount values with `account.notFound`. Request
+    // marshaling is covered by unit tests instead.
+    it.skip('transferPosition — skipped (mutating write, sandbox rejects synthetic toAccount)');
 
     // submitOptionExercise is an IRREVERSIBLE early exercise submission.
     // Set TIGER_ALLOW_FOREX=true to enable (reuses the same irreversible-op gate).
@@ -714,7 +701,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       /not open/i,
       /not enabled/i,
       /no token/i,
-      /don['']t support trading/i,
+      /don['’]t support trading/i,
       /unsupported instrument/i,
       /only limit orders are supported/i,
       /outside of regular trading hours/i,

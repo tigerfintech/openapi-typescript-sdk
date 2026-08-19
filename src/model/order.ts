@@ -156,10 +156,18 @@ export interface OrderRequest {
   checkIntervals?: number;
   /** 冰山单：价格类型（LIMIT_PRICE / ASK_PRICE / BID_PRICE / LATEST_PRICE） */
   priceType?: string;
-  /** 冰山单：生效开始时间（epoch ms） */
-  startTime?: number;
-  /** 冰山单：生效结束时间（epoch ms） */
-  endTime?: number;
+  /**
+   * 冰山单：生效开始时间（epoch ms）。
+   * Wire note: the gateway accepts both `number` (epoch ms) and `string`
+   * (epoch ms as string) for ICEBERG orders; `number | string` keeps
+   * TypeScript callers who pass `String(now)` from hitting a compile error.
+   */
+  startTime?: number | string;
+  /**
+   * 冰山单：生效结束时间（epoch ms）。
+   * Same dual-type note as `startTime` above.
+   */
+  endTime?: number | string;
   /** GTD 到期时间（epoch ms） */
   expireTime?: number;
   /** 盘后委托价格 */
@@ -201,6 +209,17 @@ export interface OrderRequest {
   contractLegs?: ContractLegRequest[];
   /** 组合单类型（如 MLEG） */
   comboType?: string;
+  /**
+   * Algo strategy name for TWAP / VWAP orders (e.g. `'TWAP'`, `'VWAP'`).
+   * Lives on `OrderRequest`, not inside `algoParams` — the Python SDK
+   * places it at the top-level order object, and the gateway expects
+   * `algo_strategy` as a sibling of `algo_params`.
+   *
+   * Note: `AlgoParamsRequest` intentionally omits this field (see its
+   * doc-comment). Pass `algoStrategy` here and `algoParams` as the
+   * companion object.
+   */
+  algoStrategy?: string;
 }
 
 /** Single leg of a multi-leg option order (MLEG) */
