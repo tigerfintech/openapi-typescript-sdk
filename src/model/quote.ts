@@ -81,6 +81,8 @@ export interface TradeTickItem {
   volume: number;
   price: number;
   type: string;
+  partCode?: string;
+  partName?: string;
 }
 
 export interface TradeTick {
@@ -131,6 +133,12 @@ export interface OptionLeg {
   theta?: number;
   vega?: number;
   rho?: number;
+  markPrice?: number;
+  preMarkPrice?: number;
+  markTimestamp?: number;
+  midPrice?: number;
+  preMidPrice?: number;
+  midTimestamp?: number;
 }
 
 export interface OptionChainRow {
