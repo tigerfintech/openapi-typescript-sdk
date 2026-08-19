@@ -83,6 +83,7 @@ export interface TradeTickItem {
   type: string;
   partCode?: string;
   partName?: string;
+  cond?: string;
 }
 
 export interface TradeTick {

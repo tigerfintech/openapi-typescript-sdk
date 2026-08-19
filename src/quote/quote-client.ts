@@ -11,6 +11,7 @@ import { createApiRequest } from '../client/api-request';
 import { unmarshalData } from '../client/api-response';
 import * as tokenMethods from '../client/token-methods';
 import type { TokenManager } from '../config/token-manager';
+import { getTradeCondByCode, isUsStockSymbol } from '../push/tick-util';
 import type {
   MarketState,
   Brief,
@@ -290,7 +291,16 @@ export class QuoteClient {
 
   /** Tick-by-tick trades. wire: trade_tick */
   async getTradeTick(req: TradeTickRequest): Promise<TradeTick[]> {
-    return this.callInto<TradeTick[]>('trade_tick', req);
+    const out = await this.callInto<TradeTick[]>('trade_tick', req);
+    for (const tick of out) {
+      const isUs = isUsStockSymbol(tick.symbol);
+      for (const item of tick.items) {
+        if (item.cond && item.cond.length > 0) {
+          item.cond = getTradeCondByCode(isUs, item.cond[0]);
+        }
+      }
+    }
+    return out;
   }
 
   /** Depth snapshot. wire: quote_depth */
