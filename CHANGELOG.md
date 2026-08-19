@@ -9,9 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.5] - 2026-08-19
 
+### Breaking
+
+- `Callbacks.onTick` parameter type changed from raw `TradeTickData` (protobuf) to decoded `PushTradeTick`; each tick is now a `PushTick` with `price`, `volume`, `cond`, `partCode`, `partName` fields
+
 ### Added
 - `OptionLeg` adds `markPrice`, `preMarkPrice`, `markTimestamp`, `midPrice`, `preMidPrice`, `midTimestamp` fields
 - `TradeTickRequest` supports the optional `tradeSession` field
+- `PushTick.cond` field: raw single-character trade condition codes converted to readable strings (e.g. `US_REGULAR_SALE`, `HK_AUTOMATCH_NORMAL`)
 
 ### Fixed
 - Corrected `QuoteOvernight` fields to match the service response

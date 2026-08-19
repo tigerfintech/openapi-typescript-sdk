@@ -13,6 +13,7 @@ import type { ClientConfig } from '../config/client-config';
 import { signWithRSA } from '../signer/signer';
 import type { Callbacks } from './callbacks';
 import { SubjectType } from './push-message';
+import { convertTradeTick } from './tick-util';
 import { Request } from './pb/Request';
 import { Response } from './pb/Response';
 import { SocketCommon_Command, SocketCommon_DataType } from './pb/SocketCommon';
@@ -424,7 +425,7 @@ export class PushClient {
         break;
       case SocketCommon_DataType.TradeTick:
         if (pushData.tickData) cb.onFullTick?.(pushData.tickData);
-        if (pushData.tradeTickData) cb.onTick?.(pushData.tradeTickData);
+        if (pushData.tradeTickData) cb.onTick?.(convertTradeTick(pushData.tradeTickData));
         break;
       case SocketCommon_DataType.Asset:
         if (pushData.assetData) cb.onAsset?.(pushData.assetData);

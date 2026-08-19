@@ -164,6 +164,28 @@ describe('QuoteClient additional methods', () => {
       const biz = capturedBiz(mockHttpClient);
       expect(biz.begin_date).toBe('2024-01-01');
     });
+
+    it('getTradeTick decodes partCode and partName from response', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([
+        {
+          symbol: 'AAPL',
+          beginIndex: 0,
+          endIndex: 1,
+          items: [
+            { time: 1700000000000, volume: 100, price: 150.25, type: '+', partCode: 'NYSE', partName: 'New York Stock Exchange, LLC (NYSE)' },
+            { time: 1700000001000, volume: 200, price: 150.50, type: '-', partCode: 'NSDQ', partName: 'NASDAQ Stock Market, LLC (NASDAQ)' },
+          ],
+        },
+      ]));
+      const result = await qc.getTradeTick({ symbols: ['AAPL'] });
+      expect(capturedMethod(mockHttpClient)).toBe('trade_tick');
+      const items = result[0].items;
+      expect(items).toHaveLength(2);
+      expect(items[0].partCode).toBe('NYSE');
+      expect(items[0].partName).toBe('New York Stock Exchange, LLC (NYSE)');
+      expect(items[1].partCode).toBe('NSDQ');
+      expect(items[1].partName).toBe('NASDAQ Stock Market, LLC (NASDAQ)');
+    });
   });
 
   describe('Batch 4: Options', () => {
