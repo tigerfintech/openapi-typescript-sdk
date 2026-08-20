@@ -99,6 +99,7 @@ export interface KlineRequest {
 /** K-line client-side pagination wrapper. */
 export interface KlineByPageRequest {
   symbol?: string;
+  secType?: string;
   period?: string;
   beginTime?: number;
   endTime?: number;
@@ -107,6 +108,12 @@ export interface KlineByPageRequest {
   right?: string;
   lang?: string;
   tradeSession?: string;
+}
+
+/** Intraday timeline request. wire: timeline */
+export interface TimelineRequest {
+  symbols?: string[];
+  secType?: string;
 }
 
 /** Historical intraday timeline. wire: history_timeline */

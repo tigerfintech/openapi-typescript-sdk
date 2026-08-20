@@ -42,6 +42,7 @@ export interface Brief {
 export interface KlineItem {
   time: number;
   volume: number;
+  volumeDecimal?: number | null;
   open: number;
   close: number;
   high: number;
@@ -59,6 +60,7 @@ export interface Kline {
 export interface TimelineItem {
   time: number;
   volume: number;
+  volumeDecimal?: number | null;
   price: number;
   avgPrice: number;
 }

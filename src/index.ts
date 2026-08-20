@@ -84,7 +84,7 @@ export type {
 } from './model/quote';
 // Models — quote requests
 export type {
-  BriefRequest, DepthQuoteRequest, TradeTickRequest, KlineRequest, KlineByPageRequest,
+  BriefRequest, DepthQuoteRequest, TradeTickRequest, KlineRequest, KlineByPageRequest, TimelineRequest,
   FutureBriefRequest, FutureKlineRequest, FutureKlineByPageRequest, FutureTradeTicksRequest,
   FutureDepthRequest, FutureContractSingleRequest, FutureContinuousContractsRequest,
   FutureHistoryMainContractRequest, FutureTradingTimesRequest, AllFutureContractsRequest,
