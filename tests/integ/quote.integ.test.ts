@@ -778,10 +778,10 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       expect(Array.isArray(data)).toBe(true);
       if (data.length > 0) {
         const first = data[0] as any;
-        // rate field may be nested or named differently depending on server version
-        const hasRate = first.rate !== undefined || first.exchangeRate !== undefined
-          || first.close !== undefined;
-        expect(hasRate).toBe(true);
+        expect(Array.isArray(first.dailyValueList)).toBe(true);
+        if (first.dailyValueList.length > 0) {
+          expect(first.dailyValueList[0].value).not.toBeUndefined();
+        }
       }
     });
   });

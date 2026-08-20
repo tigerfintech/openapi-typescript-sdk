@@ -700,12 +700,16 @@ export interface TradingCalendarItem {
   sessionType?: string;
 }
 
+/** Single day's FX rate value within an ExchangeRate.dailyValueList entry. */
+export interface ExchangeRateDailyValue {
+  date?: number;
+  value?: number;
+}
+
 /** FX rate (financial_exchange_rate). */
 export interface ExchangeRate {
   currency?: string;
-  date?: string;
-  rate?: number;
-  baseCurrency?: string;
+  dailyValueList?: ExchangeRateDailyValue[];
 }
 
 /** Financial currency per symbol (financial_currency). */
