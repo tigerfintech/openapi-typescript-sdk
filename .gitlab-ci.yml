@@ -109,7 +109,13 @@ notify:webhook:
       # 2. Determine pass/fail.
       #    - unit_f is None  → XML missing/corrupt; treat as failed (conservative).
       #    - unit_f > 0      → explicit unit failures.
-            #    CI_PIPELINE_STATUS is unreliable in .post stage (reads "running"),
+      #    - integ_f is None → XML missing/corrupt. integration:node is
+      #      allow_failure:true, so a missing file could mean "job crashed
+      #      before the JUnit reporter flushed" (a real problem worth
+      #      surfacing) rather than "test failed" (which would already show
+      #      up as integ_f > 0). We don't silently call this a pass — flag it
+      #      as a warning instead, distinct from both green and red.
+      #    CI_PIPELINE_STATUS is unreliable in .post stage (reads "running"),
       #    so we rely exclusively on parsed XML counts.
       if unit_f is None:
           has_failed = True
@@ -117,9 +123,17 @@ notify:webhook:
       else:
           has_failed = (unit_f > 0) or (integ_f is not None and integ_f > 0)
 
+      integ_unavailable = integ_f is None
+      if integ_unavailable:
+          print("Integration JUnit XML unavailable — flagging as warning (not silently passed)")
+
       # 3. Build Feishu card.
-      title = "❌ Pipeline failed" if has_failed else "✅ Pipeline passed"
-      color = "red" if has_failed else "green"
+      if has_failed:
+          title, color = "❌ Pipeline failed", "red"
+      elif integ_unavailable:
+          title, color = "⚠️ Pipeline passed (integration results unavailable)", "yellow"
+      else:
+          title, color = "✅ Pipeline passed", "green"
       project_name = os.environ.get("CI_PROJECT_NAME", "")
       branch = os.environ.get("CI_COMMIT_REF_NAME", "")
       commit = os.environ.get("CI_COMMIT_SHORT_SHA", "")
@@ -131,6 +145,8 @@ notify:webhook:
           content += f"\n**Unit tests:** {unit_stats}\n"
       if integ_stats:
           content += f"**Integration tests:** {integ_stats}\n"
+      elif integ_unavailable:
+          content += "\n**Integration tests:** ⚠️ results unavailable (XML missing or corrupt — job may have crashed)\n"
       content += f"[View pipeline]({pipeline_url})"
 
       payload = {
