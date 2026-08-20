@@ -20,7 +20,7 @@ import { shouldRun, buildTradeClient, buildQuoteClient } from './integ-setup';
 import type { TradeClient } from '../../src/trade/trade-client';
 import type { OrderRequest } from '../../src/model/order';
 import { PriceType } from '../../src/model/enums';
-import { resolveFilledOrderId, yearsAgo, todayStr } from './_helpers';
+import { resolveFilledOrderId, resolveUsFopContract, yearsAgo, todayStr } from './_helpers';
 
 describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
   let tc: TradeClient;
@@ -1033,6 +1033,28 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
           timeInForce: 'DAY',
         },
         'US FUT LMT',
+      );
+    });
+
+    it('FOP LMT — CL nearest-monthly contract', async () => {
+      const contract = await resolveUsFopContract(tc);
+      if (!contract || !contract.expiry) return; // discovery failed — skip
+
+      await previewAndPlace(
+        {
+          symbol: contract.symbol,
+          secType: 'FOP',
+          currency: contract.currency,
+          action: 'BUY',
+          orderType: 'LMT',
+          limitPrice: SAFE_BUY_PRICE,
+          totalQuantity: 1,
+          timeInForce: 'DAY',
+          expiry: contract.expiry,
+          strike: contract.strike !== undefined ? String(contract.strike) : undefined,
+          right: contract.right,
+        },
+        'US FOP LMT',
       );
     });
 
