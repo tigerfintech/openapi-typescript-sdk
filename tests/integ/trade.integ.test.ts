@@ -6,7 +6,8 @@
  * the "Write operations" describe block. Each mutating call is immediately
  * cancelled / guarded by an env-var to avoid persistent side-effects.
  *
- * Irreversible FX conversions: set TIGER_ALLOW_FOREX=true to enable.
+ * Irreversible operations (FX conversion, cross-segment fund move, early
+ * option exercise) are permanently skipped — no env var enables them.
  *
  * Guarded by `describe.skipIf(!shouldRun())`: skipped automatically in CI
  * when credentials or TIGER_RUN_INTEG=true are missing.
@@ -645,38 +646,14 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       expect(canceled).toBeDefined();
     });
 
-    // placeForexOrder is an IRREVERSIBLE real FX conversion — set
-    // TIGER_ALLOW_FOREX=true explicitly to enable this test.
-    it('placeForexOrder — USD → HKD conversion', async (ctx) => {
-      if (!process.env.TIGER_ALLOW_FOREX) {
-        ctx.skip();
-        return;
-      }
-      const res = await tc.placeForexOrder({
-        sourceCurrency: 'USD',
-        targetCurrency: 'HKD',
-        sourceAmount: 1,
-        orderType: 'LMT',
-      });
-      expect(res).toBeDefined();
-    });
+    // placeForexOrder is an IRREVERSIBLE real FX conversion with no safe way
+    // to auto-run in CI; request marshaling is covered by unit tests instead.
+    it.skip('placeForexOrder — skipped (irreversible real FX conversion)');
 
-    // transferSegmentFund is an IRREVERSIBLE cross-segment fund move — set
-    // TIGER_ALLOW_FOREX=true explicitly to enable this test.
-    it('transferSegmentFund — cross-segment fund move', async (ctx) => {
-      if (!process.env.TIGER_ALLOW_FOREX) {
-        ctx.skip();
-        return;
-      }
-      // Sandbox only accepts FUT / SEC segment identifiers.
-      const res = await tc.transferSegmentFund({
-        fromSegment: 'SEC',
-        toSegment: 'FUT',
-        currency: 'USD',
-        amount: 1,
-      });
-      expect(res).toBeDefined();
-    });
+    // transferSegmentFund is an IRREVERSIBLE cross-segment fund move with no
+    // safe way to auto-run in CI; request marshaling is covered by unit tests
+    // instead.
+    it.skip('transferSegmentFund — skipped (irreversible cross-segment fund move)');
 
     it('cancelSegmentFund — cancel prior transfer', async (ctx) => {
       // cancelSegmentFund requires a segment fund transfer id from
@@ -719,30 +696,10 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     // marshaling is covered by unit tests instead.
     it.skip('transferPosition — skipped (mutating write, sandbox rejects synthetic toAccount)');
 
-    // submitOptionExercise is an IRREVERSIBLE early exercise submission.
-    // Set TIGER_ALLOW_FOREX=true to enable (reuses the same irreversible-op gate).
-    it('submitOptionExercise — early exercise submission', async (ctx) => {
-      // Needs an existing option contract in the account.
-      if (!optionContractId) {
-        ctx.skip();
-        return;
-      }
-      if (!process.env.TIGER_ALLOW_FOREX) {
-        ctx.skip();
-        return;
-      }
-      const executingDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 10);
-      const res = await tc.submitOptionExercise({
-        contractId: optionContractId,
-        type: 'Exercise',
-        quantity: 1,
-        executingDate,
-        isForce: false,
-      });
-      expect(typeof res).toBe('boolean');
-    });
+    // submitOptionExercise is an IRREVERSIBLE early exercise submission with
+    // no safe way to auto-run in CI; request marshaling is covered by unit
+    // tests instead.
+    it.skip('submitOptionExercise — skipped (irreversible early exercise submission)');
 
     it('cancelOptionExercise — cancel by record id', async (ctx) => {
       // Find a cancellable exercise record; skip if the account has none.
@@ -1079,25 +1036,9 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       );
     });
 
-    // placeForexOrder is an IRREVERSIBLE real FX conversion — set
-    // TIGER_ALLOW_FOREX=true explicitly to enable this test.
-    it('Forex SEC segment — cross-currency conversion', async (ctx) => {
-      if (!process.env.TIGER_ALLOW_FOREX) {
-        ctx.skip();
-        return;
-      }
-      try {
-        const res = await tc.placeForexOrder({
-          segType: 'SEC',
-          sourceCurrency: 'USD',
-          targetCurrency: 'HKD',
-          sourceAmount: 1,
-        });
-        expect(res).toBeDefined();
-      } catch (e: any) {
-        if (!matches(String(e?.message ?? e), PERMISSION_ERROR_PATTERNS)) throw e;
-      }
-    });
+    // placeForexOrder is an IRREVERSIBLE real FX conversion with no safe way
+    // to auto-run in CI; request marshaling is covered by unit tests instead.
+    it.skip('Forex SEC segment — skipped (irreversible real FX conversion)');
 
     it('preview — negative price should still return or reject cleanly', async () => {
       try {
