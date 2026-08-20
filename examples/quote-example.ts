@@ -65,6 +65,11 @@ async function main() {
   } catch (e) { fail('getTimeline', e); }
 
   try {
+    const tl = await qc.getTimeline({ symbols: ['BTC.USD'], secType: 'CC' });
+    ok('getTimeline(BTC.USD)', `volume=${tl[0]?.intraday?.items[0]?.volumeDecimal ?? 0}`);
+  } catch (e) { fail('getTimeline(BTC.USD)', e); }
+
+  try {
     const tt = await qc.getTradeTick({ symbols: ['AAPL'], tradeSession: 'regular' });
     ok('getTradeTick', `ticks=${tt[0]?.items.length ?? 0}`);
   } catch (e) { fail('getTradeTick', e); }

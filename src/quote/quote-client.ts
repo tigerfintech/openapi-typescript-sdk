@@ -81,6 +81,7 @@ import type {
   StockDelayBriefsRequest,
   KlineRequest,
   KlineByPageRequest,
+  TimelineRequest,
   TimelineHistoryRequest,
   TradeRankRequest,
   ShortInterestRequest,
@@ -285,8 +286,11 @@ export class QuoteClient {
     return this.callInto<Kline[]>('kline', req);
   }
 
-  async getTimeline(symbols: string[]): Promise<Timeline[]> {
-    return this.callInto<Timeline[]>('timeline', { symbols });
+  async getTimeline(symbols: string[]): Promise<Timeline[]>;
+  async getTimeline(req: TimelineRequest): Promise<Timeline[]>;
+  async getTimeline(symbolsOrRequest: string[] | TimelineRequest): Promise<Timeline[]> {
+    const req: TimelineRequest = Array.isArray(symbolsOrRequest) ? { symbols: symbolsOrRequest } : symbolsOrRequest;
+    return this.callInto<Timeline[]>('timeline', req, req.secType === 'CC' ? '3.0' : undefined);
   }
 
   /** Tick-by-tick trades. wire: trade_tick */
@@ -508,6 +512,7 @@ export class QuoteClient {
     while (acc.length < totalSize) {
       const sub: KlineRequest = {
         symbols: req.symbol ? [req.symbol] : undefined,
+        secType: req.secType,
         period: req.period,
         right: req.right,
         beginTime,

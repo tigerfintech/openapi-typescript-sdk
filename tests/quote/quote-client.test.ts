@@ -2,10 +2,11 @@
  * QuoteClient unit tests — verify that each method sends the right
  * snake_case payload and parses the typed response.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, expectTypeOf, vi, beforeEach } from 'vitest';
 import { QuoteClient, parseOptionIdentifier } from '../../src/quote/quote-client';
 import type { HttpClient } from '../../src/client/http-client';
 import type { ApiResponse } from '../../src/client/api-response';
+import type { KlineItem, TimelineItem } from '../../src/model/quote';
 
 function createMockHttpClient() {
   return {
@@ -50,15 +51,58 @@ describe('QuoteClient', () => {
     });
 
     it('getKline 多 symbol 发送 symbols 数组和 period', async () => {
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([{ symbol: 'AAPL', period: 'day', items: [] }]));
-      await qc.getKline({ symbols: ['AAPL', 'TSLA'], period: 'day' });
+      const data = [{ symbol: 'BTCUSD', period: 'day', items: [
+        { time: 1700000000000, volume: 123, volumeDecimal: 123.456, open: 1, close: 2, high: 3, low: 0.5 },
+        { time: 1700000060000, volume: 0, volumeDecimal: null, open: 2, close: 2, high: 2, low: 2 },
+        { time: 1700000120000, volume: 0, open: 2, close: 2, high: 2, low: 2 },
+      ] }];
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(data));
+      const result = await qc.getKline({ symbols: ['AAPL', 'TSLA'], period: 'day' });
       expect(capturedBiz(mockHttpClient)).toEqual({ symbols: ['AAPL', 'TSLA'], period: 'day' });
+      const item: KlineItem = result[0].items[0];
+      expectTypeOf(item.volumeDecimal).toEqualTypeOf<number | null | undefined>();
+      expect(item.volumeDecimal).toBe(123.456);
+      expect(result[0].items[1].volumeDecimal).toBeNull();
+      expect(result[0].items[2].volumeDecimal).toBeUndefined();
     });
 
     it('getTimeline 发送 symbols 数组', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
       await qc.getTimeline(['AAPL']);
       expect(capturedBiz(mockHttpClient)).toEqual({ symbols: ['AAPL'] });
+      expect(vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0].version).toBeUndefined();
+    });
+
+    it('getTimeline crypto 发送 sec_type、使用 v3 并返回 volumeDecimal', async () => {
+      const data = [{
+        symbol: 'BTCUSD', period: 'day', preClose: 100,
+        intraday: { items: [
+          { time: 1700000000000, volume: 12, volumeDecimal: 12.34, price: 101, avgPrice: 100.5 },
+          { time: 1700000060000, volume: 0, volumeDecimal: null, price: 101, avgPrice: 100.5 },
+          { time: 1700000120000, volume: 0, price: 101, avgPrice: 100.5 },
+        ] },
+      }];
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(data));
+
+      const result = await qc.getTimeline({ symbols: ['BTCUSD'], secType: 'CC' });
+      const call = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
+      expect(JSON.parse(call.bizContent)).toEqual({ symbols: ['BTCUSD'], sec_type: 'CC' });
+      expect(call.version).toBe('3.0');
+      const item: TimelineItem = result[0].intraday!.items[0];
+      expectTypeOf(item.volumeDecimal).toEqualTypeOf<number | null | undefined>();
+      expect(item.volumeDecimal).toBe(12.34);
+      expect(result[0].intraday!.items[1].volumeDecimal).toBeNull();
+      expect(result[0].intraday!.items[2].volumeDecimal).toBeUndefined();
+    });
+
+    it('getKlineByPage 透传 crypto sec_type', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([{
+        symbol: 'BTCUSD', items: [{ time: 1700000000000, volume: 1, volumeDecimal: 1.25, open: 1, close: 1, high: 1, low: 1 }],
+      }]));
+
+      const result = await qc.getKlineByPage({ symbol: 'BTCUSD', secType: 'CC', period: 'day', totalSize: 1 });
+      expect(capturedBiz(mockHttpClient)).toMatchObject({ symbols: ['BTCUSD'], sec_type: 'CC', period: 'day' });
+      expect(result[0].volumeDecimal).toBe(1.25);
     });
 
     it('getTradeTick serializes tradeSession as trade_session', async () => {

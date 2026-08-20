@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `FundDetailsRequest.startDate` / `endDate` type changed from `number` (epoch ms) to `string` (`yyyy-MM-dd`); callers passing a numeric timestamp will hit a gateway parse error
 
 ### Added
+- Crypto K-line and timeline items now expose fractional volume through `volumeDecimal`.
+- `getTimeline({ symbols, secType: 'CC' })` supports crypto timelines through API v3 while retaining the existing `getTimeline(symbols)` call.
+- `getKlineByPage` now accepts and forwards `secType`.
 - `OptionLeg` adds `markPrice`, `preMarkPrice`, `markTimestamp`, `midPrice`, `preMidPrice`, `midTimestamp` fields
 - `TradeTickRequest` supports the optional `tradeSession` field
 - `PushTick.cond` field: raw single-character trade condition codes converted to readable strings (e.g. `US_REGULAR_SALE`, `HK_AUTOMATCH_NORMAL`)
