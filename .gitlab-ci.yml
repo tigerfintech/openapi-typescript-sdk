@@ -86,6 +86,7 @@ notify:webhook:
       # 1. Parse JUnit XML artifacts — split unit/integration stats.
       #    vitest --reporter=junit emits <testsuites><testsuite .../>.
       def parse_xml(path):
+          """Return (total, passed, failed, skipped) or None on parse error."""
           t, f, s = 0, 0, 0
           try:
               tree = ET.parse(path)
@@ -96,19 +97,26 @@ notify:webhook:
                   s += int(suite.get("skipped", 0))
           except Exception as e:
               print(f"Failed to parse {path}: {e}")
+              return None, None, None, None
           return t, t - f - s, f, s
 
       unit_t, unit_p, unit_f, unit_s = parse_xml("test-results/unit.xml")
       integ_t, integ_p, integ_f, integ_s = parse_xml("test-results/integration.xml")
 
-      unit_stats = f"Unit: {unit_t} tests: {unit_p} passed, {unit_f} failed, {unit_s} skipped" if unit_t > 0 else ""
-      integ_stats = f"Integration: {integ_t} tests: {integ_p} passed, {integ_f} failed, {integ_s} skipped" if integ_t > 0 else ""
+      unit_stats = f"Unit: {unit_t} tests: {unit_p} passed, {unit_f} failed, {unit_s} skipped" if unit_t else ""
+      integ_stats = f"Integration: {integ_t} tests: {integ_p} passed, {integ_f} failed, {integ_s} skipped" if integ_t else ""
 
-      # 2. Determine pass/fail: unit test failures = pipeline failed.
-      #    Integration is allow_failure: true, so its failures don't block.
-      #    CI_PIPELINE_STATUS is unreliable in .post stage (may still read
-      #    "running"), so we rely exclusively on the parsed JUnit XML counts.
-      has_failed = unit_f > 0
+      # 2. Determine pass/fail.
+      #    - unit_f is None  → XML missing/corrupt; treat as failed (conservative).
+      #    - unit_f > 0      → explicit unit failures.
+      #    Integration is allow_failure: true, so integ failures don't drive red.
+      #    CI_PIPELINE_STATUS is unreliable in .post stage (reads "running"),
+      #    so we rely exclusively on parsed XML counts.
+      if unit_f is None:
+          has_failed = True
+          print("Unit JUnit XML unavailable — treating pipeline as failed")
+      else:
+          has_failed = unit_f > 0
 
       # 3. Build Feishu card.
       title = "❌ Pipeline failed" if has_failed else "✅ Pipeline passed"
