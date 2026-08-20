@@ -67,6 +67,14 @@ describe('QuoteClient', () => {
       expect(capturedBiz(mockHttpClient)).toEqual({ symbols: ['AAPL'], trade_session: 'OverNight' });
     });
 
+    it('getTradeTick omits trade_session when tradeSession is not passed', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
+      await qc.getTradeTick({ symbols: ['AAPL'] });
+      const biz = capturedBiz(mockHttpClient);
+      expect(biz).toEqual({ symbols: ['AAPL'] });
+      expect(biz).not.toHaveProperty('trade_session');
+    });
+
     it('getQuoteDepth 发送 symbols 数组 + market(snake_case)', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([]));
       await qc.getQuoteDepth({ symbols: ['AAPL'], market: 'US' });

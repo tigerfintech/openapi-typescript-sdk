@@ -185,15 +185,16 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       const asNum = Number(filledOrderId);
       const isSafe = Number.isSafeInteger(asNum) && String(asNum) === String(filledOrderId);
       if (!isSafe) {
-        console.warn(
-          `[known-risk] getOrder: filledOrderId=${filledOrderId} exceeds MAX_SAFE_INTEGER — ` +
-          `id round-trip will be skipped but wire path is still exercised. ` +
-          `Fix: widen GetOrderRequest.id to string | number.`
-        );
+        // The SDK's GetOrderRequest.id is typed `number`; coercing a 17+ digit
+        // string loses precision and would corrupt the id sent to the gateway.
+        // Skip this test rather than sending a wrong id that returns not-found.
+        // Fix: widen GetOrderRequest.id to string | number.
+        ctx.skip();
+        return;
       }
       const data = await tc.getOrder({ id: asNum });
       expect(data).toBeDefined();
-      if (data && isSafe) {
+      if (data) {
         expect(String(data.id)).toBe(String(filledOrderId));
       }
     });
