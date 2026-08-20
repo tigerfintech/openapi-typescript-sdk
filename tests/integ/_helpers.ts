@@ -160,6 +160,40 @@ export async function resolveUsOptionIdentifier(qc: QuoteClient): Promise<string
 }
 
 /**
+ * Resolve a live US FOP (future option) contract on `CL` (crude oil) for the
+ * nearest monthly expiry (3rd Friday of next month), mirroring Python's
+ * `_resolve_us_fop_contract`. Returns `undefined` on any gateway failure or
+ * empty response — the caller decides whether that should fail or skip.
+ */
+export async function resolveUsFopContract(
+  tc: TradeClient,
+): Promise<{ symbol: string; currency: string; expiry?: string; strike?: number; right?: string; multiplier?: number } | undefined> {
+  try {
+    const today = new Date();
+    const year = today.getMonth() === 11 ? today.getFullYear() + 1 : today.getFullYear();
+    const month = today.getMonth() === 11 ? 0 : today.getMonth() + 1;
+    const firstDay = new Date(year, month, 1);
+    const daysToFirstFriday = (5 - firstDay.getDay() + 7) % 7;
+    const thirdFriday = new Date(year, month, 1 + daysToFirstFriday + 14);
+    const expiry = `${thirdFriday.getFullYear()}${String(thirdFriday.getMonth() + 1).padStart(2, '0')}${String(thirdFriday.getDate()).padStart(2, '0')}`;
+
+    const contracts = await tc.getDerivativeContracts({ symbols: ['CL'], secType: 'FOP', expiry });
+    if (!contracts.length) return undefined;
+    const c = contracts[0];
+    return {
+      symbol: c.symbol || 'CL',
+      currency: c.currency || 'USD',
+      expiry: c.expiry,
+      strike: c.strike,
+      right: c.right,
+      multiplier: c.multiplier,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Resolve a live HK warrant symbol linked to `00700` (Tencent). Uses
  * `warrant_filter` because the standalone `warrant_briefs` endpoint takes a
  * symbol we don't have yet.
