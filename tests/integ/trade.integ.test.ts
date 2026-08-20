@@ -18,6 +18,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { shouldRun, buildTradeClient, buildQuoteClient } from './integ-setup';
 import type { TradeClient } from '../../src/trade/trade-client';
 import type { OrderRequest } from '../../src/model/order';
+import { PriceType } from '../../src/model/enums';
 import { resolveFilledOrderId, yearsAgo, todayStr } from './_helpers';
 
 describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
@@ -696,16 +697,16 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     });
 
     it('cancelOptionExercise — cancel by record id', async (ctx) => {
-      // Requires an option holding in the account to have been exercised first.
-      // Skip when no option contract is available.
-      if (!optionContractId) {
+      // Find a cancellable exercise record; skip if the account has none.
+      // (Gated on the query result itself, not `optionContractId` — this test
+      // doesn't use that variable, and gating on it would incorrectly skip
+      // accounts that have exercise records but no option contract lookup.)
+      const records = await tc.getOptionExerciseRecords({ status: 'New', size: 5 });
+      const items = records?.items ?? [];
+      if (!items.length) {
         ctx.skip();
         return;
       }
-      // Find a cancellable exercise record; skip if the account has none.
-      const records = await tc.getOptionExerciseRecords({ status: 'New', size: 5 });
-      const items = (records as any)?.items ?? [];
-      if (!items.length) return; // no record to cancel — treat as pass
 
       const res = await tc.cancelOptionExercise({ id: items[0].id });
       expect(typeof res).toBe('boolean');
@@ -786,6 +787,10 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
      */
     async function placeWithRetry(order: OrderRequest, context: string): Promise<number> {
       let delay = 1000;
+      // Every branch inside the loop either returns (success) or throws
+      // (non-rate-limit error, or the final rate-limited attempt) — the
+      // loop never completes all 3 iterations without exiting, so there is
+      // no reachable code path after it.
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const placed = await tc.placeOrder(order);
@@ -794,16 +799,22 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
           return placed!.id!;
         } catch (e: any) {
           const msg = String(e?.message ?? e);
-          if (matches(msg, RATE_LIMIT_PATTERNS) && attempt < 2) {
+          const isRateLimit = matches(msg, RATE_LIMIT_PATTERNS);
+          if (isRateLimit && attempt < 2) {
             await sleep(delay);
             delay *= 2;
             continue;
           }
-          throw e;
+          if (isRateLimit) {
+            // Final attempt still rate-limited — retries exhausted.
+            throw new Error(`${context}: exhausted rate-limit retries: ${msg}`);
+          }
+          throw e; // Non-rate-limit error — surface unchanged.
         }
       }
-      // All 3 attempts exhausted rate-limit retries — surface as failure.
-      throw new Error(`${context}: exhausted rate-limit retries`);
+      // Unreachable — satisfies TypeScript's control-flow analysis for the
+      // Promise<number> return type.
+      throw new Error(`${context}: unreachable`);
     }
 
     /** Best-effort cancel; ignore terminal-state races. */
@@ -965,8 +976,11 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
           totalQuantity: 10,
           algoStrategy: 'TWAP',
           algoParams: {
-            startTime: now,
-            endTime: now + 3_600_000,
+            // String, to match the ICEBERG case below — keeps a single
+            // wire convention for algoParams.startTime/endTime across
+            // all algo order types.
+            startTime: String(now),
+            endTime: String(now + 3_600_000),
             allowPastEndTime: true,
           },
         }),
@@ -982,8 +996,8 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
           totalQuantity: 10,
           algoStrategy: 'VWAP',
           algoParams: {
-            startTime: now,
-            endTime: now + 3_600_000,
+            startTime: String(now),
+            endTime: String(now + 3_600_000),
             participationRate: 0.1,
             allowPastEndTime: true,
           },
@@ -1003,7 +1017,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
           checkIntervals: 30,
           // priceType required by the gateway even though the interface
           // marks it optional — matches the icebergOrder() helper default.
-          priceType: 'LIMIT_PRICE',
+          priceType: PriceType.LIMIT_PRICE,
           startTime: String(now),
           endTime: String(now + 3_600_000),
         }),
@@ -1338,7 +1352,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         displaySize: 2,
         minDisplaySize: 1,
         checkIntervals: 30,
-        priceType: 'LIMIT_PRICE',
+        priceType: PriceType.LIMIT_PRICE,
         startTime: String(now),
         endTime: String(now + 3_600_000),
       });
