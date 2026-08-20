@@ -179,9 +179,9 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       // string via Number() loses precision and corrupts the round-trip.
       // Known risk: when the account's filled order id is > MAX_SAFE_INTEGER,
       // the SDK type must be widened to `string | number` to fix this properly.
-      // We still exercise the wire path here using the unsafe coercion so CI
-      // catches regressions in the response shape; id round-trip is only
-      // asserted when the value is safe.
+      // If the id is unsafe to coerce, the test is skipped entirely to avoid
+      // sending a corrupted id to the gateway. The wire path is only exercised
+      // when the value is safe; id round-trip is asserted in that case.
       const asNum = Number(filledOrderId);
       const isSafe = Number.isSafeInteger(asNum) && String(asNum) === String(filledOrderId);
       if (!isSafe) {
