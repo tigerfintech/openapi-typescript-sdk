@@ -67,6 +67,74 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
   });
 
   // =========================================================================
+  // Shared error-classification helpers — used across "Write operations" and
+  // "Order matrix" describe blocks. Kept at this single top-level location so
+  // updates to what counts as an expected boundary vs. a real regression stay
+  // in sync everywhere; previously these were duplicated per-block and could
+  // drift out of sync with each other.
+  // =========================================================================
+
+  /** Server messages we treat as legitimate skips (permission / license / session). */
+  const PERMISSION_ERROR_PATTERNS = [
+    /access forbidden/i,
+    /forbidden/i,
+    /no permission/i,
+    /not supported/i,
+    /license/i,
+    /not open/i,
+    /not enabled/i,
+    /no token/i,
+    /don['’]t support trading/i,
+    /unsupported instrument/i,
+    /only limit orders are supported/i,
+    /outside of regular trading hours/i,
+    /market is closed/i,
+    /only limit orders can be placed/i,
+    /only limit, stop or stop-limit orders are allowed/i,
+    /at non-trading hour/i,
+    /orders cannot be placed at this moment/i,
+    /auction order is not allowed at this moment/i,
+    /does not support stock (long|short)/i,
+    /only trade cash order by market order/i,
+    /cash order by market order/i,
+    // Algo orders (TWAP / VWAP): start_time must be inside the market's
+    // regular trading window. CI runs outside RTH — treat as skip.
+    /time range for the order/i,
+    // Fractional-share (cashAmount) orders require RTH — same reason.
+    /Only regular trading hours supported when trading fractional shares/i,
+  ];
+
+  /** Patterns for errors that mean the order reached a terminal state
+   *  (filled, cancelled, rejected) before our modify/cancel arrived.
+   *  Also covers prime-account-only order types (code: 1200, trade_prime_error).
+   */
+  const TERMINAL_ORDER_PATTERNS = [
+    /cannot be modified/i,
+    /cannot be (canc|cancell)ed/i,
+    /already (canc|cancell)ed/i,
+    /already filled/i,
+    /invalid order status/i,
+    // HK auction window rejects cancels during specific pre-open phases;
+    // the order was accepted, we just can't cancel it right now.
+    /cancellation is not allowed/i,
+    /cancel is not allowed/i,
+    // Prime account required for certain order types (code: 1200, category: trade_prime_error).
+    // The SDK marshaled the request correctly; the account simply lacks prime entitlement.
+    /trade_prime_error/i,
+    /prime.*error/i,
+  ];
+
+  const RATE_LIMIT_PATTERNS = [
+    /too_many_requests/i,
+    /rate limit/i,
+    /requestRateExceedLimit/i,
+  ];
+
+  function matches(msg: string, patterns: RegExp[]): boolean {
+    return patterns.some((p) => p.test(msg));
+  }
+
+  // =========================================================================
   // Contract queries
   // =========================================================================
 
@@ -519,26 +587,6 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
   // =========================================================================
 
   describe('Write operations', () => {
-    /** Patterns for errors that mean the order reached a terminal state
-     *  (filled, cancelled, rejected) before our modify/cancel arrived.
-     *  Also covers prime-account-only order types (code: 1200, trade_prime_error).
-     */
-    const TERMINAL_ORDER_PATTERNS = [
-      /cannot be modified/i,
-      /cannot be (canc|cancell)ed/i,
-      /already (canc|cancell)ed/i,
-      /already filled/i,
-      /invalid order status/i,
-      /cancellation is not allowed/i,
-      /cancel is not allowed/i,
-      /trade_prime_error/i,
-      /prime.*error/i,
-    ];
-
-    function matches(msg: string, patterns: RegExp[]): boolean {
-      return patterns.some((p) => p.test(msg));
-    }
-
     /**
      * Build a limit BUY order for AAPL well below the current market price
      * (limitPrice=1) so it stays resting and safe to modify/cancel.
@@ -721,62 +769,6 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     const SAFE_BUY_PRICE = 0.01;
     const SAFE_SELL_PRICE = 999_999;
     const SAFE_STOP_BUY_TRIGGER = 999_999;
-
-    /** Server messages we treat as legitimate skips (permission / license / session). */
-    const PERMISSION_ERROR_PATTERNS = [
-      /access forbidden/i,
-      /forbidden/i,
-      /no permission/i,
-      /not supported/i,
-      /license/i,
-      /not open/i,
-      /not enabled/i,
-      /no token/i,
-      /don['’]t support trading/i,
-      /unsupported instrument/i,
-      /only limit orders are supported/i,
-      /outside of regular trading hours/i,
-      /market is closed/i,
-      /only limit orders can be placed/i,
-      /only limit, stop or stop-limit orders are allowed/i,
-      /at non-trading hour/i,
-      /orders cannot be placed at this moment/i,
-      /auction order is not allowed at this moment/i,
-      /does not support stock (long|short)/i,
-      /only trade cash order by market order/i,
-      /cash order by market order/i,
-      // Algo orders (TWAP / VWAP): start_time must be inside the market's
-      // regular trading window. CI runs outside RTH — treat as skip.
-      /time range for the order/i,
-      // Fractional-share (cashAmount) orders require RTH — same reason.
-      /Only regular trading hours supported when trading fractional shares/i,
-    ];
-
-    const TERMINAL_ORDER_PATTERNS = [
-      /cannot be modified/i,
-      /cannot be (canc|cancell)ed/i,
-      /already (canc|cancell)ed/i,
-      /already filled/i,
-      /invalid order status/i,
-      // HK auction window rejects cancels during specific pre-open phases;
-      // the order was accepted, we just can't cancel it right now.
-      /cancellation is not allowed/i,
-      /cancel is not allowed/i,
-      // Prime account required for certain order types (code: 1200, category: trade_prime_error).
-      // The SDK marshaled the request correctly; the account simply lacks prime entitlement.
-      /trade_prime_error/i,
-      /prime.*error/i,
-    ];
-
-    const RATE_LIMIT_PATTERNS = [
-      /too_many_requests/i,
-      /rate limit/i,
-      /requestRateExceedLimit/i,
-    ];
-
-    function matches(msg: string, patterns: RegExp[]) {
-      return patterns.some((p) => p.test(msg));
-    }
 
     /** Sleep for backoff between retries. */
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
