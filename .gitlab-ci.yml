@@ -61,7 +61,7 @@ integration:node:
 # Parses JUnit XML artifacts directly (no GitLab API dependency).
 # Mirrors the Python SDK notify job structure.
 notify:webhook:
-  image: python:3.11-alpine
+  image: python:3.11.10-alpine
   tags:
     - openapi
   stage: .post
