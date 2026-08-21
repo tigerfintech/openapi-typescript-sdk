@@ -43,6 +43,9 @@ integration:node:
   extends: .node_base
   stage: integration
   allow_failure: true
+  # Serialize per-branch: prevents a concurrent (e.g. scheduled) pipeline from
+  # corrupting the shared test-results file via interleaved writes.
+  resource_group: $CI_COMMIT_REF_SLUG
   variables:
     TIGER_RUN_INTEG: "true"
   script:
