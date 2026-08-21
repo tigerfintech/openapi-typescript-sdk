@@ -20,7 +20,7 @@ import { shouldRun, buildTradeClient, buildQuoteClient } from './integ-setup';
 import type { TradeClient } from '../../src/trade/trade-client';
 import type { OrderRequest } from '../../src/model/order';
 import { PriceType } from '../../src/model/enums';
-import { resolveFilledOrderId, resolveUsFopContract, yearsAgo, todayStr } from './_helpers';
+import { resolveFilledOrderId, resolveUsFopContract, yearsAgo, todayStr, isMarketTrading } from './_helpers';
 
 describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
   let tc: TradeClient;
@@ -75,7 +75,28 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
   // drift out of sync with each other.
   // =========================================================================
 
-  /** Server messages we treat as legitimate skips (permission / license / session). */
+  /**
+   * Out-of-hours / session-boundary phrases — before treating these as a
+   * legitimate skip, re-check live market status (mirrors the C++ / Java /
+   * Go / Rust reference pattern): a hit during genuine trading hours is a
+   * real bug (fail), not a boundary condition (skip).
+   */
+  const HOURS_ERROR_PATTERNS = [
+    /outside of regular trading hours/i,
+    /market is closed/i,
+    /only limit orders can be placed/i,
+    /only limit, stop or stop-limit orders are allowed/i,
+    /at non-trading hour/i,
+    /orders cannot be placed at this moment/i,
+    /auction order is not allowed at this moment/i,
+    // Algo orders (TWAP / VWAP): start_time must be inside the market's
+    // regular trading window. CI runs outside RTH — treat as skip.
+    /time range for the order/i,
+    // Fractional-share (cashAmount) orders require RTH — same reason.
+    /Only regular trading hours supported when trading fractional shares/i,
+  ];
+
+  /** Server messages we treat as legitimate skips (permission / license), unconditionally. */
   const PERMISSION_ERROR_PATTERNS = [
     /access forbidden/i,
     /forbidden/i,
@@ -88,21 +109,9 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     /don['’]t support trading/i,
     /unsupported instrument/i,
     /only limit orders are supported/i,
-    /outside of regular trading hours/i,
-    /market is closed/i,
-    /only limit orders can be placed/i,
-    /only limit, stop or stop-limit orders are allowed/i,
-    /at non-trading hour/i,
-    /orders cannot be placed at this moment/i,
-    /auction order is not allowed at this moment/i,
     /does not support stock (long|short)/i,
     /only trade cash order by market order/i,
     /cash order by market order/i,
-    // Algo orders (TWAP / VWAP): start_time must be inside the market's
-    // regular trading window. CI runs outside RTH — treat as skip.
-    /time range for the order/i,
-    // Fractional-share (cashAmount) orders require RTH — same reason.
-    /Only regular trading hours supported when trading fractional shares/i,
     // Account-level regulatory restriction on opening/adding positions
     // (e.g. Mainland China investor accounts) — server-side business rule,
     // not a code defect; mirrors C++/Rust's is_permission_error markers.
@@ -804,6 +813,25 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     }
 
     /**
+     * Classifies a preview/place failure message, mirroring the C++ / Java /
+     * Go / Rust reference pattern: an hours-boundary marker is re-checked
+     * against live market status before being treated as a skip. A hit
+     * during genuine trading hours is a real bug, not a boundary condition.
+     * Pure permission/capability markers are an unconditional skip (no
+     * market-status re-check). Returns true when the caller should skip.
+     */
+    async function shouldSkip(msg: string, context: string, market = 'US'): Promise<boolean> {
+      if (matches(msg, HOURS_ERROR_PATTERNS)) {
+        const qc = buildQuoteClient();
+        if (await isMarketTrading(qc, market)) {
+          throw new Error(`${context}: hours-boundary error during live trading hours: ${msg}`);
+        }
+        return true;
+      }
+      return matches(msg, PERMISSION_ERROR_PATTERNS);
+    }
+
+    /**
      * preview → place → cancel round-trip.
      * Skips silently (returns early) when the server returns a permission or
      * session-boundary error; throws for unexpected errors.
@@ -815,7 +843,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         expect(preview, `${context}: preview returned undefined`).toBeDefined();
       } catch (e: any) {
         const msg = String(e?.message ?? e);
-        if (matches(msg, PERMISSION_ERROR_PATTERNS)) return;
+        if (await shouldSkip(msg, context)) return;
         throw e;
       }
       // 2. Place, then cancel.
@@ -824,7 +852,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         orderId = await placeWithRetry(order, context);
       } catch (e: any) {
         const msg = String(e?.message ?? e);
-        if (matches(msg, PERMISSION_ERROR_PATTERNS)) return;
+        if (await shouldSkip(msg, context)) return;
         throw e;
       }
       await cancelTolerant(orderId, context);
