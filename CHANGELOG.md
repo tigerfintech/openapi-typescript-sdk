@@ -11,14 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
-- `Callbacks.onTick` parameter type changed from raw `TradeTickData` (protobuf) to decoded `PushTradeTick`; each tick is now a `PushTick` with `price`, `volume`, `cond`, `partCode`, `partName` fields
-- `FundDetailsRequest.startDate` / `endDate` type changed from `number` (epoch ms) to `string` (`yyyy-MM-dd`); callers passing a numeric timestamp will hit a gateway parse error
+- `Callbacks.onTick` now delivers decoded trade tick data instead of raw protobuf. Update handlers to read the new `PushTick` shape.
+- `FundDetailsRequest.startDate` / `endDate` now take a date string instead of a numeric timestamp. Update callers to pass `yyyy-MM-dd` strings instead of epoch ms.
 
 ### Added
 - Crypto K-line and timeline items now expose fractional volume through `volumeDecimal`.
 - `getTimeline({ symbols, secType: 'CC' })` supports crypto timelines through API v3 while retaining the existing `getTimeline(symbols)` call.
 - `getKlineByPage` now accepts and forwards `secType`.
-- `OptionLeg` adds `markPrice`, `preMarkPrice`, `markTimestamp`, `midPrice`, `preMidPrice`, `midTimestamp` fields
+- `OptionLeg` now includes mark price and mid price data.
 - `TradeTickRequest` supports the optional `tradeSession` field
 - `PushTick.cond` field: raw single-character trade condition codes converted to readable strings (e.g. `US_REGULAR_SALE`, `HK_AUTOMATCH_NORMAL`)
 
@@ -32,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `TradeClient` / `QuoteClient`：新增 `queryToken()` / `refreshToken()` / `startTokenAutoRefresh()` 方法，无需直接操作 `HttpClient`
 - 订单工具函数：新增 `marketOrderByAmount`、`limitOrderByAmount`、`trailOrderByPrice`、`limitOrderWithLegs`、`comboOrder`、`ocaOrder`、`contractLeg`
 - `icebergOrder` 合并可选参数（原 `icebergOrderFull` 废弃，参数后移为可选）
-- `OrderRequest` 新增 `cashAmount`、`comboType` 字段
+- `OrderRequest` supports specifying cash amount and combo order type.
 
 ### Fixed
 - token 文件（`tiger_openapi_token.properties`）与 config 文件同目录自动加载，不再依赖当前工作目录
@@ -61,13 +61,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.5.1] - 2026-07-13
 
 ### Fixed
-- `getOrder` wire method 错误修正（`orders` → `order_no`）
+- `getOrder` 参数错误修正
 
 ### Added
-- `getOptionChain`：新增可选参数 `returnGreekValue` 和 `optionFilter`（价内外、IV、持仓量、Greeks 过滤）
-- `Range` / `OptionChainFilter` / `OptionChainFilterGreeks` 范围过滤类型
-- `getOptionKline`：新增可选参数 `limit` 和 `sortDir`
-- `OrderRequest`：补齐 `expireTime` / `afterHoursPrice` / `batchNo` / `segType` / `amount` / `isQuantityByAmount` / `allocAccounts` / `allocShares` / `source` / `channel` / `virtualOrderType` / `virtualId` / `profitTakerOrderId` / `stopLossOrderId` / `localNo` / `ocaOrders` / `contractLegs`
+- `getOptionChain` — 支持按 Greeks、价内外、IV、持仓量过滤期权链
+- `getOptionKline` — 支持限制返回条数和排序方向
+- `OrderRequest` — 补齐多项下单参数，支持批量分配、虚拟单、盈亏止盈止损单和多腿期权组合下单
 - `ContractLegRequest`：多腿期权子腿类型（MLEG）
 
 ## [0.4.9] - 2026-07-09
@@ -132,8 +131,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - `Transaction.transactedAt` 类型修正（`number` → `string`），补充 `accountId` / `filledPrice` 等字段
-- 请求时间戳由 UTC 改为本地时间格式，与服务端签名要求对齐
-- `keysToSnakeCase` 嵌套对象 key 转换修复（`orderLegs` / `algoParams` 等）
+- 请求时间戳改为本地时间格式，修复部分请求签名校验失败的问题
+- 嵌套对象 key 转换修复（`orderLegs` / `algoParams` 等）
 - Token 加载优先级修正：`TIGEROPEN_TOKEN` env > `tokenLoader` > token 文件
 
 ## [0.4.2] - 2026-05-12
@@ -147,7 +146,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `getFutureTradeTicks` 响应解包修正
 - `SegmentFundHistoryItem` / `SegmentFundAvailableItem` 字段名修正
 - `getFundingHistory` 响应解析修正（服务端返回裸 list）
-- 响应签名验证：无 sign 字段时跳过（不抛异常）
+- 响应签名验证：无 sign 字段时跳过
 - API 业务错误不再触发重试
 - 添加 `Connection: close` header
 
@@ -159,9 +158,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 与 Python / Java / Go SDK 100% API 覆盖，新增约 65 个方法，重构 12 个方法签名。
 
 ### Breaking Changes
-- `OrderStatus` 枚举对齐 Java SDK：移除 `PendingNew` / `PartiallyFilled`，新增 `PendingSubmit`
-- 8 个 Trade 方法改为 Request 对象签名：`getOrders` / `getActiveOrders` / `getInactiveOrders` / `getFilledOrders` / `getOrderTransactions` / `getPositions` / `getAssets` / `getPrimeAssets`
-- 4 个 Quote 方法改为 Request 对象签名：`getBrief` / `getQuoteDepth` / `getTradeTick` / `getFutureRealTimeQuote`
+- `OrderStatus` 枚举对齐 Java SDK：移除 `PendingNew` / `PartiallyFilled`，新增 `PendingSubmit`。请改用 `PendingSubmit` 替换原有的 `PendingNew` / `PartiallyFilled` 判断逻辑
+- 8 个 Trade 方法改为 Request 对象签名：`getOrders` / `getActiveOrders` / `getInactiveOrders` / `getFilledOrders` / `getOrderTransactions` / `getPositions` / `getAssets` / `getPrimeAssets`。请将原有的位置参数调用改为传入对应的 Request 对象
+- 4 个 Quote 方法改为 Request 对象签名：`getBrief` / `getQuoteDepth` / `getTradeTick` / `getFutureRealTimeQuote`。请将原有的位置参数调用改为传入对应的 Request 对象
 
 ### Added
 - Trade：`getOrder` / `getManagedAccounts` / `getDerivativeContracts` / `getAnalyticsAsset` / `getAggregateAssets` / `getEstimateTradableQuantity` / `placeForexOrder` / 资金调拨 4 个 / `getFundDetails` / `getFundingHistory` / `transferPosition` / 转股记录 3 个
@@ -171,9 +170,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `orderStatusCode()` 工具函数
 
 ### Fixed
-- Push dispatcher 补 Cc dataType 路由
+- Cc 类型行情推送不再被错误路由到其他回调
 - `Order.status` 整数自动转字符串
-- `getFutureRealTimeQuote` wire method 修正
+- `getFutureRealTimeQuote` 参数修正
 
 ## [0.3.1] - 2026-05-07
 
@@ -183,10 +182,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - 2026-05-06
 
 ### Breaking Changes
-- 所有 `QuoteClient` / `TradeClient` 方法改为强类型响应，不再返回裸 `ApiResponse`
-- 请求参数统一 camelCase，transport 层自动转 snake_case
-- `Order` 拆分为 `Order`（响应）和 `OrderRequest`（下单/改单/预览）
-- 多个方法签名修正以匹配服务端契约
+- 所有 `QuoteClient` / `TradeClient` 方法改为强类型响应，不再返回裸 `ApiResponse`。请改用返回值上的强类型字段访问数据，不再需要手动解析 `ApiResponse`
+- 请求参数统一使用 camelCase 命名，无需手动转换为 snake_case
+- `Order` 拆分为 `Order`（响应）和 `OrderRequest`（下单/改单/预览）。下单、改单、预览调用请改用 `OrderRequest` 构造参数，响应结果类型仍为 `Order`
+- 多个方法签名修正以匹配服务端契约，请对照最新方法签名更新调用代码
 
 ### Added
 - 30+ Quote 响应类型 / 5 个 Request 类型
