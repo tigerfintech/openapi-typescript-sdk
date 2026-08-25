@@ -149,6 +149,20 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     return patterns.some((p) => p.test(msg));
   }
 
+  /**
+   * True if `msg` is an environment boundary the suite tolerates rather than a
+   * product defect: an account/permission restriction, or the shared account's
+   * rate limit.
+   *
+   * The rate limit is account-level, not per-endpoint — all 7 SDK pipelines
+   * exercise the same trading account, so any gateway call can be throttled,
+   * including the read-only `previewOrder` probes. Those sites only whitelisted
+   * PERMISSION_ERROR_PATTERNS, so a throttle fell through to a hard failure.
+   */
+  function isBoundarySkip(msg: string): boolean {
+    return matches(msg, RATE_LIMIT_PATTERNS) || matches(msg, PERMISSION_ERROR_PATTERNS);
+  }
+
   // =========================================================================
   // Contract queries
   // =========================================================================
@@ -625,7 +639,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       try {
         placed = await tc.placeOrder(limitBuyOrder());
       } catch (e: any) {
-        if (matches(String(e?.message ?? e), PERMISSION_ERROR_PATTERNS)) return;
+        if (isBoundarySkip(String(e?.message ?? e))) return;
         throw e;
       }
       expect(placed).toBeDefined();
@@ -642,7 +656,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       try {
         placed = await tc.placeOrder(limitBuyOrder());
       } catch (e: any) {
-        if (matches(String(e?.message ?? e), PERMISSION_ERROR_PATTERNS)) return;
+        if (isBoundarySkip(String(e?.message ?? e))) return;
         throw e;
       }
       expect(placed).toBeDefined();
@@ -668,7 +682,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       try {
         placed = await tc.placeOrder(limitBuyOrder());
       } catch (e: any) {
-        if (matches(String(e?.message ?? e), PERMISSION_ERROR_PATTERNS)) return;
+        if (isBoundarySkip(String(e?.message ?? e))) return;
         throw e;
       }
       expect(placed).toBeDefined();
@@ -789,7 +803,9 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
             continue;
           }
           if (isRateLimit) {
-            // Final attempt still rate-limited — retries exhausted.
+            // Retries exhausted. Thrown rather than returned so the caller's
+            // shouldSkip() classifies it — a sustained account-level throttle
+            // is exhausted CI capacity, so that yields a skip, not a failure.
             throw new Error(`${context}: exhausted rate-limit retries: ${msg}`);
           }
           throw e; // Non-rate-limit error — surface unchanged.
@@ -806,6 +822,13 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         await tc.cancelOrder(orderId);
       } catch (e: any) {
         const msg = String(e?.message ?? e);
+        // Cleanup runs after several API calls, so it is the likeliest to be
+        // throttled — and a rate-limit message matches no
+        // TERMINAL_ORDER_PATTERN, so without this it would fail a test whose
+        // assertions all already passed.
+        if (matches(msg, RATE_LIMIT_PATTERNS)) {
+          return;
+        }
         if (!matches(msg, TERMINAL_ORDER_PATTERNS)) {
           throw new Error(`${context}: unexpected cancel failure: ${msg}`);
         }
@@ -821,6 +844,14 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
      * market-status re-check). Returns true when the caller should skip.
      */
     async function shouldSkip(msg: string, context: string, market = 'US'): Promise<boolean> {
+      // Rate limit is tested first, and deliberately so: the gateway tags the
+      // throttle `category=trade_prime_error`, which PERMISSION_ERROR_PATTERNS
+      // also matches via /prime.*error/i. Tested in the other order, an
+      // exhausted account quota is indistinguishable from a real permission
+      // regression in the log.
+      if (matches(msg, RATE_LIMIT_PATTERNS)) {
+        return true;
+      }
       if (matches(msg, HOURS_ERROR_PATTERNS)) {
         const qc = buildQuoteClient();
         if (await isMarketTrading(qc, market)) {
@@ -881,7 +912,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         }));
         expect(preview).toBeDefined();
       } catch (e: any) {
-        if (!matches(String(e?.message ?? e), PERMISSION_ERROR_PATTERNS)) throw e;
+        if (!isBoundarySkip(String(e?.message ?? e))) throw e;
       }
     });
 
@@ -895,7 +926,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         }));
         expect(preview).toBeDefined();
       } catch (e: any) {
-        if (!matches(String(e?.message ?? e), PERMISSION_ERROR_PATTERNS)) throw e;
+        if (!isBoundarySkip(String(e?.message ?? e))) throw e;
       }
     });
 
@@ -1167,7 +1198,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         );
         expect(preview).toBeDefined();
       } catch (e: any) {
-        if (!matches(String(e?.message ?? e), PERMISSION_ERROR_PATTERNS)) throw e;
+        if (!isBoundarySkip(String(e?.message ?? e))) throw e;
       }
     });
 
@@ -1368,7 +1399,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       try {
         orderId = await placeWithRetry(order, 'US STK ICEBERG modify');
       } catch (e: any) {
-        if (matches(String(e?.message ?? e), PERMISSION_ERROR_PATTERNS)) return;
+        if (isBoundarySkip(String(e?.message ?? e))) return;
         throw e;
       }
       try {
@@ -1394,7 +1425,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         );
         expect(preview).toBeDefined();
       } catch (e: any) {
-        if (!matches(String(e?.message ?? e), PERMISSION_ERROR_PATTERNS)) throw e;
+        if (!isBoundarySkip(String(e?.message ?? e))) throw e;
       }
     });
   });
