@@ -24,6 +24,10 @@ unit:node:
   stage: unit
   timeout: 10 minutes
   script:
+    # Drop this job's own stale report first: build dirs get reused, and a
+    # leftover file would be re-archived as if this run had produced it.
+    # Only our own file — a sibling job's report may legitimately sit here.
+    - rm -f test-results/unit.xml
     - mkdir -p test-results
     # JUnit XML for notify job + GitLab test report widget.
     # --reporter=default keeps console output; --reporter=junit writes XML.
@@ -32,8 +36,12 @@ unit:node:
     - npx vitest run --config vitest.config.ts --reporter=default --reporter=junit --outputFile=test-results/unit.xml --testTimeout=30000
   artifacts:
     when: always
+    # Explicit file, not the whole directory: the runner reuses build dirs, so a
+    # directory glob can also archive the *other* job's stale report from a
+    # previous pipeline. Artifact download order across `needs` is not
+    # guaranteed, so a stale copy can overwrite the real one in notify:webhook.
     paths:
-      - test-results/
+      - test-results/unit.xml
     reports:
       junit:
         - test-results/unit.xml
@@ -49,12 +57,20 @@ integration:node:
   variables:
     TIGER_RUN_INTEG: "true"
   script:
+    # Drop this job's own stale report first: build dirs get reused, and a
+    # leftover file would be re-archived as if this run had produced it.
+    # Only our own file — a sibling job's report may legitimately sit here.
+    - rm -f test-results/integration.xml
     - mkdir -p test-results
     - npx vitest run --config vitest.integ.config.ts --reporter=default --reporter=junit --outputFile=test-results/integration.xml
   artifacts:
     when: always
+    # Explicit file, not the whole directory: the runner reuses build dirs, so a
+    # directory glob can also archive the *other* job's stale report from a
+    # previous pipeline. Artifact download order across `needs` is not
+    # guaranteed, so a stale copy can overwrite the real one in notify:webhook.
     paths:
-      - test-results/
+      - test-results/integration.xml
     reports:
       junit:
         - test-results/integration.xml
