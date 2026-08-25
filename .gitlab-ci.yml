@@ -123,8 +123,11 @@ notify:webhook:
       unit_t, unit_p, unit_f, unit_s = parse_xml("test-results/unit.xml")
       integ_t, integ_p, integ_f, integ_s = parse_xml("test-results/integration.xml")
 
-      unit_stats = f"Unit: {unit_t} tests: {unit_p} passed, {unit_f} failed, {unit_s} skipped" if unit_t else ""
-      integ_stats = f"Integration: {integ_t} tests: {integ_p} passed, {integ_f} failed, {integ_s} skipped" if integ_t else ""
+      # Key off `is not None`, not truthiness: a well-formed XML reporting 0
+      # tests yields 0 — falsy, but perfectly available. `if unit_t` would
+      # blank the line out and hide the very number that says something broke.
+      unit_stats = f"Unit: {unit_t} tests: {unit_p} passed, {unit_f} failed, {unit_s} skipped" if unit_f is not None else ""
+      integ_stats = f"Integration: {integ_t} tests: {integ_p} passed, {integ_f} failed, {integ_s} skipped" if integ_f is not None else ""
 
       # 2. Determine pass/fail.
       #    - unit_f is None  → XML missing/corrupt; treat as failed (conservative).
@@ -137,15 +140,30 @@ notify:webhook:
       #      as a warning instead, distinct from both green and red.
       #    CI_PIPELINE_STATUS is unreliable in .post stage (reads "running"),
       #    so we rely exclusively on parsed XML counts.
+      #    - unit_t == 0 with a readable XML → the run collected nothing at all
+      #      (a broken build, or an `include` glob matching no files). vitest
+      #      still emits a <testcase><skipped/> for every test in a suite
+      #      guarded by describe.skipIf, so tests="0" is never a legitimate
+      #      "everything was skipped" — it always means we measured nothing.
+      #      Not a pass: 0 is falsy but 0 is not None, so without this the
+      #      run would score green and, since passes notify nobody, vanish.
       if unit_f is None:
           has_failed = True
           print("Unit JUnit XML unavailable — treating pipeline as failed")
+      elif unit_t == 0:
+          has_failed = True
+          print("Unit XML parsed but reported 0 tests — treating pipeline as failed")
       else:
           has_failed = (unit_f > 0) or (integ_f is not None and integ_f > 0)
 
-      integ_unavailable = integ_f is None
-      if integ_unavailable:
+      # A readable integration XML reporting 0 tests is the same "couldn't
+      # tell" as a missing one, so it takes the same yellow-card path rather
+      # than turning the pipeline red on its own.
+      integ_unavailable = integ_f is None or integ_t == 0
+      if integ_f is None:
           print("Integration JUnit XML unavailable — flagging as warning (not silently passed)")
+      elif integ_t == 0:
+          print("Integration XML parsed but reported 0 tests — flagging as warning (not silently passed)")
 
       # 2b. Notify on failure only. A green card every 4 hours is noise nobody
       #     reads, which also desensitises the channel to the red ones.
@@ -173,10 +191,13 @@ notify:webhook:
       content = f"**Repo:** {project_name}\n**Branch:** {branch}\n**Commit:** {commit}\n"
       if unit_stats:
           content += f"\n**Unit tests:** {unit_stats}\n"
-      if integ_stats:
-          content += f"**Integration tests:** {integ_stats}\n"
-      elif integ_unavailable:
+      if integ_f is None:
           content += "\n**Integration tests:** ⚠️ results unavailable (XML missing or corrupt — job may have crashed)\n"
+      elif integ_t == 0:
+          # Say why "0 tests" is a problem; the bare stats line reads like a pass.
+          content += "\n**Integration tests:** ⚠️ 0 tests collected (no suite ran — check the job log)\n"
+      elif integ_stats:
+          content += f"**Integration tests:** {integ_stats}\n"
       content += f"[View pipeline]({pipeline_url})"
 
       payload = {
