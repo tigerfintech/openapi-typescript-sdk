@@ -13,6 +13,7 @@ import type { ClientConfig } from '../config/client-config';
 import { signWithRSA } from '../signer/signer';
 import type { Callbacks } from './callbacks';
 import { SubjectType } from './push-message';
+import { convertTradeTick } from './tick-util';
 import { Request } from './pb/Request';
 import { Response } from './pb/Response';
 import { SocketCommon_Command, SocketCommon_DataType } from './pb/SocketCommon';
@@ -423,7 +424,8 @@ export class PushClient {
         if (pushData.quoteDepthData) cb.onDepth?.(pushData.quoteDepthData);
         break;
       case SocketCommon_DataType.TradeTick:
-        if (pushData.tradeTickData) cb.onTick?.(pushData.tradeTickData);
+        if (pushData.tickData) cb.onFullTick?.(pushData.tickData);
+        if (pushData.tradeTickData) cb.onTick?.(convertTradeTick(pushData.tradeTickData));
         break;
       case SocketCommon_DataType.Asset:
         if (pushData.assetData) cb.onAsset?.(pushData.assetData);
@@ -451,8 +453,7 @@ export class PushClient {
         if (pushData.quoteData) cb.onQuote?.(pushData.quoteData);
         break;
       default:
-        // FullTick and QuoteBBO use TradeTick/Quote dataType
-        // TickData (fullTick) via tickData field
+        // QuoteBBO and some full-tick payloads reuse an existing dataType.
         if (pushData.tickData) cb.onFullTick?.(pushData.tickData);
         break;
     }

@@ -42,6 +42,7 @@ export interface Brief {
 export interface KlineItem {
   time: number;
   volume: number;
+  volumeDecimal?: number | null;
   open: number;
   close: number;
   high: number;
@@ -59,6 +60,7 @@ export interface Kline {
 export interface TimelineItem {
   time: number;
   volume: number;
+  volumeDecimal?: number | null;
   price: number;
   avgPrice: number;
 }
@@ -81,6 +83,9 @@ export interface TradeTickItem {
   volume: number;
   price: number;
   type: string;
+  partCode?: string;
+  partName?: string;
+  cond?: string;
 }
 
 export interface TradeTick {
@@ -131,6 +136,12 @@ export interface OptionLeg {
   theta?: number;
   vega?: number;
   rho?: number;
+  markPrice?: number;
+  preMarkPrice?: number;
+  markTimestamp?: number;
+  midPrice?: number;
+  preMidPrice?: number;
+  midTimestamp?: number;
 }
 
 export interface OptionChainRow {
@@ -370,21 +381,40 @@ export interface FinancialDailyRequest {
   endDate: string;
 }
 
+/**
+ * Financial report request.
+ *
+ * **Wire types (breaking):** `beginDate` / `endDate` are epoch-ms integers,
+ * not date strings. Python SDK converts via `date_str_to_timestamp` before
+ * sending; sending raw strings makes the gateway reject with
+ * `biz param error(failed to parse parameters in 'biz_content')`.
+ */
 export interface FinancialReportRequest {
   symbols: string[];
   market: string;
   fields: string[];
   periodType: string;
-  beginDate?: string;
-  endDate?: string;
+  /** epoch-ms start time */
+  beginDate?: number;
+  /** epoch-ms end time */
+  endDate?: number;
 }
 
+/**
+ * Corporate action request.
+ *
+ * **Wire types (breaking):** `beginDate` / `endDate` are epoch-ms integers,
+ * matching `FinancialReportRequest`. Server rejects string dates with
+ * `biz param error(failed to parse parameters in 'biz_content')`.
+ */
 export interface CorporateActionRequest {
   symbols: string[];
   market: string;
   actionType: string;
-  beginDate?: string;
-  endDate?: string;
+  /** epoch-ms start time */
+  beginDate?: number;
+  /** epoch-ms end time */
+  endDate?: number;
 }
 
 export interface FutureKlineRequest {
@@ -624,10 +654,32 @@ export interface WarrantFilterResult {
   page?: number;
 }
 
-/** Industry list row (industry_list). */
+/**
+ * Industry list row (industry_list).
+ *
+ * **Wire fields (breaking):** the server returns `nameCN` / `nameEN` /
+ * `industryLevel`, not `name` / `level` (matches Python SDK's
+ * `IndustryListResponse` which reads `ind.get('nameCN')`,
+ * `ind.get('nameEN')`, `ind.get('industryLevel')`).
+ * Since responses come back already-camelCase (no snake→camel step) and the
+ * server keeps `nameCN` / `nameEN` in mixed case, the fields are exposed
+ * exactly as sent.
+ *
+ * `name` and `level` are backwards-compat aliases populated by
+ * `getIndustryList` after the raw response is decoded — `name` mirrors
+ * `nameEN || nameCN`, `level` mirrors `industryLevel`.
+ */
 export interface IndustryItem {
   id?: string;
+  /** Chinese name. Wire: `nameCN`. */
+  nameCN?: string;
+  /** English name. Wire: `nameEN`. */
+  nameEN?: string;
+  /** Industry level. Wire: `industryLevel`. */
+  industryLevel?: string;
+  /** Convenience alias: `nameEN || nameCN`. Populated by `getIndustryList`. */
   name?: string;
+  /** @deprecated Use `industryLevel`. Mirrored by `getIndustryList` for back-compat. */
   level?: string;
 }
 
@@ -648,12 +700,16 @@ export interface TradingCalendarItem {
   sessionType?: string;
 }
 
+/** Single day's FX rate value within an ExchangeRate.dailyValueList entry. */
+export interface ExchangeRateDailyValue {
+  date?: number;
+  value?: number;
+}
+
 /** FX rate (financial_exchange_rate). */
 export interface ExchangeRate {
   currency?: string;
-  date?: string;
-  rate?: number;
-  baseCurrency?: string;
+  dailyValueList?: ExchangeRateDailyValue[];
 }
 
 /** Financial currency per symbol (financial_currency). */
@@ -666,17 +722,19 @@ export interface FinancialCurrency {
 /** Overnight quote (quote_overnight). */
 export interface QuoteOvernight {
   symbol?: string;
+  latestPrice?: number;
+  askPrice?: number;
+  askSize?: number;
+  bidPrice?: number;
+  bidSize?: number;
   preClose?: number;
-  open?: number;
-  close?: number;
-  high?: number;
-  low?: number;
   volume?: number;
   amount?: number;
+  timestamp?: number;
+  tradingStatus?: number;
   change?: number;
   changeRate?: number;
-  beginTime?: number;
-  endTime?: number;
+  amplitude?: number;
 }
 
 /** Single market-scanner tag. */

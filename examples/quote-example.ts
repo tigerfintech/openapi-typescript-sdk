@@ -65,7 +65,12 @@ async function main() {
   } catch (e) { fail('getTimeline', e); }
 
   try {
-    const tt = await qc.getTradeTick({ symbols: ['AAPL'] });
+    const tl = await qc.getTimeline({ symbols: ['BTC.USD'], secType: 'CC' });
+    ok('getTimeline(BTC.USD)', `volume=${tl[0]?.intraday?.items[0]?.volumeDecimal ?? 0}`);
+  } catch (e) { fail('getTimeline(BTC.USD)', e); }
+
+  try {
+    const tt = await qc.getTradeTick({ symbols: ['AAPL'], tradeSession: 'regular' });
     ok('getTradeTick', `ticks=${tt[0]?.items.length ?? 0}`);
   } catch (e) { fail('getTradeTick', e); }
 
@@ -218,9 +223,11 @@ async function main() {
   } catch (e) { fail('getFinancialReport(AAPL)', e); }
 
   try {
+    // beginDate/endDate are epoch-ms on the wire (breaking change in v0.6).
     const items = await qc.getCorporateAction({
       symbols: ['AAPL'], market: 'US', actionType: 'DIVIDEND',
-      beginDate: '2024-01-01', endDate: '2024-12-31',
+      beginDate: Date.parse('2024-01-01'),
+      endDate: Date.parse('2024-12-31'),
     });
     ok('getCorporateAction(AAPL)', `rows=${items.length}`);
   } catch (e) { fail('getCorporateAction(AAPL)', e); }
@@ -439,10 +446,12 @@ async function main() {
   skip('getIndustryStocks', 'needs industryId from getIndustryList');
 
   console.log('\n=== v0.4.0: Corporate actions / financial / calendar ===');
+  // beginDate/endDate are epoch-ms on the wire (breaking change in v0.6).
   try {
     const rows = await qc.getCorporateSplit({
       symbols: ['AAPL'], market: 'US', actionType: 'split',
-      beginDate: '2020-01-01', endDate: '2024-12-31',
+      beginDate: Date.parse('2020-01-01'),
+      endDate: Date.parse('2024-12-31'),
     });
     ok('getCorporateSplit(AAPL)', `rows=${rows.length}`);
   } catch (e) { fail('getCorporateSplit(AAPL)', e); }
@@ -450,7 +459,8 @@ async function main() {
   try {
     const rows = await qc.getCorporateDividend({
       symbols: ['AAPL'], market: 'US', actionType: 'dividend',
-      beginDate: '2024-01-01', endDate: '2024-12-31',
+      beginDate: Date.parse('2024-01-01'),
+      endDate: Date.parse('2024-12-31'),
     });
     ok('getCorporateDividend(AAPL)', `rows=${rows.length}`);
   } catch (e) { fail('getCorporateDividend(AAPL)', e); }
@@ -459,21 +469,24 @@ async function main() {
   try {
     const rows = await qc.getCorporateSymbolChange({
       symbols: ['META'], market: 'US',
-      beginDate: '2022-01-01', endDate: '2023-01-01',
+      beginDate: Date.parse('2022-01-01'),
+      endDate: Date.parse('2023-01-01'),
     });
     ok('getCorporateSymbolChange(META)', `rows=${rows.length}`);
   } catch (e) { fail('getCorporateSymbolChange(META)', e); }
   try {
     const rows = await qc.getCorporateDelisting({
       symbols: ['TWTR'], market: 'US',
-      beginDate: '2022-01-01', endDate: '2023-01-01',
+      beginDate: Date.parse('2022-01-01'),
+      endDate: Date.parse('2023-01-01'),
     });
     ok('getCorporateDelisting(TWTR)', `rows=${rows.length}`);
   } catch (e) { fail('getCorporateDelisting(TWTR)', e); }
   try {
     const rows = await qc.getCorporateIPO({
       symbols: ['RIVN'], market: 'US',
-      beginDate: '2021-01-01', endDate: '2022-01-01',
+      beginDate: Date.parse('2021-01-01'),
+      endDate: Date.parse('2022-01-01'),
     });
     ok('getCorporateIPO(RIVN)', `rows=${rows.length}`);
   } catch (e) { fail('getCorporateIPO(RIVN)', e); }
@@ -517,7 +530,7 @@ async function main() {
 
   try {
     const rows = await qc.getQuoteOvernight({ symbols: ['AAPL'] });
-    ok('getQuoteOvernight(AAPL)', `count=${rows.length}`);
+    ok('getQuoteOvernight(AAPL)', `price=${rows[0]?.latestPrice} status=${rows[0]?.tradingStatus}`);
   } catch (e) { fail('getQuoteOvernight(AAPL)', e); }
 
   printSummary();

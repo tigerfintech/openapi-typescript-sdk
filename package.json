@@ -1,6 +1,6 @@
 {
   "name": "@tigeropenapi/tigeropen",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "Tiger Brokers OpenAPI TypeScript SDK for market data, trading, and real-time push",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
@@ -30,6 +30,8 @@
     "prepublishOnly": "npm run build",
     "publish:all": "npm run build && npm publish --registry https://registry.npmjs.org --access public && npm pkg set name=tigeropen && npm publish --registry https://registry.npmjs.org && npm pkg set name=@tigeropenapi/tigeropen",
     "test": "vitest run",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:integ": "TIGER_RUN_INTEG=true vitest run --config vitest.integ.config.ts",
     "test:watch": "vitest",
     "clean": "rm -rf dist",
     "proto:generate": "protoc --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=./src/push/pb --ts_proto_opt=esModuleInterop=true,outputEncodeMethods=true,outputJsonMethods=false,outputClientImpl=false -I=./proto ./proto/*.proto"
