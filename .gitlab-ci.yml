@@ -131,6 +131,16 @@ notify:webhook:
       if integ_unavailable:
           print("Integration JUnit XML unavailable — flagging as warning (not silently passed)")
 
+      # 2b. Notify on failure only. A green card every 4 hours is noise nobody
+      #     reads, which also desensitises the channel to the red ones.
+      #     Note integ_unavailable is deliberately part of the condition: the
+      #     yellow "results unavailable" card is a "couldn't tell", not a pass,
+      #     so it must keep notifying. Silence here means "we positively
+      #     verified everything passed".
+      if not has_failed and not integ_unavailable:
+          print(f"Pipeline passed — {unit_stats} | {integ_stats} — skipping notification")
+          exit(0)
+
       # 3. Build notification card.
       if has_failed:
           title, color = "❌ Pipeline failed", "red"
