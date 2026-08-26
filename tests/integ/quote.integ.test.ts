@@ -470,13 +470,13 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
         }],
       });
       expect(Array.isArray(data)).toBe(true);
-      // In-hours the endpoint should return trade ticks. Off-hours the
-      // server returns an empty envelope — that's expected.
-      if (isMarketTradingCached('US')) {
-        expect(data.length).toBeGreaterThan(0);
-        expect((data[0] as any).items?.length ?? 0).toBeGreaterThan(0);
-        expect((data[0] as any).items[0].time).toBeDefined();
-      } else if (data.length && (data[0] as any).items?.length) {
+      // Deliberately NOT gated on isMarketTradingCached('US'): option tick data
+      // is far sparser than equity data, so a cold contract can legitimately
+      // report zero ticks mid-session. Requiring non-empty because the *equity*
+      // market is open conflates "the exchange is trading" with "this specific
+      // strike traded", and failed CI on real market thinness. Validate the
+      // payload shape whenever data is present, in or out of hours.
+      if (data.length && (data[0] as any).items?.length) {
         expect((data[0] as any).items[0].time).toBeDefined();
       }
     });
@@ -498,11 +498,9 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
         }],
       });
       expect(Array.isArray(data)).toBe(true);
-      if (isMarketTradingCached('US')) {
-        expect(data.length).toBeGreaterThan(0);
-        expect((data[0] as any).items?.length ?? 0).toBeGreaterThan(0);
-        expect((data[0] as any).items[0].time).toBeDefined();
-      } else if (data.length && (data[0] as any).items?.length) {
+      // Same reasoning as getOptionTradeTicks above: an open equity session does
+      // not guarantee this particular option contract has timeline points.
+      if (data.length && (data[0] as any).items?.length) {
         expect((data[0] as any).items[0].time).toBeDefined();
       }
     });
