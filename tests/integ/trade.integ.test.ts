@@ -82,17 +82,42 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
    * real bug (fail), not a boundary condition (skip).
    */
   const HOURS_ERROR_PATTERNS = [
-    /outside of regular trading hours/i,
     /market is closed/i,
-    /only limit orders can be placed/i,
-    /only limit, stop or stop-limit orders are allowed/i,
     /at non-trading hour/i,
     /orders cannot be placed at this moment/i,
+  ];
+
+  /**
+   * Server messages meaning "this order type / parameter is not accepted at
+   * this instant", which is NOT the same as "the market is closed".
+   *
+   * These must never be re-checked against isMarketTrading: for every pattern
+   * below, the continuous session being open is exactly when the error is most
+   * likely, so using an open market to prove the error is a bug has the
+   * implication backwards. Concretely:
+   *
+   * - Auction orders (AL/AM) are only accepted during HK's pre-open
+   *   (09:00–09:30) and closing (16:00–16:10) auction windows, which are
+   *   disjoint from the continuous session. isMarketTrading('HK') reports the
+   *   continuous session, so an auction rejection during continuous trading is
+   *   by design — asserting on it made 'HK STK AL' fail every run that landed
+   *   inside HK trading hours.
+   * - "only limit orders are supported ... outside of regular trading hours"
+   *   fires when the order itself carries an RTH-exempt flag; the server then
+   *   applies extended-hours rules regardless of the regular session's state.
+   * - The TWAP/VWAP end-time window and the fractional-share RTH rule are
+   *   order parameter constraints, saying nothing about current market state.
+   *
+   * The SDK cannot narrow these down further: no quote API exposes
+   * auction-window or RTH-exempt eligibility, so an unconditional skip is the
+   * only classification that is actually true.
+   */
+  const ORDER_TYPE_RESTRICTION_PATTERNS = [
     /auction order is not allowed at this moment/i,
-    // Algo orders (TWAP / VWAP): start_time must be inside the market's
-    // regular trading window. CI runs outside RTH — treat as skip.
+    /outside of regular trading hours/i,
+    /only limit orders can be placed/i,
+    /only limit, stop or stop-limit orders are allowed/i,
     /time range for the order/i,
-    // Fractional-share (cashAmount) orders require RTH — same reason.
     /Only regular trading hours supported when trading fractional shares/i,
   ];
 
@@ -160,7 +185,14 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
    * PERMISSION_ERROR_PATTERNS, so a throttle fell through to a hard failure.
    */
   function isBoundarySkip(msg: string): boolean {
-    return matches(msg, RATE_LIMIT_PATTERNS) || matches(msg, PERMISSION_ERROR_PATTERNS);
+    // ORDER_TYPE_RESTRICTION_PATTERNS is included because these sites are
+    // preview-only probes with no market argument to re-check against, and the
+    // restrictions are unconditional skips anyway. Without it, the HK AM
+    // auction preview hard-failed on "Auction order is not allowed at this
+    // moment" — a by-design rejection outside the auction window.
+    return matches(msg, RATE_LIMIT_PATTERNS)
+      || matches(msg, ORDER_TYPE_RESTRICTION_PATTERNS)
+      || matches(msg, PERMISSION_ERROR_PATTERNS);
   }
 
   // =========================================================================
@@ -843,23 +875,52 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
      * Pure permission/capability markers are an unconditional skip (no
      * market-status re-check). Returns true when the caller should skip.
      */
+    /**
+     * Maps an order's currency to the market whose session governs it.
+     *
+     * OrderRequest carries no `market` field, so currency is the only
+     * per-order signal available. This matters because shouldSkip re-checks
+     * hours errors against a live market status: checking an HK order's
+     * boundary error against the US session turns a legitimate skip into a
+     * spurious failure whenever the two differ, which is precisely what
+     * happened to the HK/CN/SG cases while US was trading.
+     */
+    function marketOf(order: OrderRequest): string {
+      switch (order.currency) {
+        case 'HKD': return 'HK';
+        case 'CNH':
+        case 'CNY': return 'CN';
+        case 'SGD': return 'SG';
+        default: return 'US';
+      }
+    }
+
     async function shouldSkip(msg: string, context: string, market = 'US'): Promise<boolean> {
       // Rate limit is tested first, and deliberately so: the gateway tags the
-      // throttle `category=trade_prime_error`, which PERMISSION_ERROR_PATTERNS
+      // throttle `category=trade_prime_error`, which TERMINAL_ORDER_PATTERNS
       // also matches via /prime.*error/i. Tested in the other order, an
       // exhausted account quota is indistinguishable from a real permission
       // regression in the log.
       if (matches(msg, RATE_LIMIT_PATTERNS)) {
         return true;
       }
+      // Order-type/parameter restrictions are tested before HOURS_ERROR_PATTERNS
+      // and deliberately never validated against live market status — see that
+      // const's doc comment for why an open market cannot disprove them.
+      if (matches(msg, ORDER_TYPE_RESTRICTION_PATTERNS)) {
+        return true;
+      }
       if (matches(msg, HOURS_ERROR_PATTERNS)) {
         const qc = buildQuoteClient();
         if (await isMarketTrading(qc, market)) {
-          throw new Error(`${context}: hours-boundary error during live trading hours: ${msg}`);
+          throw new Error(`${context}: hours-boundary error during live ${market} trading hours: ${msg}`);
         }
         return true;
       }
-      return matches(msg, PERMISSION_ERROR_PATTERNS);
+      // trade_prime_error lives in TERMINAL_ORDER_PATTERNS, so a prime-entitlement
+      // rejection on the preview/place path would otherwise reach no list at all
+      // and hard-fail. It is an account-state boundary, same as permission.
+      return matches(msg, PERMISSION_ERROR_PATTERNS) || /trade_prime_error/i.test(msg);
     }
 
     /**
@@ -868,13 +929,14 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
      * session-boundary error; throws for unexpected errors.
      */
     async function previewAndPlace(order: OrderRequest, context: string): Promise<void> {
+      const market = marketOf(order);
       // 1. Preview validates SDK marshaling before touching real state.
       try {
         const preview = await tc.previewOrder(order);
         expect(preview, `${context}: preview returned undefined`).toBeDefined();
       } catch (e: any) {
         const msg = String(e?.message ?? e);
-        if (await shouldSkip(msg, context)) return;
+        if (await shouldSkip(msg, context, market)) return;
         throw e;
       }
       // 2. Place, then cancel.
@@ -883,7 +945,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         orderId = await placeWithRetry(order, context);
       } catch (e: any) {
         const msg = String(e?.message ?? e);
-        if (await shouldSkip(msg, context)) return;
+        if (await shouldSkip(msg, context, market)) return;
         throw e;
       }
       await cancelTolerant(orderId, context);
