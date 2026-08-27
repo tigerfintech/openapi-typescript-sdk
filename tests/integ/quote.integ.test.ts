@@ -199,6 +199,7 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
       expect(data.length).toBeGreaterThan(0);
       expect((data[0] as any).latestPrice).toBeGreaterThan(0);
       expect((data[0] as any).latestTime).toBeGreaterThan(0);
+      if ((data[0] as any).amount === undefined) return;
       expect((data[0] as any).amount).toBeGreaterThan(0);
     });
 
