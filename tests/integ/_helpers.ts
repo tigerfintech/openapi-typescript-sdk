@@ -25,7 +25,7 @@ import type { TradeClient } from '../../src/trade/trade-client';
 export function diagnostic(request: unknown, response: unknown): string {
   const stringify = (value: unknown): string => {
     try {
-      const text = JSON.stringify(value);
+      const text = JSON.stringify(value, (_key, item) => item === undefined ? '<undefined>' : item);
       if (text === undefined) return String(value);
       return text.length > 3000 ? `${text.slice(0, 3000)}...<truncated>` : text;
     } catch {
