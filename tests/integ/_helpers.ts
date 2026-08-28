@@ -21,13 +21,17 @@ import type { TradeClient } from '../../src/trade/trade-client';
 // Date helpers — shared between quote and trade integ tests
 // -----------------------------------------------------------------------
 
+const MAX_DIAGNOSTIC_CHARS = 3000;
+
 /** Compact request/response context for CI failure messages. */
 export function diagnostic(request: unknown, response: unknown): string {
   const stringify = (value: unknown): string => {
     try {
       const text = JSON.stringify(value, (_key, item) => item === undefined ? '<undefined>' : item);
       if (text === undefined) return String(value);
-      return text.length > 3000 ? `${text.slice(0, 3000)}...<truncated>` : text;
+      return text.length > MAX_DIAGNOSTIC_CHARS
+        ? `${Array.from(text).slice(0, MAX_DIAGNOSTIC_CHARS).join('')}...<truncated>`
+        : text;
     } catch {
       return String(value);
     }
