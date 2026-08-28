@@ -22,12 +22,19 @@ import type { TradeClient } from '../../src/trade/trade-client';
 // -----------------------------------------------------------------------
 
 const MAX_DIAGNOSTIC_CHARS = 3000;
+const SENSITIVE_DIAGNOSTIC_KEY = /account|tiger_?id|token|private_?key|sign(?:ature)?|authorization|password|secret|api_?key/i;
 
 /** Compact request/response context for CI failure messages. */
 export function diagnostic(request: unknown, response: unknown): string {
   const stringify = (value: unknown): string => {
     try {
-      const text = JSON.stringify(value, (_key, item) => item === undefined ? '<undefined>' : item);
+      const serializable = value instanceof Error
+        ? { name: value.name, message: value.message, ...value }
+        : value;
+      const text = JSON.stringify(serializable, (key, item) => {
+        if (SENSITIVE_DIAGNOSTIC_KEY.test(key)) return '<redacted>';
+        return item === undefined ? '<undefined>' : item;
+      });
       if (text === undefined) return String(value);
       return text.length > MAX_DIAGNOSTIC_CHARS
         ? `${Array.from(text).slice(0, MAX_DIAGNOSTIC_CHARS).join('')}...<truncated>`
