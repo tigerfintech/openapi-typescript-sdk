@@ -21,6 +21,20 @@ import type { TradeClient } from '../../src/trade/trade-client';
 // Date helpers — shared between quote and trade integ tests
 // -----------------------------------------------------------------------
 
+/** Compact request/response context for CI failure messages. */
+export function diagnostic(request: unknown, response: unknown): string {
+  const stringify = (value: unknown): string => {
+    try {
+      const text = JSON.stringify(value);
+      if (text === undefined) return String(value);
+      return text.length > 3000 ? `${text.slice(0, 3000)}...<truncated>` : text;
+    } catch {
+      return String(value);
+    }
+  };
+  return `request=${stringify(request)} response=${stringify(response)}`;
+}
+
 /** Date N years ago (same month/day) in 'YYYY-MM-DD' format. */
 export function yearsAgo(n: number): string {
   const d = new Date();

@@ -14,6 +14,7 @@ import {
   FUTURES_FALLBACK,
   isMarketOpenExtendedCached,
   isMarketTradingCached,
+  diagnostic,
   primeMarketStatuses,
   resolveHkWarrantSymbol,
   resolveUsOptionIdentifier,
@@ -86,7 +87,8 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
     if (!optionIdentifier && isMarketTradingCached('US')) {
       throw new Error(
         'resolveUsOptionIdentifier() returned undefined while US market is TRADING — ' +
-        'option chain endpoint should always yield data during RTH.',
+        'option chain endpoint should always yield data during RTH. ' +
+        diagnostic({ symbol: 'AAPL' }, { optionIdentifier }),
       );
     }
 
@@ -922,8 +924,9 @@ describe.skipIf(!shouldRun())('QuoteClient integration tests', () => {
     });
 
     it('getFutureDepth', async () => {
-      const data = await qc.getFutureDepth({ contractCodes: [futureContractCode!] });
-      expect(Array.isArray(data)).toBe(true);
+      const req = { contractCodes: [futureContractCode!] };
+      const data = await qc.getFutureDepth(req);
+      expect(Array.isArray(data), diagnostic(req, data)).toBe(true);
     });
 
     it('getFutureTradingTimes', async () => {
