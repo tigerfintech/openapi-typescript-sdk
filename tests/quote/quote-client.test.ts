@@ -45,9 +45,17 @@ describe('QuoteClient', () => {
     });
 
     it('getRealTimeQuote 发送 symbols 数组', async () => {
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([{ symbol: 'AAPL', latestPrice: 150.0 }]));
-      await qc.getRealTimeQuote({ symbols: ['AAPL', 'GOOG'] });
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([{ symbol: 'AAPL', latestPrice: 150.0, amount: 123456.78 }]));
+      const result = await qc.getRealTimeQuote({ symbols: ['AAPL', 'GOOG'] });
       expect(capturedBiz(mockHttpClient)).toEqual({ symbols: ['AAPL', 'GOOG'] });
+      expect(result[0].amount).toBe(123456.78);
+    });
+
+    it('getRealTimeQuote crypto 发送 sec_type 并返回 amount', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([{ symbol: 'BTCUSD', latestPrice: 65000, amount: 987654.32 }]));
+      const result = await qc.getRealTimeQuote({ symbols: ['BTCUSD'], secType: 'CC' });
+      expect(capturedBiz(mockHttpClient)).toEqual({ symbols: ['BTCUSD'], sec_type: 'CC' });
+      expect(result[0].amount).toBe(987654.32);
     });
 
     it('getKline 多 symbol 发送 symbols 数组和 period', async () => {
