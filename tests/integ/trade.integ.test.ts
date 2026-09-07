@@ -1227,35 +1227,75 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     // Base order builder for HK/CN/SG markets that reuses the same
     // safe-price convention and matches on non-US currency + symbol.
 
-    function hkStkOrder(overrides: Partial<OrderRequest>): OrderRequest {
-      return {
+    /**
+     * A BUY limit price far below the current HK quote, but within the
+     * exchange's price-deviation tolerance — unlike a hardcoded absolute
+     * constant, this never falls too far outside whatever range the
+     * exchange currently allows.
+     */
+    async function safeHkBuyPrice(symbol: string): Promise<number> {
+      const qc = buildQuoteClient();
+      const data = await qc.getRealTimeQuote({ symbols: [symbol], market: 'HK' });
+      const latestPrice = (data[0] as any)?.latestPrice;
+      if (!latestPrice || latestPrice <= 0) {
+        throw new Error(`no live quote for ${symbol}, cannot compute a safe buy price`);
+      }
+
+      // HK's tick size is a price-banded table (e.g. HK$200-500 -> 0.2), not
+      // a single fixed value — a price that isn't a clean multiple of the
+      // band it falls into is rejected outright.
+      const contracts = await tc.getContract(symbol, 'STK');
+      const tickSizes = contracts[0]?.tickSizes;
+      if (!tickSizes || tickSizes.length === 0) {
+        throw new Error(`no tick sizes for ${symbol}, cannot compute a safe buy price`);
+      }
+
+      const rawPrice = latestPrice * 0.5;
+      const band = tickSizes.find((b) => {
+        const begin = Number(b.begin);
+        const end = b.end === 'Infinity' ? Infinity : Number(b.end);
+        return rawPrice > begin && rawPrice <= end;
+      });
+      if (!band?.tickSize) {
+        throw new Error(`no tick size band covers ${rawPrice} for ${symbol}`);
+      }
+
+      const ticks = Math.floor(rawPrice / band.tickSize);
+      return Math.round(ticks * band.tickSize * 10000) / 10000;
+    }
+
+    async function hkStkOrder(overrides: Partial<OrderRequest>): Promise<OrderRequest> {
+      const base: OrderRequest = {
         symbol: '00700',
         secType: 'STK',
         currency: 'HKD',
         action: 'BUY',
         orderType: 'LMT',
-        limitPrice: SAFE_BUY_PRICE,
+        limitPrice: 0,
         totalQuantity: 100,
         timeInForce: 'DAY',
-        ...overrides,
       };
+      if (!('limitPrice' in overrides)) {
+        base.limitPrice = await safeHkBuyPrice(overrides.symbol ?? base.symbol!);
+      }
+      return { ...base, ...overrides };
     }
 
     it('HK STK LMT — Tencent 00700', async () => {
-      await previewAndPlace(hkStkOrder({}), 'HK STK LMT');
+      await previewAndPlace(await hkStkOrder({}), 'HK STK LMT');
     });
 
     it('HK STK LMT — place + cancel round-trip (market=HK variant)', async () => {
       // Explicit market=HK variant to confirm the SDK routes to the HK gateway.
       await previewAndPlace(
-        hkStkOrder({ symbol: '00700' }),
+        await hkStkOrder({ symbol: '00700' }),
         'HK STK LMT market=HK',
       );
     });
 
     it('HK STK Auction Limit (AL) — only during HK auction windows', async () => {
       await previewAndPlace(
-        hkStkOrder({ orderType: 'AL', outsideRth: true }),
+        await hkStkOrder({ orderType: 'AL', outsideRth: true }),
         'HK STK AL',
       );
     });
@@ -1263,7 +1303,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     it('HK STK Auction Market (AM) — preview only', async () => {
       try {
         const preview = await tc.previewOrder(
-          hkStkOrder({ orderType: 'AM', limitPrice: undefined, outsideRth: true }),
+          await hkStkOrder({ orderType: 'AM', limitPrice: undefined, outsideRth: true }),
         );
         expect(preview).toBeDefined();
       } catch (e: any) {
@@ -1272,11 +1312,13 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     });
 
     it('HK STK LMT + bracket legs', async () => {
+      const legBuyPrice = await safeHkBuyPrice('00700');
       await previewAndPlace(
-        hkStkOrder({
+        await hkStkOrder({
+          limitPrice: legBuyPrice,
           orderLegs: [
             { legType: 'PROFIT', price: SAFE_SELL_PRICE, timeInForce: 'GTC' },
-            { legType: 'LOSS', price: SAFE_BUY_PRICE, timeInForce: 'GTC' },
+            { legType: 'LOSS', price: legBuyPrice, timeInForce: 'GTC' },
           ],
         }),
         'HK STK LMT+legs',
