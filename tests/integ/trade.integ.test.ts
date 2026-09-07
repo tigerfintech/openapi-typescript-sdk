@@ -1227,35 +1227,54 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     // Base order builder for HK/CN/SG markets that reuses the same
     // safe-price convention and matches on non-US currency + symbol.
 
-    function hkStkOrder(overrides: Partial<OrderRequest>): OrderRequest {
-      return {
+    /**
+     * A BUY limit price far below the current HK quote, but within the
+     * exchange's price-deviation tolerance — unlike a hardcoded absolute
+     * constant, this never falls too far outside whatever range the
+     * exchange currently allows.
+     */
+    async function safeHkBuyPrice(symbol: string): Promise<number> {
+      const qc = buildQuoteClient();
+      const data = await qc.getRealTimeQuote({ symbols: [symbol], market: 'HK' });
+      const latestPrice = (data[0] as any)?.latestPrice;
+      if (!latestPrice || latestPrice <= 0) {
+        throw new Error(`no live quote for ${symbol}, cannot compute a safe buy price`);
+      }
+      return Math.round(latestPrice * 0.5 * 100) / 100;
+    }
+
+    async function hkStkOrder(overrides: Partial<OrderRequest>): Promise<OrderRequest> {
+      const base: OrderRequest = {
         symbol: '00700',
         secType: 'STK',
         currency: 'HKD',
         action: 'BUY',
         orderType: 'LMT',
-        limitPrice: SAFE_BUY_PRICE,
+        limitPrice: 0,
         totalQuantity: 100,
         timeInForce: 'DAY',
-        ...overrides,
       };
+      if (!('limitPrice' in overrides)) {
+        base.limitPrice = await safeHkBuyPrice(overrides.symbol ?? base.symbol!);
+      }
+      return { ...base, ...overrides };
     }
 
     it('HK STK LMT — Tencent 00700', async () => {
-      await previewAndPlace(hkStkOrder({}), 'HK STK LMT');
+      await previewAndPlace(await hkStkOrder({}), 'HK STK LMT');
     });
 
     it('HK STK LMT — place + cancel round-trip (market=HK variant)', async () => {
       // Explicit market=HK variant to confirm the SDK routes to the HK gateway.
       await previewAndPlace(
-        hkStkOrder({ symbol: '00700' }),
+        await hkStkOrder({ symbol: '00700' }),
         'HK STK LMT market=HK',
       );
     });
 
     it('HK STK Auction Limit (AL) — only during HK auction windows', async () => {
       await previewAndPlace(
-        hkStkOrder({ orderType: 'AL', outsideRth: true }),
+        await hkStkOrder({ orderType: 'AL', outsideRth: true }),
         'HK STK AL',
       );
     });
@@ -1263,7 +1282,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     it('HK STK Auction Market (AM) — preview only', async () => {
       try {
         const preview = await tc.previewOrder(
-          hkStkOrder({ orderType: 'AM', limitPrice: undefined, outsideRth: true }),
+          await hkStkOrder({ orderType: 'AM', limitPrice: undefined, outsideRth: true }),
         );
         expect(preview).toBeDefined();
       } catch (e: any) {
@@ -1272,11 +1291,12 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     });
 
     it('HK STK LMT + bracket legs', async () => {
+      const legBuyPrice = await safeHkBuyPrice('00700');
       await previewAndPlace(
-        hkStkOrder({
+        await hkStkOrder({
           orderLegs: [
             { legType: 'PROFIT', price: SAFE_SELL_PRICE, timeInForce: 'GTC' },
-            { legType: 'LOSS', price: SAFE_BUY_PRICE, timeInForce: 'GTC' },
+            { legType: 'LOSS', price: legBuyPrice, timeInForce: 'GTC' },
           ],
         }),
         'HK STK LMT+legs',
