@@ -1240,7 +1240,28 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       if (!latestPrice || latestPrice <= 0) {
         throw new Error(`no live quote for ${symbol}, cannot compute a safe buy price`);
       }
-      return Math.round(latestPrice * 0.5 * 100) / 100;
+
+      // HK's tick size is a price-banded table (e.g. HK$200-500 -> 0.2), not
+      // a single fixed value — a price that isn't a clean multiple of the
+      // band it falls into is rejected outright.
+      const contracts = await tc.getContract(symbol, 'STK');
+      const tickSizes = contracts[0]?.tickSizes;
+      if (!tickSizes || tickSizes.length === 0) {
+        throw new Error(`no tick sizes for ${symbol}, cannot compute a safe buy price`);
+      }
+
+      const rawPrice = latestPrice * 0.5;
+      const band = tickSizes.find((b) => {
+        const begin = Number(b.begin);
+        const end = b.end === 'Infinity' ? Infinity : Number(b.end);
+        return rawPrice > begin && rawPrice <= end;
+      });
+      if (!band?.tickSize) {
+        throw new Error(`no tick size band covers ${rawPrice} for ${symbol}`);
+      }
+
+      const ticks = Math.floor(rawPrice / band.tickSize);
+      return Math.round(ticks * band.tickSize * 10000) / 10000;
     }
 
     async function hkStkOrder(overrides: Partial<OrderRequest>): Promise<OrderRequest> {
