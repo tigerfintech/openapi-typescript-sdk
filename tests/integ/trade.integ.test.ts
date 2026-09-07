@@ -1294,6 +1294,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       const legBuyPrice = await safeHkBuyPrice('00700');
       await previewAndPlace(
         await hkStkOrder({
+          limitPrice: legBuyPrice,
           orderLegs: [
             { legType: 'PROFIT', price: SAFE_SELL_PRICE, timeInForce: 'GTC' },
             { legType: 'LOSS', price: legBuyPrice, timeInForce: 'GTC' },
