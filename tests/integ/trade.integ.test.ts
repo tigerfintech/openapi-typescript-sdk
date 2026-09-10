@@ -195,6 +195,15 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       || matches(msg, PERMISSION_ERROR_PATTERNS);
   }
 
+  /** Pick the first derivative-contract candidate with a live (NORMAL) quote. */
+  async function firstTradableContract(results: any[] | undefined): Promise<any> {
+    if (!results?.length) return undefined;
+    const qc = buildQuoteClient();
+    const briefs = await qc.getBrief({ symbols: results.map((c) => c.symbol) });
+    const statusBySymbol = new Map(briefs.map((b) => [b.symbol, b.status]));
+    return results.find((c) => statusBySymbol.get(c.symbol) === 'NORMAL');
+  }
+
   // =========================================================================
   // Contract queries
   // =========================================================================
@@ -1365,7 +1374,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
           expiry: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
             .toISOString().slice(0, 10).replace(/-/g, ''),
         });
-        contract = results?.find((c) => c.tradeable !== false);
+        contract = await firstTradableContract(results);
       } catch { return; }
       if (!contract) return;
 
@@ -1392,7 +1401,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
           expiry: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
             .toISOString().slice(0, 10).replace(/-/g, ''),
         });
-        contract = results?.find((c) => c.tradeable !== false);
+        contract = await firstTradableContract(results);
       } catch { return; }
       if (!contract) return;
 
