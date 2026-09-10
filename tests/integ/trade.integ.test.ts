@@ -1365,7 +1365,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
           expiry: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
             .toISOString().slice(0, 10).replace(/-/g, ''),
         });
-        contract = results?.[0];
+        contract = results?.find((c) => c.tradeable !== false);
       } catch { return; }
       if (!contract) return;
 
@@ -1392,7 +1392,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
           expiry: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
             .toISOString().slice(0, 10).replace(/-/g, ''),
         });
-        contract = results?.[0];
+        contract = results?.find((c) => c.tradeable !== false);
       } catch { return; }
       if (!contract) return;
 
