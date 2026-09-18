@@ -276,9 +276,23 @@ pc.disconnect();
 | `subscribeFuture(symbols)` | Futures quotes | `onFuture(QuoteData)` |
 | `subscribeKline(symbols)` | K-line data | `onKline(KlineData)` |
 | `subscribeAsset(account?)` | Asset changes | `onAsset(AssetData)` |
+| `subscribeAsset(options)` | Asset changes, `{ account?, assetQuoteType? }` | `onAsset(AssetData)` |
 | `subscribePosition(account?)` | Position changes | `onPosition(PositionData)` |
+| `subscribePosition(options)` | Position changes, `{ account?, assetQuoteType? }` | `onPosition(PositionData)` |
 | `subscribeOrder(account?)` | Order status | `onOrder(OrderStatusData)` |
 | `subscribeTransaction(account?)` | Transactions | `onTransaction(OrderTransactionData)` |
+
+`assetQuoteType` selects the quote basis of the pushed asset / position data —
+`'ETH'`, `'RTH'` or `'OVERNIGHT'`. Omit it to keep the server default.
+
+```typescript
+pc.subscribeAsset({ assetQuoteType: 'OVERNIGHT' });
+pc.subscribePosition({ account: 'U1234567', assetQuoteType: 'RTH' });
+```
+
+The same enum name is accepted as `assetQuoteType` on the HTTP side by
+`getPositions` / `getAssets` / `getPrimeAssets` / `getAggregateAssets`
+(wire name `asset_quote_type`).
 
 ## Project Structure
 
@@ -652,9 +666,22 @@ pc.disconnect();
 | `subscribeFuture(symbols)` | 期货行情 | `onFuture(QuoteData)` |
 | `subscribeKline(symbols)` | K 线数据 | `onKline(KlineData)` |
 | `subscribeAsset(account?)` | 资产变动 | `onAsset(AssetData)` |
+| `subscribeAsset(options)` | 资产变动,`{ account?, assetQuoteType? }` | `onAsset(AssetData)` |
 | `subscribePosition(account?)` | 持仓变动 | `onPosition(PositionData)` |
+| `subscribePosition(options)` | 持仓变动,`{ account?, assetQuoteType? }` | `onPosition(PositionData)` |
 | `subscribeOrder(account?)` | 订单状态 | `onOrder(OrderStatusData)` |
 | `subscribeTransaction(account?)` | 成交明细 | `onTransaction(OrderTransactionData)` |
+
+`assetQuoteType` 用于选择推送的资产/持仓行情口径,取值为枚举名
+`'ETH'` / `'RTH'` / `'OVERNIGHT'`,不传则用服务端默认值。
+
+```typescript
+pc.subscribeAsset({ assetQuoteType: 'OVERNIGHT' });
+pc.subscribePosition({ account: 'U1234567', assetQuoteType: 'RTH' });
+```
+
+拉取侧 `getPositions` / `getAssets` / `getPrimeAssets` / `getAggregateAssets`
+同样接受 `assetQuoteType` 字段(wire 名 `asset_quote_type`)。
 
 ## 项目结构
 
