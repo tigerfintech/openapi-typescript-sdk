@@ -320,12 +320,18 @@ export class TradeClient {
     return this.callIntoItems<Position>('positions', withAccount(req, this.account));
   }
 
-  /** Query assets. v0.4.0: supports sub-account list and aggregation options. */
+  /**
+   * Query assets. v0.4.0: supports sub-account list and aggregation options.
+   * `assetQuoteType`(ETH / RTH / OVERNIGHT) 选择资产行情口径。
+   */
   async getAssets(req?: AssetsRequest): Promise<Asset[]> {
     return this.callIntoItems<Asset>('assets', withAccount(req, this.account));
   }
 
-  /** Query prime assets. v0.4.0: takes AssetsRequest for filters. */
+  /**
+   * Query prime assets. v0.4.0: takes AssetsRequest for filters.
+   * `assetQuoteType`(ETH / RTH / OVERNIGHT) 选择资产行情口径。
+   */
   async getPrimeAssets(req?: AssetsRequest): Promise<PrimeAsset | undefined> {
     return this.callInto<PrimeAsset>('prime_assets', withAccount(req, this.account));
   }
@@ -352,7 +358,10 @@ export class TradeClient {
     return this.callIntoItems<AnalyticsAsset>('analytics_asset', withAccount(req, this.account));
   }
 
-  /** Aggregate assets (prime) by base currency. */
+  /**
+   * Aggregate assets (prime) by base currency.
+   * `assetQuoteType`(ETH / RTH / OVERNIGHT) 选择资产行情口径。
+   */
   async getAggregateAssets(req?: AggregateAssetsRequest): Promise<AggregateAssets | undefined> {
     return this.callInto<AggregateAssets>('aggregate_assets', withAccount(req, this.account));
   }

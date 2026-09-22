@@ -7,4 +7,9 @@ export * from './varint';
 export * from './tick-util';
 export * from './proto-message';
 export { PushClient, ConnectionState } from './push-client';
-export type { PushClientOptions, TLSSocketLike, TLSSocketFactory } from './push-client';
+export type {
+  PushClientOptions,
+  AccountSubscribeOptions,
+  TLSSocketLike,
+  TLSSocketFactory,
+} from './push-client';

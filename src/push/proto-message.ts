@@ -66,12 +66,16 @@ export function buildHeartBeatMessage(): Request {
 
 /**
  * 构建 SUBSCRIBE 请求消息
+ *
+ * @param assetQuoteType 资产行情类型枚举名（ETH / RTH / OVERNIGHT），
+ *   仅对 Asset / Position 两种订阅有意义，其余场景传 undefined
  */
 export function buildSubscribeMessage(
   dataType: SocketCommon_DataType,
   symbols?: string,
   account?: string,
   market?: string,
+  assetQuoteType?: string,
 ): Request {
   return Request.fromPartial({
     command: SocketCommon_Command.SUBSCRIBE,
@@ -81,6 +85,7 @@ export function buildSubscribeMessage(
       symbols,
       account,
       market,
+      assetQuoteType,
     }),
   });
 }

@@ -76,6 +76,7 @@ export interface PositionsRequest {
   expiry?: string;
   strike?: string;
   right?: string;
+  /** 资产行情类型枚举名: ETH / RTH / OVERNIGHT (wire: asset_quote_type) */
   assetQuoteType?: string;
   lang?: string;
 }
@@ -87,6 +88,8 @@ export interface AssetsRequest {
   subAccounts?: string[];
   segment?: boolean;
   marketValue?: boolean;
+  /** 资产行情类型枚举名: ETH / RTH / OVERNIGHT (wire: asset_quote_type) */
+  assetQuoteType?: string;
   lang?: string;
 }
 
@@ -124,6 +127,8 @@ export interface AggregateAssetsRequest {
   secretKey?: string;
   baseCurrency?: string;
   segType?: string;
+  /** 资产行情类型枚举名: ETH / RTH / OVERNIGHT (wire: asset_quote_type) */
+  assetQuoteType?: string;
   lang?: string;
 }
 
