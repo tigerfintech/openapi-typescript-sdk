@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.7] - 2026-09-23
+
+### Added
+- 资产与持仓查询新增 `assetQuoteType` 字段（`ETH` / `RTH` / `OVERNIGHT`），可按夜盘口径估值，wire 字段名 `asset_quote_type`。
+- 推送订阅新增资产行情口径：`subscribeAsset({ assetQuoteType })` / `subscribePosition({ assetQuoteType })`，仅对资产、持仓两类订阅生效，自动重连时按原口径恢复订阅。
+- `buildSubscribeMessage` 支持构造带 `Subscribe.assetQuoteType`（字段号 5）的订阅报文。
+
+### 兼容性
+- 原有 `subscribeAsset()` / `subscribePosition()` 无参调用方式不变；不传口径时报文字节与此前一致。
+
 ## [0.5.6] - 2026-08-27
 
 ### Added
