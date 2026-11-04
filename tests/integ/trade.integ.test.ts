@@ -933,6 +933,14 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         }
         return true;
       }
+      // An SG ticker the account's contract universe does not carry comes back
+      // as 合约不正确 rather than a permission message: the standard-account
+      // order path forwards only symbol and sec_type (neither market nor
+      // currency), so nothing else can disambiguate it. Scoped to SG so a
+      // genuine contract bug on US/HK/CN still fails.
+      if (market === 'SG' && /合约不正确/.test(msg)) {
+        return true;
+      }
       // trade_prime_error lives in TERMINAL_ORDER_PATTERNS, so a prime-entitlement
       // rejection on the preview/place path would otherwise reach no list at all
       // and hard-fail. It is an account-state boundary, same as permission.
@@ -1182,10 +1190,14 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       );
     });
 
-    it('FUT LMT — CL main contract', async () => {
+    it('FUT LMT — CL Dec-2027 contract', async () => {
+      // The month has to live in the symbol: a standard account cannot send
+      // expiry for FUT orders, so the bare product root "CL" carries no month
+      // and the server answers 合约不正确. "CLmain" is quote-only and fails
+      // with "symbol error"; "CL2712" is a listed NYMEX contract.
       await previewAndPlace(
         {
-          symbol: 'CL',
+          symbol: 'CL2712',
           secType: 'FUT',
           currency: 'USD',
           action: 'BUY',
