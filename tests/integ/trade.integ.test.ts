@@ -224,7 +224,16 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
    */
   function safeHkDerivativeBuyPrice(brief: any): number | undefined {
     const bid = Number(brief?.bidPrice ?? 0);
-    return bid > 0 ? bid : undefined;
+    if (bid > 0) return bid;
+    // A NORMAL-status contract without a valid bid is a quote anomaly, not
+    // "nothing to test": log it so a systematic gap (field renamed, parsing
+    // bug) cannot make these cases silently pass empty forever. Cf. L1280
+    // safeHkBuyPrice, which throws on a missing quote for the same reason.
+    console.warn(
+      `HK derivative LMT: NORMAL contract ${brief?.symbol} has no valid bidPrice ` +
+      `(bidPrice=${brief?.bidPrice}), skipping case`,
+    );
+    return undefined;
   }
 
   // =========================================================================
