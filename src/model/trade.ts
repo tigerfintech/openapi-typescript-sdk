@@ -176,8 +176,18 @@ export interface EstimateTradableQuantity {
   currency?: string;
 }
 
+/**
+ * Forex order response.
+ *
+ * Server returns `id` as a JSON number (matches `PlaceOrderResult.id`).
+ * The Rust / Go SDKs confirmed this on live integ — earlier the type here
+ * was `string`, which the loose JS typing silently accepted while Rust /
+ * Go crashed on the mismatch. Kept as `number | string` for backward
+ * compatibility with any caller relying on the old typing.
+ */
 export interface ForexOrderResult {
-  id?: string;
+  /** int64 forex order ID; may be a string when exceeding Number.MAX_SAFE_INTEGER */
+  id?: number | string;
   status?: string;
   sourceCurrency?: string;
   targetCurrency?: string;

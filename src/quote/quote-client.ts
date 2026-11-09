@@ -11,6 +11,7 @@ import { createApiRequest } from '../client/api-request';
 import { unmarshalData } from '../client/api-response';
 import * as tokenMethods from '../client/token-methods';
 import type { TokenManager } from '../config/token-manager';
+import { getTradeCondByCode, isUsStockSymbol } from '../push/tick-util';
 import type {
   MarketState,
   Brief,
@@ -80,6 +81,7 @@ import type {
   StockDelayBriefsRequest,
   KlineRequest,
   KlineByPageRequest,
+  TimelineRequest,
   TimelineHistoryRequest,
   TradeRankRequest,
   ShortInterestRequest,
@@ -284,13 +286,25 @@ export class QuoteClient {
     return this.callInto<Kline[]>('kline', req);
   }
 
-  async getTimeline(symbols: string[]): Promise<Timeline[]> {
-    return this.callInto<Timeline[]>('timeline', { symbols });
+  async getTimeline(symbols: string[]): Promise<Timeline[]>;
+  async getTimeline(req: TimelineRequest): Promise<Timeline[]>;
+  async getTimeline(symbolsOrRequest: string[] | TimelineRequest): Promise<Timeline[]> {
+    const req: TimelineRequest = Array.isArray(symbolsOrRequest) ? { symbols: symbolsOrRequest } : symbolsOrRequest;
+    return this.callInto<Timeline[]>('timeline', req, req.secType === 'CC' ? '3.0' : undefined);
   }
 
   /** Tick-by-tick trades. wire: trade_tick */
   async getTradeTick(req: TradeTickRequest): Promise<TradeTick[]> {
-    return this.callInto<TradeTick[]>('trade_tick', req);
+    const out = await this.callInto<TradeTick[]>('trade_tick', req);
+    for (const tick of out) {
+      const isUs = isUsStockSymbol(tick.symbol);
+      for (const item of tick.items) {
+        if (item.cond && item.cond.length > 0) {
+          item.cond = getTradeCondByCode(isUs, item.cond[0]);
+        }
+      }
+    }
+    return out;
   }
 
   /** Depth snapshot. wire: quote_depth */
@@ -498,6 +512,7 @@ export class QuoteClient {
     while (acc.length < totalSize) {
       const sub: KlineRequest = {
         symbols: req.symbol ? [req.symbol] : undefined,
+        secType: req.secType,
         period: req.period,
         right: req.right,
         beginTime,
@@ -553,7 +568,7 @@ export class QuoteClient {
     return this.callInto<StockIndustry[]>('stock_industry', req);
   }
 
-  /** Quote permission detail. wire: get_quote_permission */
+  /** Market data permission entries. wire: get_quote_permission */
   async getQuotePermission(req: QuotePermissionRequest): Promise<QuotePermission[]> {
     return this.callInto<QuotePermission[]>('get_quote_permission', req);
   }
@@ -567,9 +582,16 @@ export class QuoteClient {
   // Batch 4: option / future extensions
   // ==========================================================================
 
-  /** Option tick trades. wire: option_trade_tick */
+  /** Option tick trades. wire: option_trade_tick
+   *
+   * Server expects `biz_content` as a top-level JSON array (matches Java's
+   * `BatchApiModel` and Python's `MultipleContractParams.to_openapi_dict`).
+   * We unwrap the request here so the array is emitted directly instead of
+   * `{"contracts": [...]}`. Sending it as an object triggers
+   * `biz param error(failed to parse parameters in 'biz_content')`.
+   */
   async getOptionTradeTicks(req: OptionTradeTicksRequest): Promise<TradeTick[]> {
-    return this.callInto<TradeTick[]>('option_trade_tick', req);
+    return this.callInto<TradeTick[]>('option_trade_tick', req.contracts ?? []);
   }
 
   /** Option intraday timeline. wire: option_timeline */
@@ -618,10 +640,16 @@ export class QuoteClient {
   }
 
   /** Futures K-line. wire: future_kline
-   * beginTime / endTime default to -1 when unset (server requires them present). */
+   * beginTime / endTime default to -1 when unset (server requires them present).
+   * Server expects `contract_codes` (plural) — normalize singular `contractCode`
+   * to the plural form so callers can pass either shape. */
   async getFutureKline(req: FutureKlineRequest): Promise<FutureKline[]> {
+    const contractCodes = req.contractCodes
+      ?? (req.contractCode ? [req.contractCode] : undefined);
+    const { contractCode: _drop, ...rest } = req;
     const body: FutureKlineRequest = {
-      ...req,
+      ...rest,
+      ...(contractCodes ? { contractCodes } : {}),
       beginTime: req.beginTime ?? -1,
       endTime: req.endTime ?? -1,
     };
@@ -639,8 +667,9 @@ export class QuoteClient {
 
     const acc: FutureKlineItem[] = [];
     while (acc.length < totalSize) {
+      // Server rejects singular `contract_code` — send the plural form.
       const sub: FutureKlineRequest = {
-        contractCode: req.contractCode,
+        contractCodes: req.contractCode ? [req.contractCode] : undefined,
         period: req.period,
         beginTime,
         endTime,
@@ -727,9 +756,27 @@ export class QuoteClient {
     return this.callInto<WarrantFilterResult>('warrant_filter', req);
   }
 
-  /** Industry list. wire: industry_list */
-  async getIndustryList(req: IndustryListRequest): Promise<IndustryItem[]> {
-    return this.callInto<IndustryItem[]>('industry_list', req);
+  /** Industry list. wire: industry_list
+   *
+   * `industryLevel` is required by the server — omitting it returns
+   * `industry level error, all supported is: [GSECTOR, GGROUP, GIND, GSUBIND]`.
+   * Defaults to `GGROUP` when unset, matching Python SDK's
+   * `IndustryLevel.GGROUP` default.
+   *
+   * Wire fields differ from other endpoints (see `IndustryItem`): server sends
+   * `nameCN` / `nameEN` / `industryLevel`. This method hydrates the
+   * backwards-compat `name` (from `nameEN || nameCN`) and mirrors
+   * `industryLevel` to `level` so existing callers keep working.
+   */
+  async getIndustryList(req: IndustryListRequest = {}): Promise<IndustryItem[]> {
+    const payload = { industryLevel: 'GGROUP', ...req };
+    const items = await this.callInto<IndustryItem[]>('industry_list', payload);
+    if (!Array.isArray(items)) return [];
+    for (const it of items) {
+      if (it.name === undefined) it.name = it.nameEN || it.nameCN;
+      if (it.level === undefined) it.level = it.industryLevel;
+    }
+    return items;
   }
 
   /** Stocks inside an industry. wire: industry_stock_list */

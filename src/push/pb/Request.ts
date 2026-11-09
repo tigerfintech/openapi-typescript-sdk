@@ -32,6 +32,7 @@ export interface Request_Subscribe {
   symbols?: string | undefined;
   account?: string | undefined;
   market?: string | undefined;
+  assetQuoteType?: string | undefined;
 }
 
 function createBaseRequest(): Request {
@@ -247,7 +248,7 @@ export const Request_Connect: MessageFns<Request_Connect> = {
 };
 
 function createBaseRequest_Subscribe(): Request_Subscribe {
-  return { dataType: 0, symbols: undefined, account: undefined, market: undefined };
+  return { dataType: 0, symbols: undefined, account: undefined, market: undefined, assetQuoteType: undefined };
 }
 
 export const Request_Subscribe: MessageFns<Request_Subscribe> = {
@@ -263,6 +264,9 @@ export const Request_Subscribe: MessageFns<Request_Subscribe> = {
     }
     if (message.market !== undefined) {
       writer.uint32(34).string(message.market);
+    }
+    if (message.assetQuoteType !== undefined) {
+      writer.uint32(42).string(message.assetQuoteType);
     }
     return writer;
   },
@@ -306,6 +310,14 @@ export const Request_Subscribe: MessageFns<Request_Subscribe> = {
           message.market = reader.string();
           continue;
         }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.assetQuoteType = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -324,6 +336,7 @@ export const Request_Subscribe: MessageFns<Request_Subscribe> = {
     message.symbols = object.symbols ?? undefined;
     message.account = object.account ?? undefined;
     message.market = object.market ?? undefined;
+    message.assetQuoteType = object.assetQuoteType ?? undefined;
     return message;
   },
 };
