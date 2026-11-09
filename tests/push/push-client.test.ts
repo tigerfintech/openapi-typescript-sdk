@@ -579,7 +579,7 @@ describe('PushClient (Protobuf, TCP + TLS)', () => {
 
       await connectClient();
 
-      const quoteData = QuoteData.fromPartial({ symbol: 'AAPL' });
+      const quoteData = QuoteData.decode(Buffer.from('0a185350585720323032363037323320373338302e3020505554100118a4fb9df1f8333100000000000000003800499a9999999999f13f50005900000000000000007a095072654d61726b6574e9010000000000000000f001d00ff901000000008087c340820203475448', 'hex'));
       const pushData = PushData.fromPartial({
         dataType: SocketCommon_DataType.Option,
         quoteData,
@@ -592,6 +592,12 @@ describe('PushClient (Protobuf, TCP + TLS)', () => {
       mockSocket.simulateResponse(response);
 
       expect(onOption).toHaveBeenCalledTimes(1);
+      expect(onOption.mock.calls[0][0]).toMatchObject({
+        latestPrice: 0, latestPriceTimestamp: 0, volume: 0, amount: 0,
+        volumeDecimal: 0, cumVolume: 1000, cumAmount: 9999,
+        session: 'GTH', hourTradingTag: 'PreMarket',
+      });
+      expect(onOption.mock.calls[0][0]).not.toHaveProperty('hourTrading');
     });
 
     it('Future push should trigger onFuture callback', async () => {

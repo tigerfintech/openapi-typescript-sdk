@@ -69,7 +69,7 @@ export type {
 // Models — quote responses
 export type {
   MarketState, Brief, Kline, KlineItem, Timeline, TimelineItem, TradeTick, TradeTickItem,
-  Depth, DepthLevel, OptionExpiration, OptionChain, OptionChainRow, OptionSymbol,
+  Depth, DepthLevel, OptionExpiration, OptionHourTrading, OptionChain, OptionChainRow, OptionSymbol,
   OptionChainFilter, OptionChainFilterGreeks, Range,
   FutureExchange, FutureContractInfo, FutureQuote, FutureKline, FutureKlineItem,
   FutureDepth, FutureTradeTickItem, FutureTradingTime,
