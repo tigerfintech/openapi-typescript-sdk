@@ -24,7 +24,7 @@
     "url": "https://github.com/tigerfintech/openapi-typescript-sdk/issues"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node scripts/fix-esm-imports.mjs",
+    "build": "node scripts/sync-version.mjs && tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node scripts/fix-esm-imports.mjs",
     "build:esm": "tsc -p tsconfig.json",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "prepublishOnly": "npm run build",
@@ -33,6 +33,7 @@
     "test:unit": "vitest run --config vitest.config.ts",
     "test:integ": "TIGER_RUN_INTEG=true vitest run --config vitest.integ.config.ts",
     "test:watch": "vitest",
+    "sync-version": "node scripts/sync-version.mjs",
     "clean": "rm -rf dist",
     "proto:generate": "protoc --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=./src/push/pb --ts_proto_opt=esModuleInterop=true,outputEncodeMethods=true,outputJsonMethods=false,outputClientImpl=false -I=./proto ./proto/*.proto"
   },
