@@ -33,7 +33,7 @@ export type { ErrorCategory } from './client';
 export { QuoteClient, parseOptionIdentifier } from './quote';
 export { TradeClient } from './trade';
 export { PushClient, ConnectionState, SubjectType } from './push';
-export type { PushClientOptions } from './push';
+export type { PushClientOptions, AccountSubscribeOptions } from './push';
 
 // Models — order
 export type { Order, OrderRequest, ContractLegRequest } from './model/order';

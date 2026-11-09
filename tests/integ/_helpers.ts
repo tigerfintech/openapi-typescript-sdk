@@ -21,6 +21,31 @@ import type { TradeClient } from '../../src/trade/trade-client';
 // Date helpers — shared between quote and trade integ tests
 // -----------------------------------------------------------------------
 
+const MAX_DIAGNOSTIC_CHARS = 3000;
+const SENSITIVE_DIAGNOSTIC_KEY = /account|tiger_?id|token|private_?key|sign(?:ature)?|authorization|password|secret|api_?key/i;
+
+/** Compact request/response context for CI failure messages. */
+export function diagnostic(request: unknown, response: unknown): string {
+  const stringify = (value: unknown): string => {
+    try {
+      const serializable = value instanceof Error
+        ? { name: value.name, message: value.message, ...value }
+        : value;
+      const text = JSON.stringify(serializable, (key, item) => {
+        if (SENSITIVE_DIAGNOSTIC_KEY.test(key)) return '<redacted>';
+        return item === undefined ? '<undefined>' : item;
+      });
+      if (text === undefined) return String(value);
+      return text.length > MAX_DIAGNOSTIC_CHARS
+        ? `${Array.from(text).slice(0, MAX_DIAGNOSTIC_CHARS).join('')}...<truncated>`
+        : text;
+    } catch {
+      return String(value);
+    }
+  };
+  return `request=${stringify(request)} response=${stringify(response)}`;
+}
+
 /** Date N years ago (same month/day) in 'YYYY-MM-DD' format. */
 export function yearsAgo(n: number): string {
   const d = new Date();

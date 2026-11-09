@@ -27,6 +27,7 @@ export interface Brief {
   bidPrice?: number;
   bidSize?: number;
   volume?: number;
+  amount?: number;
   status?: string;
   adjPreClose?: number;
   change?: number;

@@ -5,7 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.5.7] - 2026-11-09
+
+### Added
+- 资产与持仓查询新增 `assetQuoteType` 字段（`ETH` / `RTH` / `OVERNIGHT`），可按夜盘口径估值，wire 字段名 `asset_quote_type`。
+- 推送订阅新增资产行情口径：`subscribeAsset({ assetQuoteType })` / `subscribePosition({ assetQuoteType })`，仅对资产、持仓两类订阅生效，自动重连时按原口径恢复订阅。
+- `buildSubscribeMessage` 支持构造带 `Subscribe.assetQuoteType`（字段号 5）的订阅报文。
+
+### 兼容性
+- 原有 `subscribeAsset()` / `subscribePosition()` 无参调用方式不变；不传口径时报文字节与此前一致。
+
+## [0.5.6] - 2026-08-27
+
+### Added
+- `Brief.amount` realtime quote field for stock and crypto trading amount.
 
 ## [0.5.5] - 2026-08-19
 
@@ -25,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Corrected `QuoteOvernight` fields to match the service response
 - Routed full-tick push payloads to `onFullTick` without changing normal `onTick` dispatch
+- `SDK_VERSION` 与 `package.json` 版本号不一致：此前停留在 `0.4.8`，导致 HTTP
+  `User-Agent` 与 push 握手的 `sdkVersion` 上报错误版本。现由 `npm run build`
+  自动同步（`scripts/sync-version.mjs`），并新增单测防止再次漂移。
 
 ## [0.5.4] - 2026-07-24
 
