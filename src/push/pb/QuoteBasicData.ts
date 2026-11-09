@@ -88,7 +88,7 @@ export interface QuoteBasicData {
   mi?:
     | QuoteData_Minute
     | undefined;
-  /** Decimal value encoded as a string to avoid precision loss */
+  /** Trading volume encoded as a double; precision may be lost for large or fractional values. */
   volumeDecimal?:
     | number
     | undefined;
