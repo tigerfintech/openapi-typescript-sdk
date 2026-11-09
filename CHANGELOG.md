@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.7] - 2026-11-09
+
+### Added
+
+- `NewsClient`：新增资讯客户端，两个接口均路由主网关（不走行情域名）：
+  - `getStockNews`（wire: `news_stock_list`）— 个股新闻列表，`symbol` 单标的（必填，下游不支持批量查询），`pageCount` / `pageSize` 可选（缺省服务端默认 1 / 20）
+  - `getMarketNews`（wire: `news_highlight_list`）— 市场要闻列表，`lastId` 游标翻页（唯一翻页方式，不传从最新开始；无 `pageCount` / `pageSize` 参数）
+  - `lang` 可选，语言枚举 `zh_CN` / `zh_TW` / `en_US`
+- 模型导出：`NewsItem` / `NewsPage`（两接口共用分页信封）、`NewsStockListRequest` / `NewsHighlightListRequest`
+- `examples/news-example.ts` 资讯调用示例
+
 ## [0.5.6] - 2026-08-27
 
 ### Added
