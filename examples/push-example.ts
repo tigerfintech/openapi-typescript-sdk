@@ -18,7 +18,7 @@ async function main() {
   const config = createClientConfig({
     propertiesFilePath: process.env.TIGER_CONFIG_PATH,
   });
-  const pc = new PushClient(config);
+  const pc = new PushClient(config, { useFullTick: true });
 
   // Register ALL available callback types
   pc.setCallbacks({

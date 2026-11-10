@@ -13,6 +13,7 @@ import type { ClientConfig } from '../config/client-config';
 import { signWithRSA } from '../signer/signer';
 import type { Callbacks } from './callbacks';
 import { SubjectType } from './push-message';
+import { convertTradeTick } from './tick-util';
 import { Request } from './pb/Request';
 import { Response } from './pb/Response';
 import { SocketCommon_Command, SocketCommon_DataType } from './pb/SocketCommon';
@@ -54,6 +55,19 @@ export enum ConnectionState {
   Disconnected = 0,
   Connecting = 1,
   Connected = 2,
+}
+
+/**
+ * Options for account-level subscriptions (asset / position).
+ *
+ * `assetQuoteType` 用于选择资产/持仓推送的行情口径,通过重载传入,
+ * 老的 `subscribeAsset(account?)` / `subscribePosition(account?)` 签名保持不变。
+ */
+export interface AccountSubscribeOptions {
+  /** Account to subscribe; omit to use the account from ClientConfig. */
+  account?: string;
+  /** 资产行情类型枚举名: ETH / RTH / OVERNIGHT,省略则由服务端取默认值 */
+  assetQuoteType?: string;
 }
 
 /** PushClient configuration options */
@@ -105,6 +119,8 @@ export class PushClient {
   private subscriptions = new Map<SubjectType, Set<string>>();
   /** Account-level subscriptions: subject -> account string used at subscribe time */
   private accountSubs = new Map<SubjectType, string>();
+  /** Account-level subscriptions: subject -> assetQuoteType used at subscribe time (reconnect replay) */
+  private accountSubQuoteTypes = new Map<SubjectType, string>();
 
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -401,7 +417,7 @@ export class PushClient {
       this.doSubscribe(subject, Array.from(symbols));
     }
     for (const [subject, account] of this.accountSubs) {
-      this.doSubscribe(subject, undefined, account);
+      this.doSubscribe(subject, undefined, account, undefined, this.accountSubQuoteTypes.get(subject));
     }
   }
 
@@ -423,7 +439,8 @@ export class PushClient {
         if (pushData.quoteDepthData) cb.onDepth?.(pushData.quoteDepthData);
         break;
       case SocketCommon_DataType.TradeTick:
-        if (pushData.tradeTickData) cb.onTick?.(pushData.tradeTickData);
+        if (pushData.tickData) cb.onFullTick?.(pushData.tickData);
+        if (pushData.tradeTickData) cb.onTick?.(convertTradeTick(pushData.tradeTickData));
         break;
       case SocketCommon_DataType.Asset:
         if (pushData.assetData) cb.onAsset?.(pushData.assetData);
@@ -451,18 +468,23 @@ export class PushClient {
         if (pushData.quoteData) cb.onQuote?.(pushData.quoteData);
         break;
       default:
-        // FullTick and QuoteBBO use TradeTick/Quote dataType
-        // TickData (fullTick) via tickData field
+        // QuoteBBO and some full-tick payloads reuse an existing dataType.
         if (pushData.tickData) cb.onFullTick?.(pushData.tickData);
         break;
     }
   }
 
   /** Internal subscribe method */
-  private doSubscribe(subject: SubjectType, symbols?: string[], account?: string, market?: string): void {
+  private doSubscribe(
+    subject: SubjectType,
+    symbols?: string[],
+    account?: string,
+    market?: string,
+    assetQuoteType?: string,
+  ): void {
     const dataType = subjectToDataType(subject);
     const symbolsStr = symbols ? symbols.join(',') : undefined;
-    const req = buildSubscribeMessage(dataType, symbolsStr, account, market);
+    const req = buildSubscribeMessage(dataType, symbolsStr, account, market, assetQuoteType);
     this.sendMessage(req);
   }
 
@@ -636,28 +658,63 @@ export class PushClient {
 
   // ===== Account push subscribe/unsubscribe =====
 
+  /**
+   * Shared implementation for the account/options overloads of
+   * subscribeAsset / subscribePosition.
+   */
+  private subscribeAccount(
+    subject: SubjectType,
+    accountOrOptions?: string | AccountSubscribeOptions,
+  ): void {
+    const opts: AccountSubscribeOptions = typeof accountOrOptions === 'string'
+      ? { account: accountOrOptions }
+      : (accountOrOptions ?? {});
+    const acct = opts.account || this.config.account;
+    this.doSubscribe(subject, undefined, acct, undefined, opts.assetQuoteType);
+    this.accountSubs.set(subject, acct);
+    if (opts.assetQuoteType) {
+      this.accountSubQuoteTypes.set(subject, opts.assetQuoteType);
+    } else {
+      this.accountSubQuoteTypes.delete(subject);
+    }
+  }
+
   /** Subscribe to asset changes */
-  subscribeAsset(account?: string): void {
-    const acct = account || this.config.account;
-    this.doSubscribe(SubjectType.Asset, undefined, acct);
-    this.accountSubs.set(SubjectType.Asset, acct);
+  subscribeAsset(account?: string): void;
+  /**
+   * Subscribe to asset changes with extra options.
+   *
+   * @example
+   * client.subscribeAsset({ assetQuoteType: 'OVERNIGHT' });
+   */
+  subscribeAsset(options: AccountSubscribeOptions): void;
+  subscribeAsset(accountOrOptions?: string | AccountSubscribeOptions): void {
+    this.subscribeAccount(SubjectType.Asset, accountOrOptions);
   }
   /** Unsubscribe from asset changes */
   unsubscribeAsset(): void {
     this.doUnsubscribe(SubjectType.Asset);
     this.accountSubs.delete(SubjectType.Asset);
+    this.accountSubQuoteTypes.delete(SubjectType.Asset);
   }
 
   /** Subscribe to position changes */
-  subscribePosition(account?: string): void {
-    const acct = account || this.config.account;
-    this.doSubscribe(SubjectType.Position, undefined, acct);
-    this.accountSubs.set(SubjectType.Position, acct);
+  subscribePosition(account?: string): void;
+  /**
+   * Subscribe to position changes with extra options.
+   *
+   * @example
+   * client.subscribePosition({ assetQuoteType: 'OVERNIGHT' });
+   */
+  subscribePosition(options: AccountSubscribeOptions): void;
+  subscribePosition(accountOrOptions?: string | AccountSubscribeOptions): void {
+    this.subscribeAccount(SubjectType.Position, accountOrOptions);
   }
   /** Unsubscribe from position changes */
   unsubscribePosition(): void {
     this.doUnsubscribe(SubjectType.Position);
     this.accountSubs.delete(SubjectType.Position);
+    this.accountSubQuoteTypes.delete(SubjectType.Position);
   }
 
   /** Subscribe to order status */

@@ -76,6 +76,7 @@ export interface PositionsRequest {
   expiry?: string;
   strike?: string;
   right?: string;
+  /** 资产行情类型枚举名: ETH / RTH / OVERNIGHT (wire: asset_quote_type) */
   assetQuoteType?: string;
   lang?: string;
 }
@@ -87,6 +88,8 @@ export interface AssetsRequest {
   subAccounts?: string[];
   segment?: boolean;
   marketValue?: boolean;
+  /** 资产行情类型枚举名: ETH / RTH / OVERNIGHT (wire: asset_quote_type) */
+  assetQuoteType?: string;
   lang?: string;
 }
 
@@ -124,6 +127,8 @@ export interface AggregateAssetsRequest {
   secretKey?: string;
   baseCurrency?: string;
   segType?: string;
+  /** 资产行情类型枚举名: ETH / RTH / OVERNIGHT (wire: asset_quote_type) */
+  assetQuoteType?: string;
   lang?: string;
 }
 
@@ -170,6 +175,14 @@ export interface SegmentFundRequest {
   lang?: string;
 }
 
+/**
+ * Fund details request. wire: fund_details
+ *
+ * **Wire types (breaking):** `startDate` / `endDate` are yyyy-MM-dd date
+ * strings, not epoch-ms integers. Java's `FundDetailsModel` exposes them
+ * as `String startDate` / `String endDate`; sending epoch-ms causes
+ * `parse 'start_date' error, supported format: 'yyyy-MM-dd'`.
+ */
 export interface FundDetailsRequest {
   account?: string;
   /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
@@ -177,10 +190,10 @@ export interface FundDetailsRequest {
   segTypes?: string[];
   fundType?: string;
   currency?: string;
-  /** 毫秒时间戳 */
-  startDate?: number;
-  /** 毫秒时间戳 */
-  endDate?: number;
+  /** yyyy-MM-dd 日期字符串 */
+  startDate?: string;
+  /** yyyy-MM-dd 日期字符串 */
+  endDate?: string;
   limit?: number;
   pageToken?: string;
   lang?: string;

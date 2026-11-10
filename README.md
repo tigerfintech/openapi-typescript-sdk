@@ -276,9 +276,23 @@ pc.disconnect();
 | `subscribeFuture(symbols)` | Futures quotes | `onFuture(QuoteData)` |
 | `subscribeKline(symbols)` | K-line data | `onKline(KlineData)` |
 | `subscribeAsset(account?)` | Asset changes | `onAsset(AssetData)` |
+| `subscribeAsset(options)` | Asset changes, `{ account?, assetQuoteType? }` | `onAsset(AssetData)` |
 | `subscribePosition(account?)` | Position changes | `onPosition(PositionData)` |
+| `subscribePosition(options)` | Position changes, `{ account?, assetQuoteType? }` | `onPosition(PositionData)` |
 | `subscribeOrder(account?)` | Order status | `onOrder(OrderStatusData)` |
 | `subscribeTransaction(account?)` | Transactions | `onTransaction(OrderTransactionData)` |
+
+`assetQuoteType` selects the quote basis of the pushed asset / position data —
+`'ETH'`, `'RTH'` or `'OVERNIGHT'`. Omit it to keep the server default.
+
+```typescript
+pc.subscribeAsset({ assetQuoteType: 'OVERNIGHT' });
+pc.subscribePosition({ account: 'U1234567', assetQuoteType: 'RTH' });
+```
+
+The same enum name is accepted as `assetQuoteType` on the HTTP side by
+`getPositions` / `getAssets` / `getPrimeAssets` / `getAggregateAssets`
+(wire name `asset_quote_type`).
 
 ## Project Structure
 
@@ -486,7 +500,60 @@ const chain = await qc.optionChain('AAPL', '2024-01-19');
 
 // 期货交易所
 const exchanges = await qc.futureExchange();
+
+// 逐笔成交
+const ticks = await qc.getTradeTick({ symbols: ['AAPL'] });
+// ticks[0].items[i].partCode  — 交易所短名，如 "NYSE"、"NSDQ"
+// ticks[0].items[i].partName  — 交易所全名，如 "New York Stock Exchange, LLC (NYSE)"
+// ticks[0].items[i].cond      — 已转换的成交条件，如 "US_REGULAR_SALE"，参见下方说明
 ```
+
+### 逐笔成交 `cond` 字段说明
+
+`trade_tick` 接口和 push 层返回的 `cond` 字段已由 SDK 转换为可读字符串，含义如下：
+
+**美股（US）**
+
+| 字符 | 含义 |
+|------|------|
+| ` `（空格）| 常规交易（Regular Sale） |
+| `B` | 批量交易（Bunched Trade） |
+| `C` | 现金交易（Cash Trade） |
+| `F` | 跨市场交易（Intermarket Sweep） |
+| `G` | 批量卖出（Bunched Sold Trade） |
+| `H` | 离价交易（Price Variation Trade） |
+| `I` | 碎股交易（Odd Lot Trade） |
+| `K` | 纽交所第 127/155 条交易 |
+| `L` | 延迟交易（Sold Last） |
+| `M` | 中央收市价（Market Center Close Price） |
+| `N` | 隔日交易（Next Day Trade） |
+| `O` | 中央开盘价交易（Market Center Opening Trade） |
+| `P` | 前参考价（Prior Reference Price） |
+| `Q` | 中央开盘价（Market Center Open Price） |
+| `R` | 卖方（Seller） |
+| `T` | 盘前盘后交易（Form T） |
+| `U` | 延长交易时段（Extended Trading Hours） |
+| `V` | 合单交易（Contingent Trade） |
+| `W` | 均价交易（Average Price Trade） |
+| `X` | 跨市场交易（Cross Trade） |
+| `Z` | 场外售出（Sold Out of Sequence） |
+| `4` | 衍生工具定价（Derivatively Priced） |
+| `7` | 合单交易（Qualified Contingent Trade） |
+
+**港股（HK）**
+
+| 字符 | 含义 |
+|------|------|
+| ` `（空格）| 自动对盘（Automatch Normal） |
+| `D` | 碎股交易（Odd Lot Trade） |
+| `U` | 竞价交易（Auction Trade） |
+| `*` | 场外交易（Overseas Trade） |
+| `P` | 开市前成交（Late Trade Off Exchange） |
+| `M` | 非自动对盘（Non-Direct Off Exchange Trade） |
+| `X` | 同券商自动对盘（Direct Off Exchange Trade） |
+| `Y` | 同券商非自动对盘（Automatic Internalized） |
+
+如上表所示，`cond` 值因市场（美股/港股）不同而有所区别。
 
 ## 交易
 
@@ -599,9 +666,22 @@ pc.disconnect();
 | `subscribeFuture(symbols)` | 期货行情 | `onFuture(QuoteData)` |
 | `subscribeKline(symbols)` | K 线数据 | `onKline(KlineData)` |
 | `subscribeAsset(account?)` | 资产变动 | `onAsset(AssetData)` |
+| `subscribeAsset(options)` | 资产变动,`{ account?, assetQuoteType? }` | `onAsset(AssetData)` |
 | `subscribePosition(account?)` | 持仓变动 | `onPosition(PositionData)` |
+| `subscribePosition(options)` | 持仓变动,`{ account?, assetQuoteType? }` | `onPosition(PositionData)` |
 | `subscribeOrder(account?)` | 订单状态 | `onOrder(OrderStatusData)` |
 | `subscribeTransaction(account?)` | 成交明细 | `onTransaction(OrderTransactionData)` |
+
+`assetQuoteType` 用于选择推送的资产/持仓行情口径,取值为枚举名
+`'ETH'` / `'RTH'` / `'OVERNIGHT'`,不传则用服务端默认值。
+
+```typescript
+pc.subscribeAsset({ assetQuoteType: 'OVERNIGHT' });
+pc.subscribePosition({ account: 'U1234567', assetQuoteType: 'RTH' });
+```
+
+拉取侧 `getPositions` / `getAssets` / `getPrimeAssets` / `getAggregateAssets`
+同样接受 `assetQuoteType` 字段(wire 名 `asset_quote_type`)。
 
 ## 项目结构
 

@@ -1,5 +1,5 @@
 /**
- * Post-build: add .js extensions to all relative imports/exports in ESM output.
+ * Post-build: mark ESM output as modules and add .js extensions to imports/exports.
  *
  * Node.js ESM requires explicit file extensions. TypeScript's moduleResolution=node
  * doesn't emit them, so we patch the compiled output.
@@ -14,6 +14,9 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ESM_DIR = join(__dirname, '..', 'dist', 'esm');
+
+// Scope the module marker to ESM output so the CJS entry remains CommonJS.
+writeFileSync(join(ESM_DIR, 'package.json'), JSON.stringify({ type: 'module' }, null, 2) + '\n');
 
 function walk(dir) {
   const results = [];
