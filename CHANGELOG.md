@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 推送订阅新增资产行情口径：`subscribeAsset({ assetQuoteType })` / `subscribePosition({ assetQuoteType })`，仅对资产、持仓两类订阅生效，自动重连时按原口径恢复订阅。
 - `buildSubscribeMessage` 支持构造带 `Subscribe.assetQuoteType`（字段号 5）的订阅报文。
 
+### Fixed
+- ESM 构建产物新增模块类型标记，修复 Node.js 16/18 等环境中 `import` SDK 报 `Unexpected token 'export'` 的问题；`build:esm` 同步修复相对导入的 `.js` 扩展名。
+
 ### 兼容性
 - 原有 `subscribeAsset()` / `subscribePosition()` 无参调用方式不变；不传口径时报文字节与此前一致。
 
