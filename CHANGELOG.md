@@ -5,11 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.8] - 2026-11-10
+## [0.5.8] - 2026-11-11
 ### Added
 - US option quotes and option-chain legs expose cumulative volume/amount and extended-session quotes for GTH/CURB.
 - Protobuf option callbacks read GTH/CURB prices and session volume/amount from existing fields with PreMarket/AfterHours tags; cumulative totals remain independent. The unpublished nested push object is removed. HTTP snapshots and option-chain objects remain available.
 - Option minute-bar requests can include GTH/CURB through the optional with_hour_trading parameter; existing calls retain the server default.
+- News query client `NewsClient` with `getStockNews` (per-symbol stock news, page-number pagination) and `getMarketNews` (market highlights, `lastId` cursor pagination).
 
 ## [0.5.7] - 2026-11-09
 
