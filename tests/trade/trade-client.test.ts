@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TradeClient } from '../../src/trade/trade-client';
 import type { HttpClient } from '../../src/client/http-client';
-import type { ApiResponse } from '../../src/client/api-response';
+import { parseApiResponse, type ApiResponse } from '../../src/client/api-response';
 import type { OrderRequest } from '../../src/model/order';
 
 function createMockHttpClient() {
@@ -217,12 +217,77 @@ describe('TradeClient', () => {
       });
     });
 
-    it('getOrder 使用 order_no wire method（P0 bug fix）', async () => {
-      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ id: 99, orderId: 42 }));
-      await tc.getOrder({ id: 99 });
+    it.each([
+      { selector: 'id', req: { id: 99 }, wire: { id: 99 },
+        data: { id: 99, orderId: 42, symbol: 'AAPL', status: 5 } },
+      { selector: 'orderId', req: { orderId: 42 }, wire: { order_id: 42 },
+        data: { items: [{ id: 99, orderId: 42, symbol: 'AAPL', status: 5 }] } },
+    ])('getOrder 按 $selector 调用 orders 并返回完整订单', async ({ req, wire, data }) => {
+      vi.mocked(mockHttpClient.executeRequest).mockImplementation(async (request) =>
+        successResponse(request.method === 'orders' ? data : { orderId: 830154375 }),
+      );
+
+      const result = await tc.getOrder(req);
+
       const call = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
-      expect(call.method).toBe('order_no');
-      expect(capturedBiz(mockHttpClient)).toMatchObject({ account: testAccount, id: 99 });
+      expect(call.method).toBe('orders');
+      expect(capturedBiz(mockHttpClient)).toEqual({ account: testAccount, ...wire });
+      expect(result).toEqual({ id: 99, orderId: 42, symbol: 'AAPL', status: 'Submitted' });
+    });
+
+    it('getOrder 接受单元素数组响应', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse([
+        { id: 99, orderId: 42, symbol: 'AAPL', status: 6 },
+      ]));
+
+      expect(await tc.getOrder({ orderId: 42 })).toEqual({
+        id: 99, orderId: 42, symbol: 'AAPL', status: 'Filled',
+      });
+    });
+
+    it.each(['9007199254740993', '28868646234578945'])(
+      'getOrder 保留字符串大整数 ID 并解码 JSON 字符串响应（%s）', async (id) => {
+        vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(
+          '{"id":' + id + ',"orderId":42,"symbol":"AAPL","status":6}',
+        ));
+
+        const result = await tc.getOrder({ id });
+
+        expect(capturedBiz(mockHttpClient)).toEqual({ account: testAccount, id });
+        expect(result).toEqual({ id, orderId: 42, symbol: 'AAPL', status: 'Filled' });
+      },
+    );
+
+    it('getOrder 保留原始 HTTP JSON 响应中的 16 位非安全 ID', async () => {
+      const id = '9007199254740993';
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(parseApiResponse(
+        '{"code":0,"message":"success","data":{"id":' + id +
+        ',"orderId":42,"status":5},"timestamp":1700000000}',
+      ));
+
+      expect(await tc.getOrder({ id })).toEqual({ id, orderId: 42, status: 'Submitted' });
+    });
+
+    it.each([null, undefined, {}, [], { items: [] }, { items: null }])('getOrder 查无订单时返回 undefined（%j）', async (data) => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(data));
+
+      expect(await tc.getOrder({ id: 99 })).toBeUndefined();
+      const call = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
+      expect(call.method).toBe('orders');
+    });
+
+    it('getOrder 不从多订单结果中任意选择一笔', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({
+        items: [{ id: 99, orderId: 42 }, { id: 100, orderId: 43 }],
+      }));
+
+      expect(await tc.getOrder({ orderId: 42 })).toBeUndefined();
+    });
+
+    it('getOrder 透传接口错误', async () => {
+      vi.mocked(mockHttpClient.executeRequest).mockRejectedValue(new Error('order query failed'));
+
+      await expect(tc.getOrder({ id: 99 })).rejects.toThrow('order query failed');
     });
   });
 

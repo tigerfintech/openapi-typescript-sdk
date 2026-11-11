@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Option minute-bar requests can include GTH/CURB through the optional with_hour_trading parameter; existing calls retain the server default.
 - News query client `NewsClient` with `getStockNews` (per-symbol stock news, page-number pagination) and `getMarketNews` (market highlights, `lastId` cursor pagination).
 
+### Fixed
+- `getOrder` now queries `orders` instead of allocating a new order number through `order_no` (#19).
+- `GetOrderRequest.id` accepts strings to preserve int64 order IDs when querying orders.
+- Single-order queries decode both order objects and single-item collections.
+- API response parsing preserves unsafe 16-digit integer IDs as strings instead of rounding them.
+
 ## [0.5.7] - 2026-11-09
 
 ### Added

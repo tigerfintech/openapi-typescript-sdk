@@ -75,6 +75,39 @@ describe('fix/bug-fixes: parseApiResponse int64 precision', () => {
     expect(data.orderId).toBe('28868646234578944');
   });
 
+  it.each([
+    ['9007199254740991', 9007199254740991],
+    ['9007199254740992', '9007199254740992'],
+    ['9007199254740993', '9007199254740993'],
+    ['-9007199254740991', -9007199254740991],
+    ['-9007199254740992', '-9007199254740992'],
+    ['-9007199254740993', '-9007199254740993'],
+    ['9223372036854775807', '9223372036854775807'],
+  ] as const)('按安全整数范围保留类型和精度（%s）', (raw, expected) => {
+    const response = parseApiResponse(
+      '{"code":0,"message":"success","data":{"id":' + raw + '},"timestamp":1700000000}',
+    );
+    expect((response.data as { id: unknown }).id).toBe(expected);
+  });
+
+  it('保留安全的 16 位时间戳与引号内的数字文本', () => {
+    const response = parseApiResponse(
+      '{"code":0,"message":"success","data":{"time":1700000000000000,' +
+      '"note":"9007199254740993"},"timestamp":1700000000}',
+    );
+    expect(response.data).toEqual({ time: 1700000000000000, note: '9007199254740993' });
+  });
+
+  it.each(['9007199254740993.0', '9007199254740993e0', '9007199254740993e-1'])(
+    '浮点或指数形式仍按 number 解析（%s）', (raw) => {
+      const response = parseApiResponse(
+        '{"code":0,"message":"success","data":' + raw + ',"timestamp":1700000000}',
+      );
+      expect(typeof response.data).toBe('number');
+      expect(response.data).toBe(JSON.parse(raw));
+    },
+  );
+
   it('正常整数不受影响', () => {
     const body = `{"code":0,"message":"success","data":{"code":200},"timestamp":1700000000}`;
     const resp = parseApiResponse(body);
@@ -95,6 +128,11 @@ describe('fix/bug-fixes: unmarshalData 双重编码', () => {
     const data = inner; // typeof data === 'string'
     const result = unmarshalData<{ orderId: string }>(data);
     expect(result?.orderId).toBe('123');
+  });
+
+  it('双重编码的 16 位非安全订单 ID 保持字符串精度', () => {
+    expect(unmarshalData<{ id: string }>('{"id":9007199254740993}')?.id)
+      .toBe('9007199254740993');
   });
 
   it('null data 返回 undefined', () => {
