@@ -119,7 +119,10 @@ export interface QuoteData {
   cumVolume?:
     | number
     | undefined;
-  /** cumulative amount of CURB + RTH + GTH, only Options support */
+  /**
+   * Cumulative quote amount across CURB + RTH + GTH; same units as amount.
+   * Encoded as double; values may be rounded. Do not use for exact accounting.
+   */
   cumAmount?:
     | number
     | undefined;

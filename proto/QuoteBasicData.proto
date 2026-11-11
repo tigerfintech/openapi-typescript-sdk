@@ -46,7 +46,8 @@ message QuoteBasicData {
 
   // cumulative volume of CURB + RTH + GTH, only Options support
   optional sint64 cumVolume = 30;
-  // cumulative amount of CURB + RTH + GTH, only Options support
+  // Cumulative quote amount across CURB + RTH + GTH; same units as amount.
+  // Encoded as double; values may be rounded. Do not use for exact accounting.
   optional double cumAmount = 31;
   // Quoted option session (GTH / CURB); absent when not provided.
   optional string session = 32;
