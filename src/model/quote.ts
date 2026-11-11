@@ -13,7 +13,21 @@ export interface MarketState {
   openTime?: string;
 }
 
+/** Current GTH/CURB option quote. Absent/null during regular trading. */
+export interface OptionHourTrading {
+  tag?: string;
+  session?: string;
+  latestPrice?: number;
+  latestTimestamp?: number;
+  volume?: number;
+  amount?: number;
+  preClose?: number;
+}
+
 export interface Brief {
+  cumVolume?: number;
+  cumAmount?: number;
+  hourTrading?: OptionHourTrading | null;
   symbol: string;
   open?: number;
   high?: number;
@@ -118,6 +132,9 @@ export interface OptionExpiration {
 }
 
 export interface OptionLeg {
+  cumVolume?: number;
+  cumAmount?: number;
+  hourTrading?: OptionHourTrading | null;
   identifier: string;
   strike: string;
   right: string;

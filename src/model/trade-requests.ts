@@ -38,7 +38,8 @@ export interface GetOrderRequest {
   account?: string;
   /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
   secretKey?: string;
-  id?: number;
+  /** Global order ID; use a string for values above Number.MAX_SAFE_INTEGER. */
+  id?: number | string;
   orderId?: number;
   isBrief?: boolean;
   showCharges?: boolean;

@@ -5,12 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.8] - 2026-11-11
+
+### Added
+- US option quotes and option-chain legs expose cumulative volume/amount and extended-session quotes for GTH/CURB.
+- Protobuf option callbacks read GTH/CURB prices and session volume/amount from existing fields with PreMarket/AfterHours tags; cumulative totals remain independent. The unpublished nested push object is removed. HTTP snapshots and option-chain objects remain available.
+- Option minute-bar requests can include GTH/CURB through the optional with_hour_trading parameter; existing calls retain the server default.
+- News query client `NewsClient` with `getStockNews` (per-symbol stock news, page-number pagination) and `getMarketNews` (market highlights, `lastId` cursor pagination).
+
+### Fixed
+- `getOrder` now queries `orders` instead of allocating a new order number through `order_no` (#19).
+- `GetOrderRequest.id` accepts strings to preserve int64 order IDs when querying orders.
+- Single-order queries decode both order objects and single-item collections.
+- API response parsing preserves unsafe 16-digit integer IDs as strings instead of rounding them.
+
 ## [0.5.7] - 2026-11-09
 
 ### Added
 - 资产与持仓查询新增 `assetQuoteType` 字段（`ETH` / `RTH` / `OVERNIGHT`），可按夜盘口径估值，wire 字段名 `asset_quote_type`。
 - 推送订阅新增资产行情口径：`subscribeAsset({ assetQuoteType })` / `subscribePosition({ assetQuoteType })`，仅对资产、持仓两类订阅生效，自动重连时按原口径恢复订阅。
 - `buildSubscribeMessage` 支持构造带 `Subscribe.assetQuoteType`（字段号 5）的订阅报文。
+
+### Fixed
+- 修复 HTTP User-Agent 和推送握手上报过期 SDK 版本号的问题，现在与安装版本一致。
+- ESM 构建产物新增模块类型标记，修复 Node.js 16/18 等环境中 `import` SDK 报 `Unexpected token 'export'` 的问题；`build:esm` 同步修复相对导入的 `.js` 扩展名。
 
 ### 兼容性
 - 原有 `subscribeAsset()` / `subscribePosition()` 无参调用方式不变；不传口径时报文字节与此前一致。
@@ -38,9 +56,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Corrected `QuoteOvernight` fields to match the service response
 - Routed full-tick push payloads to `onFullTick` without changing normal `onTick` dispatch
-- `SDK_VERSION` 与 `package.json` 版本号不一致：此前停留在 `0.4.8`，导致 HTTP
-  `User-Agent` 与 push 握手的 `sdkVersion` 上报错误版本。现由 `npm run build`
-  自动同步（`scripts/sync-version.mjs`），并新增单测防止再次漂移。
 
 ## [0.5.4] - 2026-07-24
 

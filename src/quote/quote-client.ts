@@ -355,6 +355,7 @@ export class QuoteClient {
    *   If omitted, defaults to America/New_York for US symbols and Asia/Hong_Kong for .HK symbols.
    * @param limit - Maximum number of bars to return.
    * @param sortDir - Sort direction ('asc' or 'desc').
+   * @param withHourTrading - Include GTH/CURB minute bars; omitted preserves the server default.
    */
   async getOptionKline(
     identifiers: string[],
@@ -364,6 +365,7 @@ export class QuoteClient {
     timezone?: string,
     limit?: number,
     sortDir?: string,
+    withHourTrading?: boolean,
   ): Promise<Kline[]> {
     const resolvedBegin = beginTime === 0 ? -1 : beginTime;
     const resolvedEnd = endTime === 0 ? -1 : endTime;
@@ -380,6 +382,7 @@ export class QuoteClient {
       };
       if (limit !== undefined && limit > 0) entry['limit'] = limit;
       if (sortDir !== undefined && sortDir !== '') entry['sort_dir'] = sortDir;
+      if (withHourTrading !== undefined) entry['with_hour_trading'] = withHourTrading;
       return entry;
     });
     return this.callInto<Kline[]>(

@@ -18,10 +18,9 @@ export interface ApiResponse {
 }
 
 /**
- * Replaces bare int64 values (≥17 digits, not part of a float) with quoted
- * strings so they survive JSON.parse without precision loss.
- * 17+ digits are guaranteed to exceed Number.MAX_SAFE_INTEGER (≈9.007e15),
- * so 16-digit microsecond timestamps remain as numbers.
+ * Quotes bare integers outside Number's safe range before JSON.parse.
+ * Values are checked by range, including 16-digit order IDs; safe integers
+ * such as microsecond timestamps remain numbers. Floats are left unchanged.
  */
 function patchLargeIntegers(text: string): string {
   const strings: string[] = [];
@@ -32,7 +31,8 @@ function patchLargeIntegers(text: string): string {
   // Match bare integers preceded by a JSON structural character or line start,
   // not followed by decimal point or exponent (avoids matching float components).
   // The `m` flag makes `^` match line-start for multi-line JSON.
-  const patched = masked.replace(/([:,\[{]|^)\s*(-?\d{17,})(?![.\deE])/gm, (full, prefix, num) => {
+  const patched = masked.replace(/([:,\[{]|^)\s*(-?\d{16,})(?![.\deE])/gm, (full, prefix, num) => {
+    if (Number.isSafeInteger(Number(num))) return full;
     return prefix + '"' + num + '"';
   });
   return patched.replace(/\x01(\d+)\x01/g, (_, i) => strings[parseInt(i, 10)]);
