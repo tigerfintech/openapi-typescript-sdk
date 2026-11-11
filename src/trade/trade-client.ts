@@ -292,11 +292,23 @@ export class TradeClient {
 
   /**
    * Get a single order by ID (v0.4.0 new).
-   * Returns `undefined` if no match.
+   * Wire method: `orders` with `id` / `order_id` parameters.
+   * Returns `undefined` if no match or the result contains multiple orders.
    */
   async getOrder(req: GetOrderRequest): Promise<Order | undefined> {
     const merged = withAccount(req, this.account);
-    const out = await this.callInto<Order | undefined>('order_no', merged);
+    const data = await this.callInto<Order | Order[] | { items?: Order[] | null } | undefined>(
+      'orders', merged,
+    );
+    let out: Order | undefined;
+    if (Array.isArray(data)) {
+      out = data.length === 1 ? data[0] : undefined;
+    } else if (data && typeof data === 'object' && 'items' in data) {
+      const items = data.items;
+      out = Array.isArray(items) && items.length === 1 ? items[0] : undefined;
+    } else {
+      out = data as Order | undefined;
+    }
     if (!out || (!out.id && !out.orderId)) return undefined;
     normalizeOrderInPlace(out);
     return out;

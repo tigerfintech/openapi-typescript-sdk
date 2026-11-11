@@ -195,13 +195,45 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
       || matches(msg, PERMISSION_ERROR_PATTERNS);
   }
 
-  /** Pick the first derivative-contract candidate with a live (NORMAL) quote. */
-  async function firstTradableContract(results: any[] | undefined): Promise<any> {
+  /**
+   * Pick the first derivative-contract candidate with a live (NORMAL) quote,
+   * returning its brief alongside so callers can derive a price from it.
+   */
+  async function firstTradableContract(
+    results: any[] | undefined,
+  ): Promise<{ contract: any; brief: any } | undefined> {
     if (!results?.length) return undefined;
     const qc = buildQuoteClient();
     const briefs = await qc.getBrief({ symbols: results.map((c) => c.symbol) });
-    const statusBySymbol = new Map(briefs.map((b) => [b.symbol, b.status]));
-    return results.find((c) => statusBySymbol.get(c.symbol) === 'NORMAL');
+    const briefBySymbol = new Map(briefs.map((b) => [b.symbol, b]));
+    const contract = results.find((c) => briefBySymbol.get(c.symbol)?.status === 'NORMAL');
+    return contract ? { contract, brief: briefBySymbol.get(contract.symbol) } : undefined;
+  }
+
+  /**
+   * A BUY limit price for a dynamically resolved HK derivative, derived from
+   * its live quote: the current bid — a real, tick-aligned book price that
+   * rests instead of crossing and by construction sits inside whatever
+   * price-deviation band the exchange enforces. A hardcoded 0.01 is fine for
+   * US symbols but not here: the standard-account path validates derivative
+   * prices against the live market and rejects far-off limits with "Order
+   * price deviates too much" (code 1200, trade_prime_error), and which
+   * contract the test resolves varies run to run — that mismatch was the
+   * source of the flakiness this fixes. Same idea as safeHkBuyPrice for HK
+   * stocks, which replaced a fixed constant for the same reason.
+   */
+  function safeHkDerivativeBuyPrice(brief: any): number | undefined {
+    const bid = Number(brief?.bidPrice ?? 0);
+    if (bid > 0) return bid;
+    // A NORMAL-status contract without a valid bid is a quote anomaly, not
+    // "nothing to test": log it so a systematic gap (field renamed, parsing
+    // bug) cannot make these cases silently pass empty forever. Cf. L1280
+    // safeHkBuyPrice, which throws on a missing quote for the same reason.
+    console.warn(
+      `HK derivative LMT: NORMAL contract ${brief?.symbol} has no valid bidPrice ` +
+      `(bidPrice=${brief?.bidPrice}), skipping case`,
+    );
+    return undefined;
   }
 
   // =========================================================================
@@ -314,25 +346,8 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         ctx.skip();
         return;
       }
-      // Order ids can exceed JavaScript's MAX_SAFE_INTEGER (2^53 - 1).
-      // The SDK's GetOrderRequest.id is typed `number` — coercing a 17+ digit
-      // string via Number() loses precision and corrupts the round-trip.
-      // Known risk: when the account's filled order id is > MAX_SAFE_INTEGER,
-      // the SDK type must be widened to `string | number` to fix this properly.
-      // If the id is unsafe to coerce, the test is skipped entirely to avoid
-      // sending a corrupted id to the gateway. The wire path is only exercised
-      // when the value is safe; id round-trip is asserted in that case.
-      const asNum = Number(filledOrderId);
-      const isSafe = Number.isSafeInteger(asNum) && String(asNum) === String(filledOrderId);
-      if (!isSafe) {
-        // The SDK's GetOrderRequest.id is typed `number`; coercing a 17+ digit
-        // string loses precision and would corrupt the id sent to the gateway.
-        // Skip this test rather than sending a wrong id that returns not-found.
-        // Fix: widen GetOrderRequest.id to string | number.
-        ctx.skip();
-        return;
-      }
-      const data = await tc.getOrder({ id: asNum });
+      // Keep int64 IDs as strings so the query preserves their exact value.
+      const data = await tc.getOrder({ id: String(filledOrderId) });
       expect(data).toBeDefined();
       if (data) {
         expect(String(data.id)).toBe(String(filledOrderId));
@@ -1378,7 +1393,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     });
 
     it('HK WAR LMT — dynamic warrant contract', async () => {
-      let contract: any;
+      let picked: { contract: any; brief: any } | undefined;
       try {
         const results = await tc.getDerivativeContracts({
           symbol: '00700',
@@ -1386,26 +1401,30 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
           expiry: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
             .toISOString().slice(0, 10).replace(/-/g, ''),
         });
-        contract = await firstTradableContract(results);
+        picked = await firstTradableContract(results);
       } catch { return; }
-      if (!contract) return;
+      if (!picked) return;
+      // Price from the live quote, not the fixed SAFE_BUY_PRICE — a far-off
+      // constant is rejected with "Order price deviates too much".
+      const limitPrice = safeHkDerivativeBuyPrice(picked.brief);
+      if (!limitPrice) return;
 
       await previewAndPlace(
         {
-          symbol: contract.symbol ?? '00700',
+          symbol: picked.contract.symbol ?? '00700',
           secType: 'WAR', currency: 'HKD',
-          action: 'BUY', orderType: 'LMT', limitPrice: SAFE_BUY_PRICE,
+          action: 'BUY', orderType: 'LMT', limitPrice,
           totalQuantity: 100, timeInForce: 'DAY',
-          expiry: contract.expiry,
-          strike: String(contract.strike ?? ''),
-          right: contract.right ?? contract.putCall,
+          expiry: picked.contract.expiry,
+          strike: String(picked.contract.strike ?? ''),
+          right: picked.contract.right ?? picked.contract.putCall,
         },
         'HK WAR LMT',
       );
     });
 
     it('HK IOPT LMT — dynamic callable bull/bear contract', async () => {
-      let contract: any;
+      let picked: { contract: any; brief: any } | undefined;
       try {
         const results = await tc.getDerivativeContracts({
           symbol: '00700',
@@ -1413,19 +1432,23 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
           expiry: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
             .toISOString().slice(0, 10).replace(/-/g, ''),
         });
-        contract = await firstTradableContract(results);
+        picked = await firstTradableContract(results);
       } catch { return; }
-      if (!contract) return;
+      if (!picked) return;
+      // Price from the live quote, not the fixed SAFE_BUY_PRICE — a far-off
+      // constant is rejected with "Order price deviates too much".
+      const limitPrice = safeHkDerivativeBuyPrice(picked.brief);
+      if (!limitPrice) return;
 
       await previewAndPlace(
         {
-          symbol: contract.symbol ?? '00700',
+          symbol: picked.contract.symbol ?? '00700',
           secType: 'IOPT', currency: 'HKD',
-          action: 'BUY', orderType: 'LMT', limitPrice: SAFE_BUY_PRICE,
+          action: 'BUY', orderType: 'LMT', limitPrice,
           totalQuantity: 100, timeInForce: 'DAY',
-          expiry: contract.expiry,
-          strike: String(contract.strike ?? ''),
-          right: contract.right ?? contract.putCall,
+          expiry: picked.contract.expiry,
+          strike: String(picked.contract.strike ?? ''),
+          right: picked.contract.right ?? picked.contract.putCall,
         },
         'HK IOPT LMT',
       );

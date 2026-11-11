@@ -8,6 +8,7 @@ TypeScript SDK for Tiger Brokers OpenAPI — market data, trading, account manag
 ## Features
 
 - Market data queries (quotes, klines, depth, options, futures)
+- News queries for a single stock and market highlights
 - Order placement, modification, cancellation, and account queries
 - Real-time push via TCP + TLS + Protobuf (quotes, trades, account events)
 - RSA request signing and Tiger public key response verification
@@ -207,6 +208,77 @@ const positions = await tc.positions();
 const assets = await tc.assets();
 ```
 
+## News
+
+The SDK exposes two news query APIs. Both are routed to the **main gateway** (never the quote server):
+
+| API | method | Description |
+|-----|--------|-------------|
+| Stock news | `news_stock_list` | News list for a single symbol, paged by `pageCount` / `pageSize` |
+| Market highlights | `news_highlight_list` | Market highlights, paged by the `lastId` cursor |
+
+```typescript
+import { createClientConfig } from '@tigeropenapi/tigeropen';
+import { NewsClient } from '@tigeropenapi/tigeropen';
+
+const config = createClientConfig();
+const nc = NewsClient.fromConfig(config); // main-gateway routing
+
+// Stock news for a single symbol
+const page = await nc.getStockNews({ symbol: 'AAPL', lang: 'zh_CN', pageCount: 1, pageSize: 20 });
+for (const item of page.items) {
+  console.log(item.title, '—', item.url);
+}
+
+// Market highlights (first page starts from the newest)
+const highlights = await nc.getMarketNews({ lang: 'zh_CN' });
+// Next page: pass the id of the last item back as lastId
+const lastId = highlights.items[highlights.items.length - 1]?.id;
+const nextPage = await nc.getMarketNews({ lastId });
+```
+
+### Stock News
+
+Parameters:
+
+| Parameter | Required | Description |
+|-----------|:--------:|-------------|
+| `symbol` | Yes | Stock symbol. **Single symbol only** (batch queries are not supported) |
+| `lang` | No | `zh_CN` / `zh_TW` / `en_US` |
+| `pageCount` | No | Page number, default 1, must be >= 1 |
+| `pageSize` | No | Page size, default 20, range 1–50 |
+
+### Market Highlights
+
+Parameters:
+
+| Parameter | Required | Description |
+|-----------|:--------:|-------------|
+| `lang` | No | Same as above |
+| `lastId` | No | Cursor. Omit to start from the newest; pass the `id` of the last item of the current page to get the next page. This is the only pagination path (the API has no `pageCount` / `pageSize`) |
+
+### Response Structure
+
+Both APIs return the same `NewsPage` shape:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `items` | `NewsItem[]` | News items on the current page (empty items is a successful response) |
+| `pageCount` | number | Current page number (always 1 for market highlights) |
+| `pageSize` | number | Page size |
+| `totalPage` | number | Total number of pages |
+| `totalSize` | number | Total number of items |
+
+`NewsItem`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | News ID (also the `lastId` cursor source for highlights) |
+| `title` | string | Title |
+| `summary` | string | Summary |
+| `pubTimestamp` | number | Publish timestamp in seconds |
+| `url` | string | Link to the original article |
+
 ## Generic Execute
 
 For APIs not yet wrapped by the SDK, use `HttpClient.execute` directly:
@@ -305,6 +377,7 @@ openapi-typescript-sdk/
 │   ├── model/     # Data models and order helpers
 │   ├── quote/     # Quote client (market data)
 │   ├── trade/     # Trade client (orders, positions, assets)
+│   ├── news/      # News client (stock news, market highlights)
 │   ├── push/      # TCP+TLS push client (Protobuf)
 │   ├── logger/    # Logger
 │   └── index.ts   # Public exports
@@ -345,6 +418,7 @@ const { createClientConfig } = require('@tigeropenapi/tigeropen');
 ## 功能特性
 
 - 行情查询（报价、K 线、深度、期权、期货）
+- 资讯查询（个股新闻、市场要闻）
 - 订单操作（下单、改单、撤单）和账户查询
 - 实时推送：TCP + TLS + Protobuf（行情、成交、账户事件）
 - RSA 请求签名和老虎公钥响应验签
@@ -597,6 +671,77 @@ const positions = await tc.positions();
 const assets = await tc.assets();
 ```
 
+## 资讯查询
+
+SDK 提供两个资讯查询接口，均路由到**主网关**（不走行情域名）：
+
+| 接口 | method | 说明 |
+|------|--------|------|
+| 个股新闻 | `news_stock_list` | 查询单只股票的资讯列表，按 `pageCount` / `pageSize` 翻页 |
+| 市场要闻 | `news_highlight_list` | 查询市场要闻列表，按 `lastId` 游标翻页 |
+
+```typescript
+import { createClientConfig } from '@tigeropenapi/tigeropen';
+import { NewsClient } from '@tigeropenapi/tigeropen';
+
+const config = createClientConfig();
+const nc = NewsClient.fromConfig(config); // 主网关路由
+
+// 个股新闻（单标的）
+const page = await nc.getStockNews({ symbol: 'AAPL', lang: 'zh_CN', pageCount: 1, pageSize: 20 });
+for (const item of page.items) {
+  console.log(item.title, '—', item.url);
+}
+
+// 市场要闻（不传 lastId 从最新开始）
+const highlights = await nc.getMarketNews({ lang: 'zh_CN' });
+// 下一页：把本页最后一条的 id 作为 lastId 传回
+const lastId = highlights.items[highlights.items.length - 1]?.id;
+const nextPage = await nc.getMarketNews({ lastId });
+```
+
+### 个股新闻
+
+参数说明：
+
+| 参数 | 必填 | 说明 |
+|------|:----:|------|
+| `symbol` | 是 | 股票代码，**仅支持单只**（该接口不支持批量查询） |
+| `lang` | 否 | 语言枚举：`zh_CN` / `zh_TW` / `en_US` |
+| `pageCount` | 否 | 页码，默认 1，取值 >= 1 |
+| `pageSize` | 否 | 每页条数，默认 20，取值 1–50 |
+
+### 市场要闻
+
+参数说明：
+
+| 参数 | 必填 | 说明 |
+|------|:----:|------|
+| `lang` | 否 | 同上 |
+| `lastId` | 否 | 游标。不传从最新开始；下一页传本页 `items` 最后一条的 `id`。这是唯一的翻页方式（该接口无 `pageCount` / `pageSize`） |
+
+### 响应结构
+
+两个接口返回同一 `NewsPage` 结构：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `items` | `NewsItem[]` | 当前页资讯列表（空 items 属正常成功返回） |
+| `pageCount` | number | 当前页码（要闻接口恒为 1） |
+| `pageSize` | number | 每页条数 |
+| `totalPage` | number | 总页数 |
+| `totalSize` | number | 总条数 |
+
+`NewsItem`：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | string | 资讯 ID（同时是要闻 `lastId` 游标的取值来源） |
+| `title` | string | 标题 |
+| `summary` | string | 摘要 |
+| `pubTimestamp` | number | 发布时间戳（秒级） |
+| `url` | string | 原文链接 |
+
 ## 通用执行
 
 对于 SDK 尚未封装的 API，可直接使用 `HttpClient.execute`：
@@ -694,6 +839,7 @@ openapi-typescript-sdk/
 │   ├── model/     # 数据模型和订单辅助函数
 │   ├── quote/     # 行情客户端
 │   ├── trade/     # 交易客户端（订单、持仓、资产）
+│   ├── news/      # 资讯客户端（个股新闻、市场要闻）
 │   ├── push/      # TCP+TLS 推送客户端（Protobuf）
 │   ├── logger/    # 日志
 │   └── index.ts   # 公共导出

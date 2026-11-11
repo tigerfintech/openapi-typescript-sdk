@@ -9,7 +9,7 @@
  * - 配置层（config）：ClientConfig、ConfigParser
  * - 认证层（signer）：RSA 签名
  * - 传输层（client）：HttpClient、重试策略
- * - 业务层（quote/trade）：QuoteClient、TradeClient
+ * - 业务层（quote/trade/news）：QuoteClient、TradeClient、NewsClient
  * - 推送层（push）：PushClient
  *
  * @packageDocumentation
@@ -32,6 +32,8 @@ export type { ErrorCategory } from './client';
 // Clients
 export { QuoteClient, parseOptionIdentifier } from './quote';
 export { TradeClient } from './trade';
+export { NewsClient } from './news';
+export type { NewsClientOptions } from './news';
 export { PushClient, ConnectionState, SubjectType } from './push';
 export type { PushClientOptions, AccountSubscribeOptions } from './push';
 
@@ -69,7 +71,7 @@ export type {
 // Models — quote responses
 export type {
   MarketState, Brief, Kline, KlineItem, Timeline, TimelineItem, TradeTick, TradeTickItem,
-  Depth, DepthLevel, OptionExpiration, OptionChain, OptionChainRow, OptionSymbol,
+  Depth, DepthLevel, OptionExpiration, OptionHourTrading, OptionChain, OptionChainRow, OptionSymbol,
   OptionChainFilter, OptionChainFilterGreeks, Range,
   FutureExchange, FutureContractInfo, FutureQuote, FutureKline, FutureKlineItem,
   FutureDepth, FutureTradeTickItem, FutureTradingTime,
@@ -99,6 +101,11 @@ export type {
   WarrantBriefsRequest, WarrantFilterRequest, MarketScannerTagsRequest,
   FinancialCurrencyRequest, FinancialExchangeRateRequest,
 } from './model/quote-requests';
+
+// Models — news
+export type { NewsItem, NewsPage } from './model/news';
+// Models — news requests
+export type { NewsStockListRequest, NewsHighlightListRequest } from './model/news-requests';
 
 // Enums
 export {
