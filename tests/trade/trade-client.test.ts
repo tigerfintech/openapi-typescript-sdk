@@ -101,7 +101,7 @@ describe('TradeClient', () => {
   it('preserves order capabilities in single and batch contract queries', async () => {
     const capabilities: OrderCapability[] = [
       { orderType: 'LMT', timeInForce: 'DAY', tradingSessionType: 'PRE_RTH_POST' },
-      { orderType: 'LMT', timeInForce: 'GTC', tradingSessionType: 'GTH_RTH_CURB' },
+      { orderType: 'LMT', timeInForce: 'GTC', tradingSessionType: 'PRE_RTH_POST' },
     ];
     const contract = { symbol: 'AAPL', secType: 'STK', orderCapabilities: capabilities };
     vi.mocked(mockHttpClient.executeRequest)
