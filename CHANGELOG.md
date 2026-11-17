@@ -7,14 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.9] - 2026-11-18
 
-### 新增
+### New
 
 - 合约查询新增订单能力信息，可查看支持的订单类型、订单有效期和交易时段组合。
 - 新增 `getContractV3`，支持查询单个交易合约及期权订单能力。
 
 ## [0.5.8] - 2026-11-11
 
-### 新增
+### New
 - 美股期权快照和期权链子项新增累计成交量、累计成交额及 GTH/CURB 延长时段行情。
 - Protobuf 期权回调通过既有字段提供 GTH/CURB 价格和当前时段成交量、成交额，以 PreMarket/AfterHours 标识时段，累计量额独立返回。移除未发布的嵌套推送对象，HTTP 快照及期权链中的对应对象保留。
 - 期权分钟 K 线查询支持通过可选参数 with_hour_trading 包含 GTH/CURB 数据；原有调用继续使用服务端默认行为。
@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.7] - 2026-11-09
 
-### 新增
+### New
 - 资产与持仓查询新增 `assetQuoteType` 字段（`ETH` / `RTH` / `OVERNIGHT`），可按夜盘口径估值，wire 字段名 `asset_quote_type`。
 - 推送订阅新增资产行情口径：`subscribeAsset({ assetQuoteType })` / `subscribePosition({ assetQuoteType })`，仅对资产、持仓两类订阅生效，自动重连时按原口径恢复订阅。
 - `buildSubscribeMessage` 支持构造带 `Subscribe.assetQuoteType`（字段号 5）的订阅报文。
