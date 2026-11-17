@@ -1,236 +1,274 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## 0.5.9 (2026-11-18)
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+### New
 
-## [0.5.8] - 2026-11-11
+- Contract responses expose supported combinations of order types, time in force, and trading sessions through order capabilities.
+- `getContractV3` queries a single trading contract, including option order capabilities and account-specific trading properties.
 
-### Added
-- US option quotes and option-chain legs expose cumulative volume/amount and extended-session quotes for GTH/CURB.
-- Protobuf option callbacks read GTH/CURB prices and session volume/amount from existing fields with PreMarket/AfterHours tags; cumulative totals remain independent. The unpublished nested push object is removed. HTTP snapshots and option-chain objects remain available.
-- Option minute-bar requests can include GTH/CURB through the optional with_hour_trading parameter; existing calls retain the server default.
-- News query client `NewsClient` with `getStockNews` (per-symbol stock news, page-number pagination) and `getMarketNews` (market highlights, `lastId` cursor pagination).
+## 0.5.8 (2026-11-11)
 
-### Fixed
-- `getOrder` now queries `orders` instead of allocating a new order number through `order_no` (#19).
-- `GetOrderRequest.id` accepts strings to preserve int64 order IDs when querying orders.
-- Single-order queries decode both order objects and single-item collections.
-- API response parsing preserves unsafe 16-digit integer IDs as strings instead of rounding them.
+### New
 
-## [0.5.7] - 2026-11-09
+- US option snapshots and option chains provide GTH/CURB extended-session quotes and independent cumulative volume and turnover.
+- Protobuf option callbacks provide current-session prices, volume, and turnover with `PreMarket` / `AfterHours` tags and independent cumulative totals.
+- Option minute-bar requests support `with_hour_trading` to include or exclude extended-session data while preserving the server default when omitted.
+- `NewsClient.getStockNews` queries stock news with page-number pagination.
+- `NewsClient.getMarketNews` queries market highlights with cursor pagination.
 
-### Added
-- 资产与持仓查询新增 `assetQuoteType` 字段（`ETH` / `RTH` / `OVERNIGHT`），可按夜盘口径估值，wire 字段名 `asset_quote_type`。
-- 推送订阅新增资产行情口径：`subscribeAsset({ assetQuoteType })` / `subscribePosition({ assetQuoteType })`，仅对资产、持仓两类订阅生效，自动重连时按原口径恢复订阅。
-- `buildSubscribeMessage` 支持构造带 `Subscribe.assetQuoteType`（字段号 5）的订阅报文。
+### Changed
+
+- Protobuf option callbacks use flat quote fields; HTTP snapshots and option chains retain their extended-session objects.
 
 ### Fixed
-- 修复 HTTP User-Agent 和推送握手上报过期 SDK 版本号的问题，现在与安装版本一致。
-- ESM 构建产物新增模块类型标记，修复 Node.js 16/18 等环境中 `import` SDK 报 `Unexpected token 'export'` 的问题；`build:esm` 同步修复相对导入的 `.js` 扩展名。
 
-### 兼容性
-- 原有 `subscribeAsset()` / `subscribePosition()` 无参调用方式不变；不传口径时报文字节与此前一致。
+- `getOrder` returns order details instead of allocating a new order number.
+- `GetOrderRequest.id` accepts strings to preserve 64-bit order IDs.
+- Single-order queries accept both order objects and single-item collections.
+- Response parsing preserves integers beyond JavaScript's safe range as strings.
 
-## [0.5.6] - 2026-08-27
+## 0.5.7 (2026-11-09)
 
-### Added
-- `Brief.amount` realtime quote field for stock and crypto trading amount.
+### New
 
-## [0.5.5] - 2026-08-19
+- Asset and position queries support `assetQuoteType` values `ETH`, `RTH`, and `OVERNIGHT`.
+- Asset and position subscriptions accept quote-basis options and restore them after reconnecting.
+- `buildSubscribeMessage` supports quote-basis selection.
+
+### Changed
+
+- Existing subscriptions remain compatible and retain their previous behavior when no quote basis is specified.
+
+### Fixed
+
+- HTTP User-Agent and push handshake versions match the installed SDK version.
+- ESM imports work on Node.js 16/18 without export-syntax or missing-extension errors.
+
+## 0.5.6 (2026-08-27)
+
+### New
+
+- Real-time stock and cryptocurrency quotes provide turnover through `Brief.amount`.
+
+## 0.5.5 (2026-08-19)
+
+### New
+
+- Cryptocurrency K-line and timeline responses provide fractional volume through `volumeDecimal`.
+- `getTimeline` accepts request objects with `secType` for cryptocurrency timelines while retaining symbol-list calls.
+- `getKlineByPage` supports `secType`.
+- Option quotes provide mark prices and midpoint prices.
+- Trade-tick queries support `tradeSession`, and push ticks provide readable trade-condition descriptions.
+
+### Fixed
+
+- Overnight quote fields match the service response.
+- Full-tick push messages reach `onFullTick` without changing normal `onTick` dispatch.
 
 ### Breaking
 
-- `Callbacks.onTick` now delivers decoded trade tick data instead of raw protobuf. Update handlers to read the new `PushTick` shape.
-- `FundDetailsRequest.startDate` / `endDate` now take a date string instead of a numeric timestamp. Update callers to pass `yyyy-MM-dd` strings instead of epoch ms.
+- `Callbacks.onTick` receives decoded `PushTick` data instead of raw Protobuf. Update callback handlers to use the new fields.
+- `FundDetailsRequest.startDate` and `endDate` require `yyyy-MM-dd` strings instead of numeric millisecond timestamps.
 
-### Added
-- Crypto K-line and timeline items now expose fractional volume through `volumeDecimal`.
-- `getTimeline({ symbols, secType: 'CC' })` supports crypto timelines through API v3 while retaining the existing `getTimeline(symbols)` call.
-- `getKlineByPage` now accepts and forwards `secType`.
-- `OptionLeg` now includes mark price and mid price data.
-- `TradeTickRequest` supports the optional `tradeSession` field
-- `PushTick.cond` field: raw single-character trade condition codes converted to readable strings (e.g. `US_REGULAR_SALE`, `HK_AUTOMATCH_NORMAL`)
+## 0.5.4 (2026-07-24)
 
-### Fixed
-- Corrected `QuoteOvernight` fields to match the service response
-- Routed full-tick push payloads to `onFullTick` without changing normal `onTick` dispatch
+### New
 
-## [0.5.4] - 2026-07-24
-
-### Added
-- `TradeClient` / `QuoteClient`：新增 `queryToken()` / `refreshToken()` / `startTokenAutoRefresh()` 方法，无需直接操作 `HttpClient`
-- 订单工具函数：新增 `marketOrderByAmount`、`limitOrderByAmount`、`trailOrderByPrice`、`limitOrderWithLegs`、`comboOrder`、`ocaOrder`、`contractLeg`
-- `icebergOrder` 合并可选参数（原 `icebergOrderFull` 废弃，参数后移为可选）
-- `OrderRequest` supports specifying cash amount and combo order type.
-
-### Fixed
-- token 文件（`tiger_openapi_token.properties`）与 config 文件同目录自动加载，不再依赖当前工作目录
+- `TradeClient` and `QuoteClient` expose token querying, refreshing, and automatic-refresh methods.
+- Order helpers support monetary market and limit orders, trailing-stop prices, multi-leg orders, combination orders, and OCA orders.
+- `OrderRequest` supports cash amounts and combination-order types.
 
 ### Changed
-- `SANDBOX_TIGER_PUBLIC_KEY` 导出，支持非生产环境公钥配置
 
-## [0.5.3] - 2026-07-23
+- `icebergOrder` accepts the extended optional arguments; `icebergOrderFull` is deprecated.
+- The service-public-key constant is exported for custom configuration.
 
-### Added
-- `getCorporateSymbolChange` / `getCorporateDelisting` / `getCorporateIPO` — 企业行为查询（代码变更、退市、新股上市）
-- `CorporateActionType`：新增 `SymbolChange`、`Delisting`、`IPO`
-- `SANDBOX_TIGER_PUBLIC_KEY`：导出非生产环境公钥常量
-- `TIGEROPEN_TIGER_PUBLIC_KEY` / `TIGEROPEN_SERVER_URL` / `TIGEROPEN_QUOTE_SERVER_URL` 环境变量支持，可覆盖 properties 文件默认值
-- 所有交易 Request 类型新增可选 `secretKey` 字段，支持逐接口覆盖
+### Fixed
+
+- Token files are discovered next to the configuration file independently of the working directory.
+
+## 0.5.3 (2026-07-23)
+
+### New
+
+- Corporate-action queries support symbol changes, delistings, and IPOs.
+- `CorporateActionType` includes `SymbolChange`, `Delisting`, and `IPO`.
+- A service-public-key constant and environment-variable overrides support custom key and service URL configuration.
+- Trading request types accept a per-call `secretKey`.
 
 ### Changed
-- `TradeClient`：`ClientConfig.secretKey` 自动注入所有交易请求（机构账号），per-call `secretKey` 可覆盖
 
-## [0.5.2] - 2026-07-22
+- Trading requests inherit the configured institutional secret key unless a per-call key overrides it.
 
-### Fixed
-- 修复大整数订单 ID（int64）精度丢失问题，以字符串形式保留完整精度
-- 修复 properties 配置文件续行（`\`）解析
-
-## [0.5.1] - 2026-07-13
+## 0.5.2 (2026-07-22)
 
 ### Fixed
-- `getOrder` 参数错误修正
 
-### Added
-- `getOptionChain` — 支持按 Greeks、价内外、IV、持仓量过滤期权链
-- `getOptionKline` — 支持限制返回条数和排序方向
-- `OrderRequest` — 补齐多项下单参数，支持批量分配、虚拟单、盈亏止盈止损单和多腿期权组合下单
-- `ContractLegRequest`：多腿期权子腿类型（MLEG）
+- Large 64-bit order IDs retain their precision as strings.
+- Properties files correctly parse line continuations.
 
-## [0.4.9] - 2026-07-09
+## 0.5.1 (2026-07-13)
 
-### Breaking Changes
-- `getOptionKline` 新增必填参数 `beginTime` 和 `endTime`（ms 时间戳，传 `-1` 为服务端默认值）
+### New
 
-### Added
-- `getOptionExpiration` 新增可选 `market` 参数
-- `getOptionChain` / `getOptionQuote` / `getOptionKline` 新增可选 `timezone` 参数
+- Option chains support filters for Greeks, moneyness, implied volatility, and open interest.
+- Option K-line queries support result limits and sort direction.
+- Order requests support batch allocations, virtual orders, profit/loss-based brackets, and multi-leg option orders.
+- `ContractLegRequest` represents multi-leg option legs.
 
 ### Fixed
-- 期权到期日时区错误（UTC → 本地午夜时间戳）
 
-## [0.4.8] - 2026-07-07
+- `getOrder` sends the correct parameters.
 
-### Breaking Changes
-- 行情接口多 symbol 支持：`getKline` / `getOptionExpiration` / `getOptionChain` / `getOptionKline` 参数由单 symbol 改为数组
-- `getKline` / `getKlineByPage` / `getFutureKline` / `getFutureKlineByPage` 改为 Request 对象签名
-- 删除 `getOptionBars`（重复方法，统一用 `getOptionKline`）
-- 删除 `getBars` / `getFutureBars` 及对应 Request 类型
+## 0.4.9 (2026-07-09)
 
-### Added
-- `QuoteClient.fromConfig(config)` / `TradeClient.fromConfig(config, account, secretKey?)` 工厂方法
+### New
 
-### Deprecated
-- `getBrief` → `getRealTimeQuote`
-- `getOptionBrief` → `getOptionQuote`
-- `getStockDelayBriefs` → `getDelayedQuote`
-- `getWarrantBriefs` → `getWarrantQuote`
-
-## [0.4.7] - 2026-07-03
+- `getOptionExpiration` accepts an optional market.
+- Option-chain, option-quote, and option-K-line queries accept an optional timezone.
 
 ### Fixed
-- `createClientConfig` 未读取 `secret_key`，机构账号交易接口报 `access forbidden`
 
-## [0.4.6] - 2026-06-24
+- Option expiration timestamps use local midnight instead of UTC.
 
-### Added
-- 冰山单辅助函数 `icebergOrder()`
-- `IcebergPriceType` 枚举
-- `Order` 类型补充冰山单字段
+### Breaking
 
-## [0.4.5] - 2026-06-09
+- `getOptionKline` requires `beginTime` and `endTime` in milliseconds. Pass `-1` to use the server default.
 
-### Fixed
-- `index.ts` 补全公共导出（`TradeClient` / `QuoteClient` 等之前无法直接 import）
-- ESM 构建缺少 `.js` 扩展名导致 Node.js ESM 项目报 `ERR_MODULE_NOT_FOUND`
+## 0.4.8 (2026-07-07)
 
-## [0.4.4] - 2026-06-09
+### New
 
-### Added
-- 期权行权 5 个接口：`checkOptionExercise` / `getOptionExercisePositions` / `submitOptionExercise` / `getOptionExerciseRecords` / `cancelOptionExercise`
-- 对应 Request / Result 类型
+- `QuoteClient.fromConfig` and `TradeClient.fromConfig` construct clients from configuration.
 
-## [0.4.3] - 2026-05-25
+### Changed
 
-### Added
-- Token 自动刷新：`TokenManager`、`tokenLoader` / `tokenWriter` 回调、`TIGEROPEN_TOKEN_FILE` 环境变量
-- `HttpClient.close()` / `queryToken()` / `refreshToken()` / `startTokenAutoRefresh()`
-- Push `accountSubs` 改为 `Map`，重连后自动恢复订阅
+- `getBrief`, `getOptionBrief`, `getStockDelayBriefs`, and `getWarrantBriefs` are deprecated. Use `getRealTimeQuote`, `getOptionQuote`, `getDelayedQuote`, and `getWarrantQuote`, respectively.
+
+### Breaking
+
+- `getKline`, `getOptionExpiration`, `getOptionChain`, and `getOptionKline` accept symbol arrays instead of one symbol.
+- `getKline`, `getKlineByPage`, `getFutureKline`, and `getFutureKlineByPage` require request objects.
+- `getOptionBars` is removed; use `getOptionKline`.
+- `getBars`, `getFutureBars`, and their request types are removed.
+
+## 0.4.7 (2026-07-03)
 
 ### Fixed
-- `Transaction.transactedAt` 类型修正（`number` → `string`），补充 `accountId` / `filledPrice` 等字段
-- 请求时间戳改为本地时间格式，修复部分请求签名校验失败的问题
-- 嵌套对象 key 转换修复（`orderLegs` / `algoParams` 等）
-- Token 加载优先级修正：`TIGEROPEN_TOKEN` env > `tokenLoader` > token 文件
 
-## [0.4.2] - 2026-05-12
+- `createClientConfig` reads `secret_key` correctly for institutional trading requests.
 
-### Fixed
-- `FundingHistoryItem` 字段修正（对照服务端实际响应重写）
+## 0.4.6 (2026-06-24)
 
-## [0.4.1] - 2026-05-12
+### New
 
-### Fixed
-- `getFutureTradeTicks` 响应解包修正
-- `SegmentFundHistoryItem` / `SegmentFundAvailableItem` 字段名修正
-- `getFundingHistory` 响应解析修正（服务端返回裸 list）
-- 响应签名验证：无 sign 字段时跳过
-- API 业务错误不再触发重试
-- 添加 `Connection: close` header
+- `icebergOrder` creates iceberg orders.
+- `IcebergPriceType` and iceberg-order fields are available.
 
-### Added
-- `propertiesFilePath` 支持传目录路径
-
-## [0.4.0] - 2026-05-08
-
-与 Python / Java / Go SDK 100% API 覆盖，新增约 65 个方法，重构 12 个方法签名。
-
-### Breaking Changes
-- `OrderStatus` 枚举对齐 Java SDK：移除 `PendingNew` / `PartiallyFilled`，新增 `PendingSubmit`。请改用 `PendingSubmit` 替换原有的 `PendingNew` / `PartiallyFilled` 判断逻辑
-- 8 个 Trade 方法改为 Request 对象签名：`getOrders` / `getActiveOrders` / `getInactiveOrders` / `getFilledOrders` / `getOrderTransactions` / `getPositions` / `getAssets` / `getPrimeAssets`。请将原有的位置参数调用改为传入对应的 Request 对象
-- 4 个 Quote 方法改为 Request 对象签名：`getBrief` / `getQuoteDepth` / `getTradeTick` / `getFutureRealTimeQuote`。请将原有的位置参数调用改为传入对应的 Request 对象
-
-### Added
-- Trade：`getOrder` / `getManagedAccounts` / `getDerivativeContracts` / `getAnalyticsAsset` / `getAggregateAssets` / `getEstimateTradableQuantity` / `placeForexOrder` / 资金调拨 4 个 / `getFundDetails` / `getFundingHistory` / `transferPosition` / 转股记录 3 个
-- Quote：新增 47 个方法（股票/期权/期货/基金/窝轮/行业/公司行动/财务/日历）
-- Push：`subscribeStockTop` / `subscribeOptionTop` / `subscribeCc` / `subscribeMarket` 及对应取消订阅方法
-- 枚举：`OrderSortBy` / `SegmentType` / `CorporateActionType` / `IndustryLevel` / `SortDirection` / `OptionAnalysisPeriod` / `FinancialReportPeriod`
-- `orderStatusCode()` 工具函数
+## 0.4.5 (2026-06-09)
 
 ### Fixed
-- Cc 类型行情推送不再被错误路由到其他回调
-- `Order.status` 整数自动转字符串
-- `getFutureRealTimeQuote` 参数修正
 
-## [0.3.1] - 2026-05-07
+- `TradeClient`, `QuoteClient`, and other public APIs can be imported from the package entry point.
+- Node.js ESM imports resolve relative modules correctly.
 
-### Added
-- `OrderStatusData` push message 新增 `updateTime` / `latestTime` 字段
+## 0.4.4 (2026-06-09)
 
-## [0.3.0] - 2026-05-06
+### New
 
-### Breaking Changes
-- 所有 `QuoteClient` / `TradeClient` 方法改为强类型响应，不再返回裸 `ApiResponse`。请改用返回值上的强类型字段访问数据，不再需要手动解析 `ApiResponse`
-- 请求参数统一使用 camelCase 命名，无需手动转换为 snake_case
-- `Order` 拆分为 `Order`（响应）和 `OrderRequest`（下单/改单/预览）。下单、改单、预览调用请改用 `OrderRequest` 构造参数，响应结果类型仍为 `Order`
-- 多个方法签名修正以匹配服务端契约，请对照最新方法签名更新调用代码
+- Option-exercise APIs support checks, eligible-position queries, submission, records, and cancellation with typed requests and results.
 
-### Added
-- 30+ Quote 响应类型 / 5 个 Request 类型
-- Trade 响应类型：`Asset` / `PrimeAsset` / `PreviewResult` / `PlaceOrderResult` / `Transaction` 等
-- `examples/quote-example.ts` / `examples/trade-example.ts`
+## 0.4.3 (2026-05-25)
+
+### New
+
+- Automatic token refresh supports custom loading and persistence callbacks and a configurable token file.
+- `HttpClient` exposes close, token-query, token-refresh, and automatic-refresh controls.
+- Push clients restore account subscriptions after reconnecting.
 
 ### Fixed
-- 双重编码 JSON payload 解析
-- `parseOptionIdentifier` 返回类型修正
 
-## [0.2.0] - 2026-04-30
+- Transactions use string timestamps and provide account and fill-price information.
+- Request timestamps use the correct local format for signature verification.
+- Nested order-leg and algorithm-parameter keys serialize correctly.
+- Token loading follows environment variable, callback, then file priority.
 
-- 重试策略、protobuf push 客户端、初始 trade/quote 接口
+## 0.4.2 (2026-05-12)
 
-## [0.1.0] - 2026-04-01
+### Fixed
 
-- 初始版本
+- Funding-history fields match the service response.
+
+## 0.4.1 (2026-05-12)
+
+### New
+
+- `propertiesFilePath` accepts a directory.
+
+### Changed
+
+- HTTP requests close connections after use.
+
+### Fixed
+
+- Futures ticks, segment-fund history, available funds, and funding history decode the correct response shapes.
+- Response-signature validation skips responses without a signature.
+- Business errors no longer trigger retries.
+
+## 0.4.0 (2026-05-08)
+
+### New
+
+- Added trading APIs for individual orders, managed accounts, derivative contracts, asset analytics and aggregation, tradable quantities, forex orders, funding, and position transfers.
+- Added 47 quote methods covering stocks, options, futures, funds, warrants, industries, corporate actions, financials, and calendars.
+- Push subscriptions support stock rankings, option rankings, cryptocurrency, and market status.
+- Added the corresponding models and enums, plus `orderStatusCode`.
+
+### Fixed
+
+- Cryptocurrency push messages reach the correct callbacks.
+- Integer order statuses convert to their string names.
+- Futures quote requests send the correct parameters.
+
+### Breaking
+
+- `OrderStatus` matches Java: replace `PendingNew` and `PartiallyFilled` checks with `PendingSubmit`.
+- `getOrders`, `getActiveOrders`, `getInactiveOrders`, `getFilledOrders`, `getOrderTransactions`, `getPositions`, `getAssets`, and `getPrimeAssets` require request objects instead of positional arguments.
+- `getBrief`, `getQuoteDepth`, `getTradeTick`, and `getFutureRealTimeQuote` require request objects instead of positional arguments.
+
+## 0.3.1 (2026-05-07)
+
+### New
+
+- Order-status push messages provide order-information and order-status update timestamps.
+
+## 0.3.0 (2026-05-06)
+
+### New
+
+- Added typed quote and trading responses, request models, and client examples.
+
+### Fixed
+
+- Double-encoded JSON responses parse correctly.
+- `parseOptionIdentifier` returns the correct type.
+
+### Breaking
+
+- Quote and trading methods return typed results instead of raw `ApiResponse`; access response fields directly.
+- Request properties use camelCase and no longer require manual snake_case conversion.
+- Use `OrderRequest` for placement, modification, and preview; `Order` remains the response type.
+- Several method signatures now match the service contract; update calls to the new signatures.
+
+## 0.2.0 (2026-04-30)
+
+### New
+
+- Added retries, Protobuf push connections, and initial trading and quote APIs.
+
+## 0.1.0 (2026-04-01)
+
+### New
+
+- Initial release.

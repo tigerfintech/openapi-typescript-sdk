@@ -41,7 +41,7 @@ export type { PushClientOptions, AccountSubscribeOptions } from './push';
 export type { Order, OrderRequest, ContractLegRequest } from './model/order';
 export { marketOrder, limitOrder, stopOrder, stopLimitOrder } from './model/order-helpers';
 export { normalizeOrderStatus } from './model/order-status';
-export type { Contract } from './model/contract';
+export type { Contract, OrderCapability } from './model/contract';
 export type { Position } from './model/position';
 
 // Models — trade responses
@@ -57,7 +57,7 @@ export type {
 
 // Models — trade requests
 export type {
-  OrdersRequest, GetOrderRequest, OrderTransactionsRequest,
+  ContractRequest, OrdersRequest, GetOrderRequest, OrderTransactionsRequest,
   PositionsRequest, AssetsRequest, ManagedAccountsRequest,
   DerivativeContractsRequest, AnalyticsAssetRequest, AggregateAssetsRequest,
   EstimateTradableQuantityRequest, ForexOrderRequest, SegmentFundRequest,

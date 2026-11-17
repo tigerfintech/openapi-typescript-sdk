@@ -10,6 +10,13 @@ export interface TickSize {
   type?: string;
 }
 
+/** A supported combination of order type, time in force, and trading session. */
+export interface OrderCapability {
+  orderType?: string | null;
+  timeInForce?: string | null;
+  tradingSessionType?: string | null;
+}
+
 /** Contract model (returned by contract / contracts / quoteContract / derivative queries) */
 export interface Contract {
   contractId?: number;
@@ -36,6 +43,8 @@ export interface Contract {
   isEtf?: boolean;
   supportOvernightTrading?: boolean;
   supportFractionalShare?: boolean;
+  /** Absent or null when the server provides no special capabilities. */
+  orderCapabilities?: OrderCapability[] | null;
   shortMargin?: number;
   shortInitialMargin?: number;
   shortMaintenanceMargin?: number;
