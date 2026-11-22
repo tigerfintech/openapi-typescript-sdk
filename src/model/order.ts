@@ -124,6 +124,8 @@ export interface OrderRequest {
   timeInForce: string;
   /** Allow extended-hours trading */
   outsideRth?: boolean;
+  /** Omnibus/paper trading session, e.g. PRE_RTH or RTH_POST. Omit for the server default. */
+  tradingSessionType?: string;
   /** Attached legs (profit / loss) */
   orderLegs?: OrderLegRequest[];
   /** Algo parameters */

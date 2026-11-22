@@ -35,6 +35,32 @@ describe('TradeClient', () => {
     tc = new TradeClient(mockHttpClient, testAccount);
   });
 
+  it.each(['PRE_RTH', 'RTH_POST', undefined])('place and preview preserve trading session %s', async (session) => {
+    vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({}));
+    for (const account of ['600021175417', '20220101000000001']) {
+      tc = new TradeClient(mockHttpClient, account);
+      const order: OrderRequest = {
+        symbol: 'AAPL', secType: 'OPT', action: 'BUY', orderType: 'LMT', totalQuantity: 1,
+        limitPrice: 100, timeInForce: 'DAY', outsideRth: true, tradingSessionType: session,
+      };
+      for (const method of ['placeOrder', 'previewOrder'] as const) {
+        vi.mocked(mockHttpClient.executeRequest).mockClear();
+        await tc[method](order);
+        const request = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
+        expect(request.method).toBe(method === 'placeOrder' ? 'place_order' : 'preview_order');
+        const payload = capturedBiz(mockHttpClient);
+        expect(payload.account).toBe(account);
+        expect(payload.outside_rth).toBe(true);
+        if (session === undefined) {
+          expect(payload).not.toHaveProperty('trading_session_type');
+        } else {
+          expect(payload.trading_session_type).toBe(session);
+        }
+        expect(payload).not.toHaveProperty('tradingSessionType');
+      }
+    }
+  });
+
   it('getContractV3 sends option parameters and version 3.0 and decodes a single object', async () => {
     const capabilities = [{ orderType: 'LMT', timeInForce: 'DAY', tradingSessionType: 'PRE_RTH_POST' }];
     const contract = { symbol: 'AAPL', secType: 'OPT', strike: 200, orderCapabilities: capabilities };
