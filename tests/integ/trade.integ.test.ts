@@ -105,8 +105,14 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
    * - "only limit orders are supported ... outside of regular trading hours"
    *   fires when the order itself carries an RTH-exempt flag; the server then
    *   applies extended-hours rules regardless of the regular session's state.
-   * - The TWAP/VWAP end-time window and the fractional-share RTH rule are
+   * - The TWAP/VWAP end-time window and the fractional-share session rule are
    *   order parameter constraints, saying nothing about current market state.
+   *   The fractional-share rule has one phrasing per off-RTH window: pre/post
+   *   ("Only regular trading hours supported...") and overnight ("fraction of
+   *   a share cannot be traded during the overnight session"). A cashAmount
+   *   order's quantity is computed server-side from the live quote, so the
+   *   test cannot control whether it is fractional — both phrasings must skip
+   *   unconditionally or every CI run in that window fails.
    *
    * The SDK cannot narrow these down further: no quote API exposes
    * auction-window or RTH-exempt eligibility, so an unconditional skip is the
@@ -119,6 +125,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
     /only limit, stop or stop-limit orders are allowed/i,
     /time range for the order/i,
     /Only regular trading hours supported when trading fractional shares/i,
+    /fraction of a share cannot be traded during the overnight session/i,
   ];
 
   /** Server messages we treat as legitimate skips (permission / license), unconditionally. */
