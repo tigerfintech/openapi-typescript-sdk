@@ -5,18 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
-
-### New
-
-- `OrderRequest.tradingSessionType` 新增综合/模拟账号交易时段字符串参数，下单及 preview 可传 `PRE_RTH`、`RTH_POST`；未设置时不发送该字段。
-
-## [0.5.9] - 2026-11-18
+## [0.5.9] - Unreleased
 
 ### New
 
 - 合约查询新增订单能力信息，可查看支持的订单类型、订单有效期和交易时段组合。
 - 新增 `getContractV3`，支持查询单个交易合约及期权订单能力。
+- `OrderRequest.tradingSessionType` 支持综合/模拟账号交易时段字符串参数，下单及 preview 可传 `PRE_RTH`、`RTH_POST`；未设置时不发送该字段。
 
 ## [0.5.8] - 2026-11-11
 
