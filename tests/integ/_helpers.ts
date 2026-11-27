@@ -16,6 +16,7 @@
  */
 import type { QuoteClient } from '../../src/quote/quote-client';
 import type { TradeClient } from '../../src/trade/trade-client';
+import type { OptionExercisePosition } from '../../src/model/trade';
 
 // -----------------------------------------------------------------------
 // Date helpers — shared between quote and trade integ tests
@@ -269,6 +270,17 @@ export async function resolveFilledOrderId(
   } catch { /* nothing left to try */ }
 
   return undefined;
+}
+
+/** Resolve a held contract accepted by the exercise API with at least one available option. */
+export async function resolveExercisableOptionPosition(
+  tc: Pick<TradeClient, 'getOptionExercisePositions'>,
+): Promise<OptionExercisePosition | undefined> {
+  const response = await tc.getOptionExercisePositions({ type: 'Exercise' });
+  return response?.items?.find(position =>
+    Number.isInteger(position.contractId) && (position.contractId ?? 0) > 0 &&
+    Number.isFinite(position.availableQuantity) && position.availableQuantity >= 1,
+  );
 }
 
 // -----------------------------------------------------------------------
