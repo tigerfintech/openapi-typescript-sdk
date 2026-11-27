@@ -41,6 +41,7 @@ import type {
   OptionExerciseRecordPageResult,
 } from '../model/trade';
 import type {
+  ContractRequest,
   OrdersRequest,
   GetOrderRequest,
   OrderTransactionsRequest,
@@ -137,7 +138,7 @@ export class TradeClient {
     return tokenMethods.startTokenAutoRefresh(this.httpClient, refreshDurationSecs, checkIntervalMs, tokenWriter);
   }
 
-  private async callInto<T>(method: string, bizParams: unknown): Promise<T> {
+  private async callInto<T>(method: string, bizParams: unknown, version?: string): Promise<T> {
     // Inject secretKey into every request when available (institution accounts require it).
     // Individual methods that already set secretKey will not be overwritten (|| not &&).
     let params = bizParams;
@@ -147,7 +148,7 @@ export class TradeClient {
         params = { ...p, secretKey: this.secretKey };
       }
     }
-    const request = createApiRequest(method, params);
+    const request = createApiRequest(method, params, version);
     const response = await this.httpClient.executeRequest(request);
     return unmarshalData<T>(response.data) as T;
   }
@@ -161,10 +162,23 @@ export class TradeClient {
 
   // === Contracts ===
 
+  /** Legacy API 2.0 query. Use getContractV3 for account-specific option order capabilities. */
   async getContract(symbol: string, secType: string): Promise<Contract[]> {
     return this.callIntoItems<Contract>('contract', {
       account: this.account, symbol, secType,
     });
+  }
+
+  /**
+   * Query one trading contract with API version 3.0.
+   * Returns a single object, or undefined when no contract is returned.
+   * Order capabilities are available when supplied by the account's trading service.
+   */
+  async getContractV3(req: ContractRequest): Promise<Contract | undefined> {
+    const contract = await this.callInto<Contract | null | undefined>(
+      'contract', withAccount(req, this.account), '3.0',
+    );
+    return contract ?? undefined;
   }
 
   async getContracts(symbols: string[], secType: string): Promise<Contract[]> {

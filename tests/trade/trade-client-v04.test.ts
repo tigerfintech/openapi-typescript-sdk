@@ -267,18 +267,19 @@ describe('TradeClient v0.4.0 additional methods', () => {
   });
 
   describe('Option exercise', () => {
-    it('checkOptionExercise fills account', async () => {
+    it('checkOptionExercise fills account and sends quantity', async () => {
       vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({
         availableQuantity: 100, position: 100, stkPosition: 0,
         stkPositionChange: 100, stkPositionBefore: 0, stkPositionAfter: 100,
       }));
       const result = await tc.checkOptionExercise({
-        contractId: 123, type: 'Exercise',
+        contractId: 123, type: 'Exercise', quantity: 1,
       });
       expect(result?.availableQuantity).toBe(100);
       const biz = capturedBiz(mockHttpClient);
       expect(biz.account).toBe(testAccount);
       expect(biz.contract_id).toBe(123);
+      expect(biz.quantity).toBe(1);
       expect(capturedMethod(mockHttpClient)).toBe('option_exercise_check');
     });
 

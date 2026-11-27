@@ -6,6 +6,8 @@ import { TradeClient } from '../../src/trade/trade-client';
 import type { HttpClient } from '../../src/client/http-client';
 import { parseApiResponse, type ApiResponse } from '../../src/client/api-response';
 import type { OrderRequest } from '../../src/model/order';
+import type { ContractRequest, OrderCapability } from '../../src';
+import { TigerError } from '../../src/client/errors';
 
 function createMockHttpClient() {
   return {
@@ -31,6 +33,124 @@ describe('TradeClient', () => {
   beforeEach(() => {
     mockHttpClient = createMockHttpClient();
     tc = new TradeClient(mockHttpClient, testAccount);
+  });
+
+  it.each(['PRE_RTH', 'RTH_POST', undefined])('place and preview preserve trading session %s', async (session) => {
+    vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({}));
+    for (const account of ['600021175417', '20220101000000001']) {
+      tc = new TradeClient(mockHttpClient, account);
+      const order: OrderRequest = {
+        symbol: 'AAPL', secType: 'OPT', action: 'BUY', orderType: 'LMT', totalQuantity: 1,
+        limitPrice: 100, timeInForce: 'DAY', outsideRth: true, tradingSessionType: session,
+      };
+      for (const method of ['placeOrder', 'previewOrder'] as const) {
+        vi.mocked(mockHttpClient.executeRequest).mockClear();
+        await tc[method](order);
+        const request = vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0];
+        expect(request.method).toBe(method === 'placeOrder' ? 'place_order' : 'preview_order');
+        const payload = capturedBiz(mockHttpClient);
+        expect(payload.account).toBe(account);
+        expect(payload.outside_rth).toBe(true);
+        if (session === undefined) {
+          expect(payload).not.toHaveProperty('trading_session_type');
+        } else {
+          expect(payload.trading_session_type).toBe(session);
+        }
+        expect(payload).not.toHaveProperty('tradingSessionType');
+      }
+    }
+  });
+
+  it('getContractV3 sends option parameters and version 3.0 and decodes a single object', async () => {
+    const capabilities = [{ orderType: 'LMT', timeInForce: 'DAY', tradingSessionType: 'PRE_RTH_POST' }];
+    const contract = { symbol: 'AAPL', secType: 'OPT', strike: 200, orderCapabilities: capabilities };
+    vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(contract));
+    tc = new TradeClient(mockHttpClient, testAccount, 'default-secret');
+    const request: ContractRequest = {
+      symbol: 'AAPL', secType: 'OPT', currency: 'USD', exchange: 'SMART',
+      expiry: '20270115', strike: 200, right: 'CALL', lang: 'en_US',
+    };
+
+    const result = await tc.getContractV3(request);
+
+    expect(result).toEqual(contract);
+    expect(result?.orderCapabilities).toEqual(capabilities);
+    expect(vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0]).toMatchObject({
+      method: 'contract', version: '3.0',
+    });
+    expect(capturedBiz(mockHttpClient)).toEqual({
+      account: testAccount, secret_key: 'default-secret', symbol: 'AAPL', sec_type: 'OPT',
+      currency: 'USD', exchange: 'SMART', expiry: '20270115', strike: 200, right: 'CALL', lang: 'en_US',
+    });
+    expect(request).not.toHaveProperty('account');
+    expect(request).not.toHaveProperty('secretKey');
+  });
+
+  it('getContractV3 preserves explicit account, secret key, and zero strike', async () => {
+    vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ symbol: 'AAPL', secType: 'OPT' }));
+    tc = new TradeClient(mockHttpClient, testAccount, 'default-secret');
+    await tc.getContractV3({
+      account: 'other-account', secretKey: 'override-secret', symbol: 'AAPL', secType: 'OPT',
+      expiry: '20270115', strike: 0, right: 'PUT',
+    });
+    expect(capturedBiz(mockHttpClient)).toEqual({
+      account: 'other-account', secret_key: 'override-secret', symbol: 'AAPL', sec_type: 'OPT',
+      expiry: '20270115', strike: 0, right: 'PUT',
+    });
+  });
+
+  it('getContractV3 accepts a JSON-encoded single object and omits unset parameters', async () => {
+    const contract = { symbol: 'AAPL', secType: 'STK', orderCapabilities: [] };
+    vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(JSON.stringify(contract)));
+    expect(await tc.getContractV3({ symbol: 'AAPL', secType: 'STK', account: '' })).toEqual(contract);
+    expect(capturedBiz(mockHttpClient)).toEqual({ account: testAccount, symbol: 'AAPL', sec_type: 'STK' });
+  });
+
+  it.each([undefined, null, 'null'])('getContractV3 returns undefined for absent data: %s', async (data) => {
+    vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse(data));
+    expect(await tc.getContractV3({ symbol: 'AAPL', secType: 'STK' })).toBeUndefined();
+  });
+
+  it('getContractV3 propagates API errors', async () => {
+    const error = new TigerError(1200, 'missing option parameters');
+    vi.mocked(mockHttpClient.executeRequest).mockRejectedValue(error);
+    await expect(tc.getContractV3({ symbol: 'AAPL', secType: 'OPT' })).rejects.toBe(error);
+  });
+
+  it('keeps the legacy getContract request and list response compatible', async () => {
+    const contract = { symbol: 'AAPL', secType: 'STK' };
+    vi.mocked(mockHttpClient.executeRequest).mockResolvedValue(successResponse({ items: [contract] }));
+    expect(await tc.getContract('AAPL', 'STK')).toEqual([contract]);
+    expect(vi.mocked(mockHttpClient.executeRequest).mock.calls[0][0].version).toBeUndefined();
+  });
+
+  it('preserves order capabilities in single and batch contract queries', async () => {
+    const capabilities: OrderCapability[] = [
+      { orderType: 'LMT', timeInForce: 'DAY', tradingSessionType: 'PRE_RTH_POST' },
+      { orderType: 'LMT', timeInForce: 'GTC', tradingSessionType: 'PRE_RTH_POST' },
+    ];
+    const contract = { symbol: 'AAPL', secType: 'STK', orderCapabilities: capabilities };
+    vi.mocked(mockHttpClient.executeRequest)
+      .mockResolvedValueOnce(successResponse(contract))
+      .mockResolvedValueOnce(successResponse({ items: [contract] }));
+    const single = await tc.getContractV3({ symbol: 'AAPL', secType: 'STK' });
+    const batch = await tc.getContracts(['AAPL'], 'STK');
+    expect(single?.orderCapabilities).toEqual(capabilities);
+    expect(batch[0].orderCapabilities).toEqual(capabilities);
+    expect(Object.keys(single!.orderCapabilities![0])).toEqual([
+      'orderType', 'timeInForce', 'tradingSessionType',
+    ]);
+  });
+
+  it.each([undefined, null, []])('preserves optional order capabilities: %s', async (capabilities) => {
+    const contract = { symbol: 'AAPL', secType: 'STK', ...(capabilities === undefined ? {} : { orderCapabilities: capabilities }) };
+    vi.mocked(mockHttpClient.executeRequest)
+      .mockResolvedValueOnce(successResponse(contract))
+      .mockResolvedValueOnce(successResponse({ items: [contract] }));
+    const single = await tc.getContractV3({ symbol: 'AAPL', secType: 'STK' });
+    const batch = await tc.getContracts(['AAPL'], 'STK');
+    expect(single?.orderCapabilities).toEqual(capabilities);
+    expect(batch[0].orderCapabilities).toEqual(capabilities);
   });
 
   describe('合约查询方法', () => {

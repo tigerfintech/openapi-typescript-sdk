@@ -52,6 +52,13 @@ async function main() {
 
   console.log('=== Contract queries ===');
   try {
+    const contract = await tc.getContractV3({ symbol: 'AAPL', secType: 'STK' });
+    ok('getContractV3(AAPL, STK)', contract
+      ? `${contract.symbol} orderCapabilities=${JSON.stringify(contract.orderCapabilities ?? null)}`
+      : '(no contract)');
+  } catch (e) { fail('getContractV3(AAPL, STK)', e); }
+
+  try {
     const cs = await tc.getContract('AAPL', 'STK');
     ok('getContract(AAPL, STK)',
       cs.length > 0 ? `${cs[0].symbol} contractId=${cs[0].contractId ?? 0} exchange=${cs[0].primaryExchange ?? ''}` : '(empty)');

@@ -168,6 +168,19 @@ const exchanges = await qc.futureExchange();
 
 ## Trading
 
+Use `getContractV3` to query one trading contract with API version 3.0. Options require the underlying symbol, expiry, strike, and right. The result is a single contract or `undefined` when absent. `orderCapabilities` is available when returned by the account's trading service. The legacy `getContract(symbol, secType)` keeps its API 2.0 list response.
+
+```typescript
+import { TradeClient, type ContractRequest } from '@tigeropenapi/tigeropen';
+
+const trade = TradeClient.fromConfig(config, config.account, config.secretKey);
+const request: ContractRequest = {
+  symbol: 'AAPL', secType: 'OPT', expiry: '20270115', strike: 200, right: 'CALL',
+};
+const contract = await trade.getContractV3(request);
+console.log(contract?.orderCapabilities);
+```
+
 ```typescript
 import { HttpClient } from '@tigeropenapi/tigeropen/client/http-client';
 import { TradeClient } from '@tigeropenapi/tigeropen/trade/trade-client';

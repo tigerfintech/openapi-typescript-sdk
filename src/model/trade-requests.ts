@@ -10,6 +10,24 @@
  * 参考 Go SDK model/trade_requests.go。
  */
 
+/** Single-contract query using API version 3.0. */
+export interface ContractRequest {
+  account?: string;
+  /** Overrides the client's institution secret key when provided. */
+  secretKey?: string;
+  symbol: string;
+  secType: string;
+  currency?: string;
+  exchange?: string;
+  /** Required for OPT, WAR, and IOPT, for example YYYYMMDD. */
+  expiry?: string;
+  /** Required for OPT, WAR, and IOPT. */
+  strike?: number;
+  /** CALL or PUT; required for OPT, WAR, and IOPT. */
+  right?: string;
+  lang?: string;
+}
+
 export interface OrdersRequest {
   account?: string;
   /** Institution account secret key. Overrides the default set in ClientConfig; omit to use the config default. */
@@ -271,6 +289,7 @@ export interface OptionExerciseCheckRequest {
   contractId: number;
   /** Exercise | Expire */
   type: string;
+  /** Required when type is Exercise; the server does not default the quantity. */
   quantity?: number;
   /** yyyy-MM-dd，Exercise 类型建议填 */
   executingDate?: string;
