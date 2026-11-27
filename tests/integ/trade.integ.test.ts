@@ -643,6 +643,7 @@ describe.skipIf(!shouldRun())('TradeClient integration tests', () => {
         const data = await tc.checkOptionExercise({
           contractId: optionContractId,
           type: 'Exercise',
+          quantity: 1,
         });
         expect(data === undefined || data === null || typeof data === 'object').toBe(true);
       } catch (err: unknown) {

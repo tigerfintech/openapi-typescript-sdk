@@ -289,6 +289,7 @@ export interface OptionExerciseCheckRequest {
   contractId: number;
   /** Exercise | Expire */
   type: string;
+  /** Required when type is Exercise; the server does not default the quantity. */
   quantity?: number;
   /** yyyy-MM-dd，Exercise 类型建议填 */
   executingDate?: string;
